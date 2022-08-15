@@ -113,7 +113,7 @@ end
  
 function getFrequencies(y, jump=10, nS=10000)
     #fft sample rate: 1 sample per 5 minutes
-    y = y[0::jump]
+    #y = y[0::jump]
     res = abs(rfft(y))
     #normalize the amplitudes
     res = res/cld(nS, 2) #smallest integer larger than or equal to. Rounding up
@@ -133,5 +133,8 @@ function costTwo(Y)
 end
 
 ## try the cost function 
-costTwo(osol)
+costTwo(Array(osol))
 
+getFrequencies(Array(osol))
+
+Array(osol)
