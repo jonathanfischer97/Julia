@@ -133,5 +133,8 @@ function costTwo(Y)
 end
 
 ## try the cost function 
-costTwo(osol)
+costTwo(Array(osol))
 
+getFrequencies(Array(osol))
+
+Array(osol)
