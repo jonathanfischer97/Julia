@@ -29,20 +29,82 @@ rn = @reaction_network begin
     kcat7, LpAPLp --> L+LpAP 
 end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka5 kb5 kcat5 ka6 kb6 kcat6 ka7 kb7 kcat7 
 
-y = 608.5222549026549
+y = 750 #608.5222549026549
 
 
-p = [:ka1 => 0.5399439956871153, :kb1 => 32.49731125365913, :kcat1 => 459.0713154241908, :ka2 => 0.6703697205723796, :kb2 => 98.55386776137301, :ka3 => 66.94761309866233, :kb3 => 187.88476784879947,
-    :ka4 => 0.732829082837601, :kb4 => 0.5932803922080772, :ka5 => 0.8833353263653272, :kb5 => 79.8349667706061, :kcat5 => 98.51067194455857, :ka6 => 0.5399439956871153*y, :kb6 => 32.49731125365913,
-    :kcat6 => 459.0713154241908, :ka7 => 0.8833353263653272*y, :kb7 => 79.8349667706061, :kcat7 => 98.51067194455857]
+p = [:ka1 => 0.05485309578515125, :kb1 => 19.774627209108715, :kcat1 => 240.99536193310848, 
+    :ka2 => 1.0, :kb2 => 0.9504699043910143, 
+    :ka3 => 41.04322510426121, :kb3 => 192.86642772763489,
+    :ka4 => 0.19184180144850807, :kb4 => 0.12960624157489123, 
+    :ka5 => 0.6179131289475834, :kb5 => 3.3890271820244195, :kcat5 => 4.622923709012232, 
+    :ka6 => 0.05485309578515125*y, :kb6 => 19.774627209108715, :kcat6 => 240.99536193310848, 
+    :ka7 => 0.6179131289475834*y, :kb7 => 3.3890271820244195, :kcat7 => 4.622923709012232]
 
 tspan = (0., 100.)
 
-u0 = [:L => 8.973816043747753, :Lp => 0., :K => 0.6170991018130821, :P => 0.7934153177539267, :LK => 0., :A => 2.6856696379362606, :LpA => 0., :LpAK => 0., :LpAP => 0., :LpAPLp => 0., :LpAKL => 0., :LpP => 0.]
+u0 = [:L => 0., :Lp => 3.0, :K => 0.2, :P => 0.3, :LK => 0., :A => 0.6, :LpA => 0., :LpAK => 0., :LpAP => 0., :LpAPLp => 0., :LpAKL => 0., :LpP => 0.]
 
 #solve ODEs 
 oprob = ODEProblem(rn, u0, tspan, p)
 osol = solve(oprob, Tsit5())
+#plot(osol)
+
+
+
+
+## COST FUNCTION 
+function getDif(indexes, arrayData)
+    arrLen = length(indexes)
+    sum = 0
+    for (i, ind) in enumerate(indexes)
+        if i == arrLen - 1
+            break 
+        end
+        sum += arrayData[ind] - arrayData[indexes[i+1]]
+    end
+    sum += arrayData[indexes[end]] #not sure if i need "indexes[end]" to be a list
+end
+    
+function getSTD(indexes, arrayData, window)
+    numPeaks = length(indexes)
+    arrLen = length(arrayData)
+    sum = 0
+    for ind in indexes 
+        minInd = max(1, ind - window)
+        maxInd = min(arrLen, ind+window)
+        sum += std(arrayData[minInd:maxInd])
+    end
+    sum = sum/numPeaks 
+end
+ 
+function getFrequencies(y, jump=1, nS=1000)
+    #fft sample rate: 1 sample per 5 minutes
+    y = y[1:jump:end]
+    res = broadcast(abs,rfft(y))
+    #normalize the amplitudes
+    res = res/cld(nS, 2) #smallest integer larger than or equal to. Rounding up
+end
+
+function costTwo(Y)
+    p1 = Y[1,:]
+    fftData = getFrequencies(p1)
+
+    indexes = maxima(fftData) 
+    if length(indexes) == 0
+        return 0
+    end
+    std = getSTD(indexes, fftData, 1)
+    diff = getDif(indexes, fftData)
+    std + diff
+end
+
+## try the cost function 
+costTwo(Array(osol))
+
+getFrequencies(osol[1,:])
+
+
+
 
 species(rn)
 
@@ -84,57 +146,3 @@ sols = real_solutions(as_polynomial((f, x...) -> HomotopyContinuation.solve(coll
 #deficiency
 lcs = linkageclasses(rn)
 deficiency(rn)
-
-
-## COST FUNCTION 
-function getDif(indexes, arrayData)
-    arrLen = length(indexes)
-    sum = 0
-    for (i, ind) in enumerate(indexes)
-        if i == arrLen - 1
-            break 
-        end
-        sum += arrayData[ind] - arrayData[indexes[i+1]]
-    end
-    sum += arrayData[indexes[end]] #not sure if i need "indexes[end]" to be a list
-end
-    
-function getSTD(indexes, arrayData, window)
-    numPeaks = length(indexes)
-    arrLen = length(arrayData)
-    sum = 0
-    for ind in indexes 
-        minInd = max(0, ind - window)
-        maxInd = min(arrLen, ind+window)
-        sum += std(arrayData[minInd:maxInd])
-    end
-    sum = sum/numPeaks 
-end
- 
-function getFrequencies(y, jump=10, nS=10000)
-    #fft sample rate: 1 sample per 5 minutes
-    y = y[1:jump:end]
-    res = broadcast(abs,rfft(y))
-    #normalize the amplitudes
-    res = res/cld(nS, 2) #smallest integer larger than or equal to. Rounding up
-end
-
-function costTwo(Y)
-    p1 = Y[:,5]
-    fftData = getFrequencies(p1)
-
-    indexes = maxima(fftData) 
-    if length(indexes) == 0
-        return 0
-    end
-    std = getSTD(indexes, fftData, 1)
-    diff = getDif(indexes, fftData)
-    cost = std + diff
-end
-
-## try the cost function 
-costTwo(Array(osol))
-
-getFrequencies(Array(osol))
-
-Array(osol)
