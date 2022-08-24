@@ -1,17 +1,18 @@
 using DifferentialEquations
 using Plots
-using Distributed
+#using Distributed
 using Catalyst
 using DiffEqFlux, Flux
 using ForwardDiff
+using ReverseDiff
+using Zygote
 using Statistics 
 using FFTW
 using Peaks
 using PyCall
-np = pyimport("numpy")
-peak = pyimport("peakutils")
-#using ModelingToolkit
-#using Graphviz_jll
+#np = pyimport("numpy")
+#peak = pyimport("peakutils")
+
 
 rn = @reaction_network begin
     ka1, L+K --> LK
@@ -60,7 +61,7 @@ u0 = [0., 3.0, 0.2, 0.3, 0., 0.6, 0., 0., 0., 0., 0., 0.]
 
 tspan = (0., 100.)
 #solve ODEs 
-oprob = ODEProblem(rn, u0, tspan, p)
+oprob = ODEProblem{false}(rn, u0, tspan, p)
 osol = solve(oprob, Tsit5())
 #plot(osol)
 
@@ -119,7 +120,7 @@ end
 estimate = optimize([0.,3.,0.2,0.3,0.,0.6,0.,0.,0.,0.,0.,0.],10.).minimizer
 
 #worked but returned all NaN
-du01,dp1 = Zygote.gradient((u0,p)->sum(solve(oprob,Tsit5(),u0=u0,p=p,saveat=0.1,sensealg=ReverseDiffAdjoint())),u0,p)
+du01,dp1 = gradient((u0,p)->sum(solve(oprob,Tsit5(),u0=u0,p=p,saveat=0.1,sensealg=ReverseDiffAdjoint())),u0,p)
 
 #didn't work
 ForwardSensitivity(oprob, u0, tspan, p)
@@ -129,8 +130,10 @@ forwardprob = ODEForwardSensitivityProblem(oprob, u0, tspan, p)
 
 
 
-## try the cost function 
-costTwo(osol)
+
+
+
+
 
 
 brusselator = @reaction_network begin
