@@ -2,9 +2,14 @@ using DifferentialEquations
 using Plots
 using Distributed
 using Catalyst
+using DiffEqFlux, Flux
+using ForwardDiff
 using Statistics 
 using FFTW
 using Peaks
+using PyCall
+np = pyimport("numpy")
+peak = pyimport("peakutils")
 #using ModelingToolkit
 #using Graphviz_jll
 
@@ -40,16 +45,24 @@ p = [:ka1 => 0.05485309578515125, :kb1 => 19.774627209108715, :kcat1 => 240.9953
     :ka6 => 0.05485309578515125*y, :kb6 => 19.774627209108715, :kcat6 => 240.99536193310848, 
     :ka7 => 0.6179131289475834*y, :kb7 => 3.3890271820244195, :kcat7 => 4.622923709012232]
 
-tspan = (0., 100.)
+
+p = [0.05485309578515125, 19.774627209108715, 240.99536193310848, 
+    1.0, 0.9504699043910143, 
+    41.04322510426121, 192.86642772763489,
+    0.19184180144850807, 0.12960624157489123, 
+    0.6179131289475834, 3.3890271820244195, 4.622923709012232, 
+    41.13982183886343, 19.774627209108715, 240.99536193310848, 
+    463.43484671068757, 3.3890271820244195, 4.622923709012232]
 
 u0 = [:L => 0., :Lp => 3.0, :K => 0.2, :P => 0.3, :LK => 0., :A => 0.6, :LpA => 0., :LpAK => 0., :LpAP => 0., :LpAPLp => 0., :LpAKL => 0., :LpP => 0.]
 
+u0 = [0., 3.0, 0.2, 0.3, 0., 0.6, 0., 0., 0., 0., 0., 0.]
+
+tspan = (0., 100.)
 #solve ODEs 
 oprob = ODEProblem(rn, u0, tspan, p)
 osol = solve(oprob, Tsit5())
 #plot(osol)
-
-
 
 
 ## COST FUNCTION 
@@ -85,27 +98,75 @@ function getFrequencies(y, jump=1, nS=1000)
     res = res/cld(nS, 2) #smallest integer larger than or equal to. Rounding up
 end
 
-function costTwo(Y)
-    p1 = Y[1,:]
-    fftData = getFrequencies(p1)
+function optimize(init,tend)
+    function costTwo(y)
+        Y = solve(remake(oprob, tspan = (0.,tend), p = y), Tsit5())
+        p1 = Y[1,:]
+        fftData = getFrequencies(p1)
 
-    indexes = maxima(fftData) 
-    if length(indexes) == 0
-        return 0
+        indexes, _ = findmaxima(fftData) 
+        if length(indexes) == 0
+            return 0
+        end
+        std = getSTD(indexes, fftData, 1)
+        diff = getDif(indexes, fftData)
+        std + diff
     end
-    std = getSTD(indexes, fftData, 1)
-    diff = getDif(indexes, fftData)
-    std + diff
+    return DiffEqFlux.sciml_train(costTwo,init,ADAM(0.1),maxiters = 100)
 end
 
+#didn't work
+estimate = optimize([0.,3.,0.2,0.3,0.,0.6,0.,0.,0.,0.,0.,0.],10.).minimizer
+
+#worked but returned all NaN
+du01,dp1 = Zygote.gradient((u0,p)->sum(solve(oprob,Tsit5(),u0=u0,p=p,saveat=0.1,sensealg=ReverseDiffAdjoint())),u0,p)
+
+#didn't work
+ForwardSensitivity(oprob, u0, tspan, p)
+
+#didn't work
+forwardprob = ODEForwardSensitivityProblem(oprob, u0, tspan, p)
+
+
+
 ## try the cost function 
-costTwo(Array(osol))
-
-getFrequencies(osol[1,:])
+costTwo(osol)
 
 
+brusselator = @reaction_network begin
+    A, ∅ → X
+    1, 2X + Y → 3X
+    B, X → Y
+    1, X → ∅
+end A B
+p_real = [1., 2.]
+
+u0 = [1.0, 1.0]
+tspan = (0.0, 30.0)
+
+sample_times = range(tspan[1],stop=tspan[2],length=100)
+prob = ODEProblem(brusselator, u0, tspan, p_real)
+sol_real = solve(prob, Rosenbrock23(), tstops=sample_times)
+
+sample_vals = [sol_real.u[findfirst(sol_real.t .>= ts)][var] * (1+(0.1rand()-0.05)) for var in 1:2, ts in sample_times];
+
+function optimise_p(p_init,tend)
+    function loss(p)
+        sol = solve(remake(prob,tspan=(0.,tend),p=p), Rosenbrock23(), tstops=sample_times)
+        vals = hcat(map(ts -> sol.u[findfirst(sol.t .>= ts)], sample_times[1:findlast(sample_times .<= tend)])...)    
+        loss = sum(abs2, vals .- sample_vals[:,1:size(vals)[2]])   
+        return loss, sol
+    end
+    return DiffEqFlux.sciml_train(loss,p_init,ADAM(0.1),maxiters = 100)
+end
+
+p_estimate = optimise_p([5.,5.],10.).minimizer
 
 
+
+
+
+#MISCALANEOUS
 species(rn)
 
 ## for bifurcation analysis
