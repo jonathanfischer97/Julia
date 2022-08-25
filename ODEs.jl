@@ -9,6 +9,7 @@ using Zygote
 using Statistics 
 using FFTW
 using Peaks
+using Findpeaks
 using PyCall
 #np = pyimport("numpy")
 #peak = pyimport("peakutils")
@@ -109,13 +110,40 @@ function costTwo(y)
     return std + diff
 end
 
+#homemade peakfinder
+function findlocalmaxima(signal::Vector)
+    inds = Int[]
+    buff = Zygote.Buffer(inds)
+    if length(signal)>1
+        if signal[1]>signal[2]
+            push!(buff,1)
+        end
+        for i=2:length(signal)-1
+            if signal[i-1]<signal[i]>signal[i+1]
+                push!(buff,i)
+            end
+        end
+        if signal[end]>signal[end-1]
+            push!(buff,length(signal))
+        end
+    end
+    return copy(buff)
+  end
+
 function testcost(p)
     Y = Array(solve(prob, tspan = (0., 100.), p = p, Tsit5()))
     p1 = Y[1,:]
-    fftData = getFrequencies1(p1)
-    indexes = Tuple(findlocalmaxima(fftData))
-    x = indexes[1]
-    Tuple(x)[1]
+    #fftData = getFrequencies1(p1)
+    indexes = findlocalmaxima(p1)[1]
+    if length(indexes) == 0
+        return 0
+    end
+    std = getSTD(indexes, fftData, 1)
+    diff = getDif(indexes, fftData)
+    return std + diff
+    #indexes[1]
+    #Tuple(x)[1]
+    
 end
 
 dcostTwo = Zygote.gradient(testcost, p)
