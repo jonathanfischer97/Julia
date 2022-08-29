@@ -142,14 +142,14 @@ function findlocalmaxima(signal::Vector)
 function testcost(p)
     Y = Array(solve(prob, tspan = (0., 100.), p = p, Tsit5()))
     p1 = Y[1,:]
-    #fftData = getFrequencies1(p1)
-    indexes = findlocalmaxima(p1)[1]
+    fftData = getFrequencies1(p1)
+    indexes = findlocalmaxima(fftData)[1]
     if length(indexes) == 0
         return 0
     end
-    std = getSTD(indexes, p1, 1)
-    #diff = getDif(indexes, p1) #PROBLEM
-    return std #+ diff
+    std = getSTD(indexes, fftData, 1)
+    diff = getDif(indexes, fftData) #PROBLEM, BoundsError. Try a different param combo
+    return std + diff
     #indexes[1]
     #Tuple(x)[1]
     
