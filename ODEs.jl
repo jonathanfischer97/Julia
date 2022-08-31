@@ -54,7 +54,7 @@ tspan = (0., 100.)
 
 #construct ODE problem from constructor, {false} means out of place 
 
-prob = ODEProblem{false}(my_ode_solver,u0,tspan,p)
+prob = ODEProblem(my_ode_solver,u0,tspan,p)
 
 sol = solve(prob, Tsit5()) #solve with non-stiff Tsit5 alg
 plot(sol) #time series plot example
@@ -165,7 +165,7 @@ dcostTwo = Zygote.gradient(testcost, p)
 #IGNORE 
 function optimize(p_init,tend)
     function testcost(p)
-        Y = Array(solve(remake(prob, tspan = (0., tend), p=p), Tsit5()))
+        Y = solve(remake(prob, tspan = (0., tend), p=p), Tsit5())
         p1 = Y[1,:]
         fftData = getFrequencies1(p1)
         try 
@@ -179,13 +179,23 @@ function optimize(p_init,tend)
         end
         std = getSTD(indexes, fftData, 1)
         diff = getDif(indexes, fftData)
-        return -(std + diff)
+        -(std + diff)
     end
     return DiffEqFlux.sciml_train(testcost,p_init,ADAM(0.1),maxiters = 100)
 end
 
 #Works, but AD doesn't apparently, used numerical differentaiton 
-estimate = optimize([0.,3.,0.2,0.3,0.,0.6,0.,0.,0.,0.,0.,0.,0.],10.).minimizer
+estimate = optimize([0.05485309578515125, 19.774627209108715, 240.99536193310848, 
+1.0, 0.9504699043910143, 
+41.04322510426121, 192.86642772763489,
+0.19184180144850807, 0.12960624157489123, 
+0.6179131289475834, 3.3890271820244195, 4.622923709012232,750],10.).minimizer
+
+plot(solve(remake(prob, tspan = (0., 100), p = p)))
+
+estimate2 = optimize(estimate,20.).minimizer
+plot(solve(remake(prob, tspan = (0., 100), p = estimate2)))
+
 i_sol = solve(prob)
 
 #worked but returned all NaN
