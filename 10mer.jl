@@ -38,8 +38,8 @@ elseif i==2
 end
 
 # state variables are X, pars stores rate parameters for each rx
-@parameters t
-@variables k[1:nr]  (X(t))[1:N]
+@parameters k[1:nr]
+@variables t (X(t))[1:N]
 pars = Pair.(collect(k), kv)
 
 # time-span
@@ -51,7 +51,7 @@ end
 
  # initial condition of monomers
 u₀    = zeros(Int64, N)
-u₀[1] = uₒ
+u₀[1] = 0 #uₒ
 u₀map = Pair.(collect(X), u₀)   # map variable to its initial value
 
 # vector to store the Reactions in
@@ -68,7 +68,8 @@ basern = @reaction_network rn1 begin
     (ka6,kb6), LpA + P <--> LpAP 
     (ka5*y,kb5), Lp + LpAP <--> LpAPLp
     kcat5, LpAPLp --> L + LpAP 
-end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka5 kb5 kcat5 ka6 kb6 y 
+    (ka7,kb7), LpA + T <--> LpAT 
+end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka5 kb5 kcat5 ka6 kb6 ka7 kb7 y 
 
 # function make_reaction(; R, P, k, name)
 #     @reaction_network $name begin
@@ -76,54 +77,86 @@ end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka5 kb5 kcat5 ka6 kb6 y
 #     end $k
 # end
 
+rx = []
 for n = 1:nr
     kon = k[n]
+    println(kon)
+
     # for clusters of the same size, double the rate
     if (vᵢ[n] == vⱼ[n])
         # println("hi")x
-        newrn = @reaction_network :$(n) begin
-            kon, 2*$(X[vᵢ[n]])  --> $(X[sum_vᵢvⱼ[n]])
-        end
+        # newrn = @reaction_network :$(n) begin
+        #     k[n], 2*$(X[vᵢ[n]])  --> $(X[sum_vᵢvⱼ[n]])
+        # end k[n]
 
-        basern = compose(basern, newrn)
-        # push!(rx, Reaction(k[n], [X[vᵢ[n]]], [X[sum_vᵢvⱼ[n]]], [2], [1]))
+        # basern = compose(basern, newrn)
+        push!(rx, Reaction(k[n], [X[vᵢ[n]]], [X[sum_vᵢvⱼ[n]]], [2], [1]))
     else
-        newrn = @reaction_network :$(n) begin
-            kon, $(X[vᵢ[n]]) + $(X[vⱼ[n]]) --> $(X[sum_vᵢvⱼ[n]])
-        end
+        # newrn = @reaction_network :$(n) begin
+        #     k[n], $(X[vᵢ[n]]) + $(X[vⱼ[n]]) --> $(X[sum_vᵢvⱼ[n]])
+        # end k[n]
 
-        basern = compose(basern, newrn)
+        # basern = compose(basern, newrn)
 
-        # push!(rx, Reaction(k[n], [X[vᵢ[n]], X[vⱼ[n]]], [X[sum_vᵢvⱼ[n]]],
-        #                    [1, 1], [1]))
+        push!(rx, Reaction(k[n], [X[vᵢ[n]], X[vⱼ[n]]], [X[sum_vᵢvⱼ[n]]],
+                           [1, 1], [1]))
     end
 end
 
+
 basern
-# @named rs = ReactionSystem(rx, t, collect(X), collect(k))
+@named rs = ReactionSystem(rx, t, collect(X), collect(k))
+
+basern = compose(basern,rs)
 
 #parameter list
 p = [0.47375415262252124, 70.82403936369272, 300.346311110198, 0.624675949351274, 10, 0.001249351898702548, 
-    70, 0.03748055696107644, 500, 10, 0.0624675949351274, 50, 1500.0]
+    70, 0.03748055696107644, 500, 10, 0.0624675949351274, 50, 0.1, 70, 0.4, 100, 1500.0]
 
 #initial condition list
-u0 = [200., 50., 100., 0., 150., 0., 0., 0., 100., 0., 0., 0.]
+u0 = [200, 50, 100, 0, 150, 0, 0, 0, 100, 0, 0, 0, 500, 500, 2000]
 
 ##REACTION NETWORK
-@variables ka1 kb2 kcat1 ka2 kb2 ka3 kb3 ka5 kb5 kcat5 ka6 kb6 ka7 kb7 y
-param_symbols = [ka1, kb2, kcat1, ka2, kb2, ka3, kb3, ka5, kb5, kcat5, ka6, kb6, ka7, kb7, y]
+oldparams = @parameters ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka5 kb5 kcat5 ka6 kb6 ka7 kb7 ka8 kb8 y
+# param_symbols = [ka1, kb2, kcat1, ka2, kb2, ka3, kb3, ka5, kb5, kcat5, ka6, kb6, ka7, kb7, y]
 # param_symbols = [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka5,:kb5,:kcat5,:ka6,:kb6,:ka7,:kb7,:y]
-pmap = [x[1] => x[2] for x in zip(param_symbols,p)]
+# pmap = [x[1] => x[2] for x in zip(param_symbols,p)]
+pmap = [x => y for (x,y) in zip(oldparams,p)]
+pars = [rs.k[n] => kvval for (n,kvval) in zip(1:25,kv)]
+pars = [x[1] => 1. for x in pars]
 push!(pmap,pars...)
 
-@variables L Lp K LK A LpA LpAK LpAKL P LpP LpAP LpAPLp T LpAT
-u_symbols = [L, Lp, K, LK, A, LpA, LpAK, LpAKL, P, LpP, LpAP, LpAPLp, T, LpAT]
-umap = [y[1] => y[2] for y in zip(u_symbols,u0)]
+oldvars = @variables L(t) Lp(t) K(t) LK(t) A(t) LpA(t) LpAK(t) LpAKL(t) P(t) LpP(t) LpAP(t) LpAPLp(t) T(t) LpAT(t) Y(t)
+# u_symbols = [L(t), Lp(t), K(t), LK(t), A(t), LpA(t), LpAK(t), LpAKL(t), P(t), LpP(t), LpAP(t), LpAPLp(t), T(t), LpAT(t)]
+umap = [x => y for (x,y) in zip(oldvars,u0)]
+u₀map = [rs.X[n] => u for (n,u) in zip(1:10,u₀)]
 push!(umap,u₀map...)
 
-#timespan for integration
-tspan = (0., 10.)
+#add coupling reaction between LpAT and X[1]
+coupling_rn = @reaction_network crn begin
+    (ka8,kb8), LpAT + Y <--> $(rs.X[1])
+end ka8 kb8
 
-oprob = ODEProblem(basern, umap, tspan, pmap)
+fullrn = extend(coupling_rn, basern)
+fullrn = Catalyst.flatten(fullrn)
+
+#timespan for integration
+tspan = (0., 1.)
+
+jumpsys = convert(JumpSystem,fullrn)
+dprob = DiscreteProblem(jumpsys, umap, tspan, pmap)
+jprob = JumpProblem(jumpsys, dprob, Direct(), save_positions=(false,false))
+jsol = solve(jprob, SSAStepper(), saveat = tspan[2]/500)
+
+t = jsol.t 
+
+default(size = (1100,700), lw=2, markersize=2, xlabel="Time (sec)")
+plot(collect(0:0.002:1.), jsol(t)[16,:], label="X1 (monomers)", markercolor=:blue)
+plot!(collect(0:0.002:1.), jsol(t)[17,:], label="X2 (dimers)", markercolor=:orange)
+plot!(collect(0:0.002:1.), jsol(t)[18,:], label="X3 (trimers)", markercolor=:purple)
+plot!(collect(0:0.002:1.), jsol(t)[25,:], label="X10 (10mers)", markercolor=:red)
+
+
+oprob = ODEProblem(fullrn, umap, tspan, pmap)
 osol = solve(oprob, Tsit5())
 plot(osol,linewidth = 1.5, size = (1100,700))
