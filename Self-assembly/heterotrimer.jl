@@ -5,10 +5,124 @@ using Catalyst
 using DifferentialEquations
 using Combinatorics
 
+function string_as_symbolicvar(s::AbstractString)
+    s=Symbol(s)
+    @eval (@variables ($s))
+end
+
 timevar = @variables t
 # vars = @variables A(t) B(t) C(t) D(t)
 
 monomers = ["A","B","C","D"]
+
+monovars = @variables A B C D 
+
+num_mono_rxns = length(collect(combinations(monomers,2)))
+
+function combine_reactants(dimer)::AbstractString
+    dimer[1] * dimer[2]
+end
+
+function get_dimers(monomers)
+    dimers = []
+    for di in collect(permutations(monomers,2))
+        push!(dimers, combine_reactants(di))
+    end
+    return dimers
+end
+
+dimers = get_dimers(monomers)
+
+function get_reactions(monomers = monomers)
+    dimers = get_dimers(monomers)
+    oneplusone = []
+    twoplusone = []
+    twoplustwo = []
+    threeplusone = []
+    for complex in collect(permutations(vcat(dimers,monomers),2))
+        if length(complex[1])+length(complex[2]) == 2
+            push!(oneplusone,combine_reactants(complex))
+        elseif length(complex[1])+length(complex[2]) == 3
+            push!(twoplusone, combine_reactants(complex))
+        elseif length(complex[1])+length(complex[2]) == 4
+            push!(twoplustwo, combine_reactants(complex))
+        end
+    end
+    for list in [twoplusone,twoplustwo]
+        filter!(x -> allunique(x), list)
+    end
+    for complex in collect(permutations(vcat(twoplusone,monomers),2))
+        push!(threeplusone, combine_reactants(complex))
+        filter!(x -> allunique(x), threeplusone)
+    end
+    return [oneplusone, twoplusone, twoplustwo, threeplusone]
+end
+
+lists = get_reactions()
+
+@parameters kma[1:length(collect(combinations(monomers,2)))] kmb[1:length(collect(combinations(monomers,2)))]
+
+function set_vars(lists)
+    varlist1 = []
+    varlist2 = []
+    varlist3 = []
+    varlist4 = []
+    metalist = [varlist1,varlist2,varlist3,varlist4]
+    for (i,list) in enumerate(lists)
+        for mol in list 
+            push!(metalist[i],string_as_symbolicvar(mol))
+        end
+    end
+    return metalist
+end
+
+var_lists = set_vars(lists)
+
+mono_rx = []
+for di in var_lists[1]
+    if di == AB || di == BA  
+        push!(mono_rx, Reaction((kma[1],kmb[1]), [A,B], di))
+        
+    # for clusters of the same size, double the rate
+    if (vᵢ[n] == vⱼ[n])
+        # println("hi")x
+        # newrn = @reaction_network :$(n) begin
+        #     k[n], 2*$(X[vᵢ[n]])  --> $(X[sum_vᵢvⱼ[n]])
+        # end k[n]
+
+        # basern = compose(basern, newrn)
+        push!(rx, Reaction(k[n], [X[vᵢ[n]]], [X[sum_vᵢvⱼ[n]]], [2], [1]))
+    else
+        # newrn = @reaction_network :$(n) begin
+        #     k[n], $(X[vᵢ[n]]) + $(X[vⱼ[n]]) --> $(X[sum_vᵢvⱼ[n]])
+        # end k[n]
+
+        # basern = compose(basern, newrn)
+
+        push!(rx, Reaction(k[n], [X[vᵢ[n]], X[vⱼ[n]]], [X[sum_vᵢvⱼ[n]]],
+                           [1, 1], [1]))
+    end
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+trimers = get_trimers(dimers)
+
 
 twomers = collect(combinations(monomers,2))
 # twomers = [(combo[1],combo[2]) for combo in twomers]
@@ -22,22 +136,16 @@ filter!(x -> checkcombo(x), trimers)
 
 num_rxns = (length(twomers) * factorial(4-2)) + length(trimers)
 
-function string_as_varname(s::AbstractString,v::Any)
-    s=Symbol(s)
-    @eval (($s) = ($v))
-end
+# function string_as_varname(s::AbstractString,v::Any)
+#     s=Symbol(s)
+#     @eval (($s) = ($v))
+# end
 
-function string_as_symbolicvar(s::AbstractString)
-    s=Symbol(s)
-    @eval (@variables ($s))
-end
 
-string_as_symbolicvar("AB")
+# string_as_symbolicvar("AB")
 
-function combine_reactants(dimer...)
-    dimer[1] * dimer[2]
-end
 
+### GET UNIQUE COMBOS ###
 function get_combos(monomers)
     combos = Set()
     for mo in monomers
@@ -48,11 +156,33 @@ function get_combos(monomers)
     return combos
 end
 
+get_combos(monomers)
+
+combos = Set()
+i = 0
+while i < 2
+    for mo in monomers
+        i += 1
+        println(mo)
+        for mo2 in monomers[2:end]
+            println([mo,mo2])
+            push!(combos,Set([mo,mo2]))
+        end
+        
+    end
+end
+
+
+
+
+
+
 function generate_reactants(monomers)
     for i in 1:length(monomers)
     twomers = collect(combinations(monomers,2))
     for di in twomers
         combine_reactants(di) |> string_as_symbolicvar
+    end
 end
 
 
