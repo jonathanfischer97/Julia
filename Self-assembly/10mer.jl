@@ -5,7 +5,7 @@ using Catalyst
 using DifferentialEquations
 
 ## Parameter
-N = 4                       # maximum cluster size
+N = 10                       # maximum cluster size
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
 
 integ(x) = Int(floor(x))
@@ -131,17 +131,21 @@ oprob = ODEProblem(fullrn, umap, tspan, pmap)
 osol = solve(oprob, Tsit5())
 
 #PLOTTING 
-default(size = (1100,700), lw=2, markersize=1, xlabel="Time (sec)")
-plot(jsol(t)[16,:], label="X1 (monomers)", color = :blue)
-plot!(jsol(t)[17,:], label="X2 (dimers)", color=:orange)
-plot!(jsol(t)[18,:], label="X3 (trimers)", color=:purple)
-plot!(jsol(t)[25,:], label="X10 (10mers)", color=:red)
+default(size = (1000,700), lw=2, markersize=1, xlabel="Time (sec)", ylabel="Copies")
+plot(jsol(t)[16,:], label="Monomers", color = :blue)
+plot!(jsol(t)[17,:], label="Dimers", color=:orange)
+plot!(jsol(t)[18,:], label="Trimers", color=:purple)
+plot!(jsol(t)[25,:], label="10mers", color=:red)
 
 # plot(osol,linewidth = 1.5, size = (1100,700))
 plot!(osol(t)[16,:], color = :blue, line = :dot, label = "")
 plot!(osol(t)[17,:], color=:orange, line = :dot, label = "")
 plot!(osol(t)[18,:], color=:purple, line = :dot, label = "")
 plot!(osol(t)[25,:], color=:red, line = :dot, label = "")
+
+title!("10mer Formation on Dynamic Lipid Membrane")
+
+savefig("10mer.png")
 
 
 

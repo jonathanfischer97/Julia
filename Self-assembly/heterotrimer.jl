@@ -5,7 +5,7 @@ using Catalyst
 using DifferentialEquations
 using Combinatorics
 
-function string_as_symbolicvar(string::AbstractString)
+macro string_as_symbolicvar(string)
     # string = s*"(t)"
     string=Symbol(string)
     @eval (@variables ($string)(t))
@@ -18,12 +18,16 @@ end
 
 macro varname_as_string(arg)
     string(arg)
- end
+end
+
+function varname_as_string(arg)
+    string(Symbol(arg))
+end
 
 timevar = @variables t
 # vars = @variables A(t) B(t) C(t) D(t)
 
-@variables A(t)
+# @variables A(t)
 
 monomers = ["A","B","C","D"]
 
@@ -72,7 +76,13 @@ end
 
 lists = get_reactions()
 
-pars = @parameters kma[1:length(collect(combinations(monomers,2)))] kmb[1:length(collect(combinations(monomers,2)))]
+# pars = @parameters kma[1:length(collect(combinations(monomers,2)))] kmb[1:length(collect(combinations(monomers,2)))]
+
+macro string_as_parm(str)
+    sym = Symbol(str)
+    @eval (@parameters ($sym))
+end
+
 
 function set_vars(lists)
     varlist1 = []
@@ -91,35 +101,53 @@ end
 var_lists = set_vars(lists)
 
 mono_rx = []
+parms = []
 for di in var_lists[1]
-    reactants = @varname_as_string(di)
-    r1 = reactants[1]
-    r2 = reactants[2]
-    push!(mono_rx, Reaction())
+    println(di)
+    reactants = varname_as_string(di)
+    println(typeof(reactants))
+    r1 = @string_as_symbolicvar(reactants[1]) 
+    r2 = @string_as_symbolicvar(reactants[2])
+    ka = @string_as_parm("ka"*reactants)
+    kb = @string_as_parm("kb"*reactants)
 
-    if di == AB || di == BA  
-        push!(mono_rx, Reaction((kma[1],kmb[1]), [A,B], di))
-        
-    # for clusters of the same size, double the rate
-    if (vᵢ[n] == vⱼ[n])
-        # println("hi")x
-        # newrn = @reaction_network :$(n) begin
-        #     k[n], 2*$(X[vᵢ[n]])  --> $(X[sum_vᵢvⱼ[n]])
-        # end k[n]
-
-        # basern = compose(basern, newrn)
-        push!(rx, Reaction(k[n], [X[vᵢ[n]]], [X[sum_vᵢvⱼ[n]]], [2], [1]))
-    else
-        # newrn = @reaction_network :$(n) begin
-        #     k[n], $(X[vᵢ[n]]) + $(X[vⱼ[n]]) --> $(X[sum_vᵢvⱼ[n]])
-        # end k[n]
-
-        # basern = compose(basern, newrn)
-
-        push!(rx, Reaction(k[n], [X[vᵢ[n]], X[vⱼ[n]]], [X[sum_vᵢvⱼ[n]]],
-                           [1, 1], [1]))
-    end
+    push!(mono_rx, Reaction((ka[1],kb[1]),[r1[1],r2[1]],di))
+    push!(parms,ka)
+    push!(parms,kb)
 end
+
+
+symlist = (:a, :b, :c)
+
+@variables $symlist
+
+x = "newvar"
+
+@variables :x
+
+#     if di == AB || di == BA  
+#         push!(mono_rx, Reaction((kma[1],kmb[1]), [A,B], di))
+        
+#     # for clusters of the same size, double the rate
+#     if (vᵢ[n] == vⱼ[n])
+#         # println("hi")x
+#         # newrn = @reaction_network :$(n) begin
+#         #     k[n], 2*$(X[vᵢ[n]])  --> $(X[sum_vᵢvⱼ[n]])
+#         # end k[n]
+
+#         # basern = compose(basern, newrn)
+#         push!(rx, Reaction(k[n], [X[vᵢ[n]]], [X[sum_vᵢvⱼ[n]]], [2], [1]))
+#     else
+#         # newrn = @reaction_network :$(n) begin
+#         #     k[n], $(X[vᵢ[n]]) + $(X[vⱼ[n]]) --> $(X[sum_vᵢvⱼ[n]])
+#         # end k[n]
+
+#         # basern = compose(basern, newrn)
+
+#         push!(rx, Reaction(k[n], [X[vᵢ[n]], X[vⱼ[n]]], [X[sum_vᵢvⱼ[n]]],
+#                            [1, 1], [1]))
+#     end
+# end
 
 
 
