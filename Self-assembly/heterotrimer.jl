@@ -5,17 +5,29 @@ using Catalyst
 using DifferentialEquations
 using Combinatorics
 
-function string_as_symbolicvar(s::AbstractString)
-    s=Symbol(s)
-    @eval (@variables ($s))
+function string_as_symbolicvar(string::AbstractString)
+    # string = s*"(t)"
+    string=Symbol(string)
+    @eval (@variables ($string)(t))
+    # if setvar
+    #     return @eval (@variables ($string)(t))
+    # else
+    #     return @eval ($string)
+    # end
 end
+
+macro varname_as_string(arg)
+    string(arg)
+ end
 
 timevar = @variables t
 # vars = @variables A(t) B(t) C(t) D(t)
 
+@variables A(t)
+
 monomers = ["A","B","C","D"]
 
-monovars = @variables A B C D 
+monovars = [string_as_symbolicvar(str)[1] for str in monomers] 
 
 num_mono_rxns = length(collect(combinations(monomers,2)))
 
@@ -60,7 +72,7 @@ end
 
 lists = get_reactions()
 
-@parameters kma[1:length(collect(combinations(monomers,2)))] kmb[1:length(collect(combinations(monomers,2)))]
+pars = @parameters kma[1:length(collect(combinations(monomers,2)))] kmb[1:length(collect(combinations(monomers,2)))]
 
 function set_vars(lists)
     varlist1 = []
@@ -80,6 +92,11 @@ var_lists = set_vars(lists)
 
 mono_rx = []
 for di in var_lists[1]
+    reactants = @varname_as_string(di)
+    r1 = reactants[1]
+    r2 = reactants[2]
+    push!(mono_rx, Reaction())
+
     if di == AB || di == BA  
         push!(mono_rx, Reaction((kma[1],kmb[1]), [A,B], di))
         
