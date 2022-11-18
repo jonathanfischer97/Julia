@@ -6,7 +6,7 @@ using DifferentialEquations
 
 ## Parameter
 N = 10                       # maximum cluster size
-
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
 
 integ(x) = Int(floor(x))
 n        = integ(N/2)
