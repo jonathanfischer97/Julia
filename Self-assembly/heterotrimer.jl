@@ -1,11 +1,100 @@
 using Random 
-using DataFrames
+# using DataFrames
 using Plots 
 using Catalyst
 using DifferentialEquations
+using Combinatorics
+
+timevar = @variables t
+# vars = @variables A(t) B(t) C(t) D(t)
+
+monomers = ["A","B","C","D"]
+
+twomers = collect(combinations(monomers,2))
+# twomers = [(combo[1],combo[2]) for combo in twomers]
+trimers = collect(combinations(twomers,2))
+
+function checkcombo(x)
+    length(union(x[1],x[2]))==length(vcat(x[1],x[2]))
+end
+
+filter!(x -> checkcombo(x), trimers)
+
+num_rxns = (length(twomers) * factorial(4-2)) + length(trimers)
+
+function string_as_varname(s::AbstractString,v::Any)
+    s=Symbol(s)
+    @eval (($s) = ($v))
+end
+
+function string_as_symbolicvar(s::AbstractString)
+    s=Symbol(s)
+    @eval (@variables ($s))
+end
+
+string_as_symbolicvar("AB")
+
+function combine_reactants(dimer...)
+    dimer[1] * dimer[2]
+end
+
+function get_combos(monomers)
+    combos = Set()
+    for mo in monomers
+        for mo2 in monomers[2:end]
+            push!(combos,Set([mo,mo2]))
+        end
+    end
+    return combos
+end
+
+function generate_reactants(monomers)
+    for i in 1:length(monomers)
+    twomers = collect(combinations(monomers,2))
+    for di in twomers
+        combine_reactants(di) |> string_as_symbolicvar
+end
+
+
+
+function make_rxns(vars, parms)
+    rxns = []
+    for (var,par) in zip(vars,parms)
+        push!(rxns, Reaction(par,var))
+    push!(rxns, Reaction(k[n], [X[vᵢ[n]]], [X[sum_vᵢvⱼ[n]]], [2], [1]))
+
+function make_rn()
+    
+
+trimer_rn = @reaction_network trirn begin
+    (ka_m1, kb_m1), MA + MB <--> MAB 
+    (ka_m2, kb_m2), MC + MA <--> MAC 
+    (ka_m3, kb_m3), MC + MB <--> MBC 
+    (ka_m4, kb_m4), MAB + MC <--> MABC
+    (ka_m5, kb_m5), MAC + MB <--> MABC
+    (ka_m6, kb_m6), MBC + MA <--> MABC 
+end ka_m1 kb_m1 ka_m2 kb_m2 ka_m3 kb_m3 ka_m4 kb_m4 ka_m5 kb_m5 ka_m6 kb_m6 
+
+lipid_rn = @reaction_network liprn begin
+    (ka1,kb1), L + K <--> LK
+    kcat1, LK --> Lp + K 
+    (ka2,kb2), Lp + A <--> LpA 
+    (ka3,kb3), LpA + K <--> LpAK  
+    (ka1*y,kb1), LpAK + L <--> LpAKL
+    kcat1, LpAKL --> Lp + LpAK  
+    (ka5,kb5), Lp + P <--> LpP 
+    kcat5, LpP --> L + P
+    (ka6,kb6), LpA + P <--> LpAP 
+    (ka5*y,kb5), Lp + LpAP <--> LpAPLp
+    kcat5, LpAPLp --> L + LpAP 
+    (ka7,kb7), LpA + T <--> LpAT 
+end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka5 kb5 kcat5 ka6 kb6 ka7 kb7 y
+
+
+
 
 ## Parameter
-N = 10                       # maximum cluster size
+N = 3                      # maximum cluster size
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
 
 integ(x) = Int(floor(x))
