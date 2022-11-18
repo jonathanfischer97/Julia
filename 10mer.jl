@@ -6,10 +6,7 @@ using DifferentialEquations
 
 ## Parameter
 N = 10                       # maximum cluster size
-Vₒ = (4π/3)*(10e-06*100)^3   # volume of a monomers in cm³
-Nₒ = 1e-06/Vₒ                # initial conc. = (No. of init. monomers) / bulk volume
-uₒ = 10000                   # No. of monomers initially
-V = uₒ/Nₒ                    # Bulk volume of system in cm³
+
 
 integ(x) = Int(floor(x))
 n        = integ(N/2)
@@ -23,31 +20,14 @@ end
 pair = vcat(pair...)
 vᵢ = @view pair[:,1]   # Reactant 1 indices
 vⱼ = @view pair[:,2]   # Reactant 2 indices
-volᵢ = Vₒ*vᵢ           # cm⁻³
-volⱼ = Vₒ*vⱼ           # cm⁻³
 sum_vᵢvⱼ = @. vᵢ + vⱼ  # Product index
 
-# set i to  1 for additive kernel, 2  for constant
-i = 1
-if i==1
-    B = 1.53e03                # s⁻¹
-    kv = @. B*(volᵢ + volⱼ)/V  # dividing by volume as its a bi-molecular reaction chain
-elseif i==2
-    C = 1.84e-04               # cm³ s⁻¹
-    kv = fill(C/V, nr)
-end
 
 # state variables are X, pars stores rate parameters for each rx
 @parameters k[1:nr]
 @variables t (X(t))[1:N]
-pars = Pair.(collect(k), kv)
+pars = Pair.(collect(k), 1.)
 
-# time-span
-if i == 1
-    tspan = (0. ,2000.)
-elseif i == 2
-    tspan = (0. ,350.)
-end
 
  # initial condition of monomers
 u₀    = zeros(Int64, N)
@@ -79,9 +59,6 @@ end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka5 kb5 kcat5 ka6 kb6 ka7 kb7 y
 
 rx = []
 for n = 1:nr
-    kon = k[n]
-    println(kon)
-
     # for clusters of the same size, double the rate
     if (vᵢ[n] == vⱼ[n])
         # println("hi")x
@@ -122,14 +99,13 @@ oldparams = @parameters ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka5 kb5 kcat5 ka6 kb6 ka7 
 # param_symbols = [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka5,:kb5,:kcat5,:ka6,:kb6,:ka7,:kb7,:y]
 # pmap = [x[1] => x[2] for x in zip(param_symbols,p)]
 pmap = [x => y for (x,y) in zip(oldparams,p)]
-pars = [rs.k[n] => kvval for (n,kvval) in zip(1:25,kv)]
-pars = [x[1] => 1. for x in pars]
+pars = [rs.k[n] => val[2] for (n,val) in zip(1:length(pars),pars)]
 push!(pmap,pars...)
 
 oldvars = @variables L(t) Lp(t) K(t) LK(t) A(t) LpA(t) LpAK(t) LpAKL(t) P(t) LpP(t) LpAP(t) LpAPLp(t) T(t) LpAT(t) Y(t)
 # u_symbols = [L(t), Lp(t), K(t), LK(t), A(t), LpA(t), LpAK(t), LpAKL(t), P(t), LpP(t), LpAP(t), LpAPLp(t), T(t), LpAT(t)]
 umap = [x => y for (x,y) in zip(oldvars,u0)]
-u₀map = [rs.X[n] => u for (n,u) in zip(1:10,u₀)]
+u₀map = [rs.X[n] => u for (n,u) in zip(1:N,u₀)]
 push!(umap,u₀map...)
 
 #add coupling reaction between LpAT and X[1]
@@ -146,17 +122,26 @@ tspan = (0., 1.)
 jumpsys = convert(JumpSystem,fullrn)
 dprob = DiscreteProblem(jumpsys, umap, tspan, pmap)
 jprob = JumpProblem(jumpsys, dprob, Direct(), save_positions=(false,false))
-jsol = solve(jprob, SSAStepper(), saveat = tspan[2]/500)
+saveinterval = tspan[2]/300
+jsol = solve(jprob, SSAStepper(), saveat = saveinterval)
 
 t = jsol.t 
 
-default(size = (1100,700), lw=2, markersize=2, xlabel="Time (sec)")
-plot(collect(0:0.002:1.), jsol(t)[16,:], label="X1 (monomers)", markercolor=:blue)
-plot!(collect(0:0.002:1.), jsol(t)[17,:], label="X2 (dimers)", markercolor=:orange)
-plot!(collect(0:0.002:1.), jsol(t)[18,:], label="X3 (trimers)", markercolor=:purple)
-plot!(collect(0:0.002:1.), jsol(t)[25,:], label="X10 (10mers)", markercolor=:red)
-
-
 oprob = ODEProblem(fullrn, umap, tspan, pmap)
 osol = solve(oprob, Tsit5())
-plot(osol,linewidth = 1.5, size = (1100,700))
+
+#PLOTTING 
+default(size = (1100,700), lw=2, markersize=1, xlabel="Time (sec)")
+plot(jsol(t)[16,:], label="X1 (monomers)", color = :blue)
+plot!(jsol(t)[17,:], label="X2 (dimers)", color=:orange)
+plot!(jsol(t)[18,:], label="X3 (trimers)", color=:purple)
+plot!(jsol(t)[25,:], label="X10 (10mers)", color=:red)
+
+# plot(osol,linewidth = 1.5, size = (1100,700))
+plot!(osol(t)[16,:], color = :blue, line = :dot, label = "")
+plot!(osol(t)[17,:], color=:orange, line = :dot, label = "")
+plot!(osol(t)[18,:], color=:purple, line = :dot, label = "")
+plot!(osol(t)[25,:], color=:red, line = :dot, label = "")
+
+
+
