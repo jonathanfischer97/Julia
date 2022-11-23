@@ -1,5 +1,4 @@
 using Random 
-# using DataFrames
 using Plots 
 using Catalyst
 using DifferentialEquations
@@ -20,7 +19,7 @@ end
 
 function string_as_symbolicvar(string)
     string = Symbol(string)
-    @variables ($string)(t)
+    @eval @variables ($string)(t)
 end
 
 macro varname_as_string(arg)
@@ -51,7 +50,6 @@ function get_dimers(monomers)
     return dimers
 end
 
-dimers = get_dimers(monomers)
 
 function get_reactions(monomers = monomers)
     dimers = get_dimers(monomers)
@@ -89,7 +87,7 @@ end
 
 function string_as_parm(str)
     sym = Symbol(str)
-    @parameters ($sym)
+    @eval @parameters ($sym)
 end
 
 function set_vars(lists)
@@ -110,39 +108,44 @@ var_lists = set_vars(lists)
 
 mono_rx = []
 parms = []
-for di in var_lists[1]
-    # println(di)
-    # println(typeof(di))
-    reactants = varname_as_string(di)
-    # println(typeof(reactants))
-    r1 = string_as_symbolicvar(reactants[1])
-    # println(r1[1]) 
-    r2 = string_as_symbolicvar(reactants[2])
-    # println(r2[1])
-    ka = string_as_parm("ka"*reactants[1:end-3])
-    # println(ka[1])
-    kb = string_as_parm("kb"*reactants[1:end-3])
-    # println(kb[1])
-    # println(typeof(kb[1]))
+statevars = vcat(monovars,var_lists...)
+tetrn = @reaction_network
+stringpartitions = [[1,2],[:(1:2),3],[:(1:2),:(3:4)],[:(1:3),4]]
+for (idx, list) in enumerate(var_lists)
+    for di in list
+        # push!(statevars,di)
+        # println(di)
+        # println(typeof(di))
+        productstr = varname_as_string(di)
+        productstr = productstr[1:end-3]
 
-    push!(mono_rx, Reaction((ka[1],kb[1]),[r1[1],r2[1]],[di]))
-    # println("hi")
-    push!(parms,ka)
-    push!(parms,kb)
+        # println(typeof(reactants))
+        r1 = string_as_symbolicvar(productstr[@eval stringpartitions[$idx][1]])
+        # println(r1[1]) 
+        r2 = string_as_symbolicvar(productstr[eval(stringpartitions[idx][2])])
+        # println(r2[1])
+        ka = string_as_parm("ka"*productstr)
+        # println(ka[1])
+        kb = string_as_parm("kb"*productstr)
+        # println(kb[1])
+        # println(typeof(kb[1]))
+        # rx1 = @reaction $(ka[1]), $(r1[1]) + $(r2[1]) --> $(di)
+        # push!(mono_rx, rx1)
+
+        push!(mono_rx, Reaction(ka[1],[r1[1],r2[1]],[di]))
+        push!(mono_rx, Reaction(kb[1],[di],[r1[1],r2[1]]))
+        # println("hi")
+        push!(parms,ka[1])
+        push!(parms,kb[1])
+    end
 end
 
-@named rs = ReactionSystem(mono_rx, t)
+@named rs = ReactionSystem(mono_rx, t, statevars, parms)
+
+for tri in var_lists[2]
 
 
 
-
-symlist = (:a, :b, :c)
-
-@variables $symlist
-
-x = "newvar"
-
-@variables :x
 
 #     if di == AB || di == BA  
 #         push!(mono_rx, Reaction((kma[1],kmb[1]), [A,B], di))
@@ -242,7 +245,7 @@ end
 
 
 function generate_reactants(monomers)
-    for i in 1:length(monomers)
+    # for i in 1:length(monomers)
     twomers = collect(combinations(monomers,2))
     for di in twomers
         combine_reactants(di) |> string_as_symbolicvar
@@ -251,13 +254,13 @@ end
 
 
 
-function make_rxns(vars, parms)
-    rxns = []
-    for (var,par) in zip(vars,parms)
-        push!(rxns, Reaction(par,var))
-    push!(rxns, Reaction(k[n], [X[vᵢ[n]]], [X[sum_vᵢvⱼ[n]]], [2], [1]))
+# function make_rxns(vars, parms)
+#     rxns = []
+#     for (var,par) in zip(vars,parms)
+#         push!(rxns, Reaction(par,var))
+#     push!(rxns, Reaction(k[n], [X[vᵢ[n]]], [X[sum_vᵢvⱼ[n]]], [2], [1]))
 
-function make_rn()
+# function make_rn()
     
 
 trimer_rn = @reaction_network trirn begin
@@ -288,7 +291,7 @@ end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka5 kb5 kcat5 ka6 kb6 ka7 kb7 y
 
 
 ## Parameter
-N = 3                      # maximum cluster size
+N = 10                  # maximum cluster size
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
 
 integ(x) = Int(floor(x))
