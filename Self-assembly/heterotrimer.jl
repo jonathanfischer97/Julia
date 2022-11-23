@@ -5,15 +5,22 @@ using Catalyst
 using DifferentialEquations
 using Combinatorics
 
+timevar = @variables t
+
 macro string_as_symbolicvar(string)
     # string = s*"(t)"
     string=Symbol(string)
-    @eval (@variables ($string)(t))
+    :(@variables ($string)(t))
     # if setvar
     #     return @eval (@variables ($string)(t))
     # else
     #     return @eval ($string)
     # end
+end
+
+function string_as_symbolicvar(string)
+    string = Symbol(string)
+    @variables ($string)(t)
 end
 
 macro varname_as_string(arg)
@@ -24,10 +31,7 @@ function varname_as_string(arg)
     string(Symbol(arg))
 end
 
-timevar = @variables t
-# vars = @variables A(t) B(t) C(t) D(t)
 
-# @variables A(t)
 
 monomers = ["A","B","C","D"]
 
@@ -80,9 +84,13 @@ lists = get_reactions()
 
 macro string_as_parm(str)
     sym = Symbol(str)
-    @eval (@parameters ($sym))
+    :(@parameters ($sym))
 end
 
+function string_as_parm(str)
+    sym = Symbol(str)
+    @parameters ($sym)
+end
 
 function set_vars(lists)
     varlist1 = []
@@ -92,7 +100,7 @@ function set_vars(lists)
     metalist = [varlist1,varlist2,varlist3,varlist4]
     for (i,list) in enumerate(lists)
         for mol in list 
-            push!(metalist[i],string_as_symbolicvar(mol))
+            push!(metalist[i],string_as_symbolicvar(mol)[1])
         end
     end
     return metalist
@@ -103,18 +111,29 @@ var_lists = set_vars(lists)
 mono_rx = []
 parms = []
 for di in var_lists[1]
-    println(di)
+    # println(di)
+    # println(typeof(di))
     reactants = varname_as_string(di)
-    println(typeof(reactants))
-    r1 = @string_as_symbolicvar(reactants[1]) 
-    r2 = @string_as_symbolicvar(reactants[2])
-    ka = @string_as_parm("ka"*reactants)
-    kb = @string_as_parm("kb"*reactants)
+    # println(typeof(reactants))
+    r1 = string_as_symbolicvar(reactants[1])
+    # println(r1[1]) 
+    r2 = string_as_symbolicvar(reactants[2])
+    # println(r2[1])
+    ka = string_as_parm("ka"*reactants[1:end-3])
+    # println(ka[1])
+    kb = string_as_parm("kb"*reactants[1:end-3])
+    # println(kb[1])
+    # println(typeof(kb[1]))
 
-    push!(mono_rx, Reaction((ka[1],kb[1]),[r1[1],r2[1]],di))
+    push!(mono_rx, Reaction((ka[1],kb[1]),[r1[1],r2[1]],[di]))
+    # println("hi")
     push!(parms,ka)
     push!(parms,kb)
 end
+
+@named rs = ReactionSystem(mono_rx, t)
+
+
 
 
 symlist = (:a, :b, :c)
