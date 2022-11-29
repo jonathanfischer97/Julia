@@ -72,8 +72,9 @@ function get_reactions(monomers = monomers)
     for complex in collect(permutations(vcat(twoplusone,monomers),2))
         push!(threeplusone, combine_reactants(complex))
         filter!(x -> allunique(x), threeplusone)
+        filter!(x-> length(x)==4, threeplusone)
     end
-    return [oneplusone, twoplusone, twoplustwo, threeplusone]
+    return [oneplusone, twoplusone, threeplusone, twoplustwo]
 end
 
 lists = get_reactions()
@@ -109,20 +110,21 @@ var_lists = set_vars(lists)
 mono_rx = []
 parms = []
 statevars = vcat(monovars,var_lists...)
-tetrn = @reaction_network
-stringpartitions = [[1,2],[:(1:2),3],[:(1:2),:(3:4)],[:(1:3),4]]
-for (idx, list) in enumerate(var_lists)
+# tetrn = @reaction_network
+# stringpartitions = [[1,2],[:(1:2),3],[:(1:2),:(3:4)],[:(1:3),4]]
+for (idx, list) in enumerate(var_lists[1:end-1])
     for di in list
         # push!(statevars,di)
-        # println(di)
+        println(di)
         # println(typeof(di))
         productstr = varname_as_string(di)
         productstr = productstr[1:end-3]
 
         # println(typeof(reactants))
-        r1 = string_as_symbolicvar(productstr[@eval stringpartitions[$idx][1]])
+        r1 = string_as_symbolicvar(productstr[1:idx])
         # println(r1[1]) 
-        r2 = string_as_symbolicvar(productstr[eval(stringpartitions[idx][2])])
+        println("hi")
+        r2 = string_as_symbolicvar(productstr[end-1])
         # println(r2[1])
         ka = string_as_parm("ka"*productstr)
         # println(ka[1])
@@ -140,38 +142,83 @@ for (idx, list) in enumerate(var_lists)
     end
 end
 
+
+
 @named rs = ReactionSystem(mono_rx, t, statevars, parms)
 
-for tri in var_lists[2]
+lipid_rn = @reaction_network liprn begin
+    (ka1,kb1), L + K <--> LK
+    kcat1, LK --> Lp + K 
+    (ka2,kb2), Lp + A <--> LpA 
+    (ka3,kb3), LpA + K <--> LpAK  
+    (ka1*y,kb1), LpAK + L <--> LpAKL
+    kcat1, LpAKL --> Lp + LpAK  
+    (ka5,kb5), Lp + P <--> LpP 
+    kcat5, LpP --> L + P
+    (ka6,kb6), LpA + P <--> LpAP 
+    (ka5*y,kb5), Lp + LpAP <--> LpAPLp
+    kcat5, LpAPLp --> L + LpAP 
+    (ka7,kb7), LpA + T <--> LpAT 
+end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka5 kb5 kcat5 ka6 kb6 ka7 kb7 y
 
+combinedrn = compose(lipid_rn,rs)
 
+#parameter list
+p = [0.47375415262252124, 70.82403936369272, 300.346311110198, 0.624675949351274, 10, 0.001249351898702548, 
+    70, 0.03748055696107644, 500, 10, 0.0624675949351274, 50, 0.1, 70, 0.4, 100, 1500.0]
 
+#initial condition list
+u0 = [200, 50, 100, 0, 150, 0, 0, 0, 100, 0, 0, 0, 500, 500, 2000]
 
-#     if di == AB || di == BA  
-#         push!(mono_rx, Reaction((kma[1],kmb[1]), [A,B], di))
-        
-#     # for clusters of the same size, double the rate
-#     if (vᵢ[n] == vⱼ[n])
-#         # println("hi")x
-#         # newrn = @reaction_network :$(n) begin
-#         #     k[n], 2*$(X[vᵢ[n]])  --> $(X[sum_vᵢvⱼ[n]])
-#         # end k[n]
+##REACTION NETWORK
+oldparams = @parameters ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka5 kb5 kcat5 ka6 kb6 ka7 kb7 ka8 kb8 y
+# param_symbols = [ka1, kb2, kcat1, ka2, kb2, ka3, kb3, ka5, kb5, kcat5, ka6, kb6, ka7, kb7, y]
+# param_symbols = [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka5,:kb5,:kcat5,:ka6,:kb6,:ka7,:kb7,:y]
+# pmap = [x[1] => x[2] for x in zip(param_symbols,p)]
+pmap = [x => y for (x,y) in zip(oldparams,p)]
+pars = [rs.k[n] => val[2] for (n,val) in zip(1:length(pars),pars)]
+push!(pmap,pars...)
 
-#         # basern = compose(basern, newrn)
-#         push!(rx, Reaction(k[n], [X[vᵢ[n]]], [X[sum_vᵢvⱼ[n]]], [2], [1]))
-#     else
-#         # newrn = @reaction_network :$(n) begin
-#         #     k[n], $(X[vᵢ[n]]) + $(X[vⱼ[n]]) --> $(X[sum_vᵢvⱼ[n]])
-#         # end k[n]
+oldvars = @variables L(t) Lp(t) K(t) LK(t) A(t) LpA(t) LpAK(t) LpAKL(t) P(t) LpP(t) LpAP(t) LpAPLp(t) T(t) LpAT(t) Y(t)
+# u_symbols = [L(t), Lp(t), K(t), LK(t), A(t), LpA(t), LpAK(t), LpAKL(t), P(t), LpP(t), LpAP(t), LpAPLp(t), T(t), LpAT(t)]
+umap = [x => y for (x,y) in zip(oldvars,u0)]
+u₀map = [rs.X[n] => u for (n,u) in zip(1:N,u₀)]
+push!(umap,u₀map...)
 
-#         # basern = compose(basern, newrn)
+#add coupling reaction between LpAT and X[1]
+coupling_rn = @reaction_network crn begin
+    (ka8,kb8), LpAT + Y <--> $(rs.X[1])
+end ka8 kb8
 
-#         push!(rx, Reaction(k[n], [X[vᵢ[n]], X[vⱼ[n]]], [X[sum_vᵢvⱼ[n]]],
-#                            [1, 1], [1]))
-#     end
-# end
+fullrn = extend(coupling_rn, basern)
+fullrn = Catalyst.flatten(fullrn)
 
+#timespan for integration
+tspan = (0., 1.)
 
+jumpsys = convert(JumpSystem,fullrn)
+dprob = DiscreteProblem(jumpsys, umap, tspan, pmap)
+jprob = JumpProblem(jumpsys, dprob, Direct(), save_positions=(false,false))
+saveinterval = tspan[2]/300
+jsol = solve(jprob, SSAStepper(), saveat = saveinterval)
+
+t = jsol.t 
+
+oprob = ODEProblem(fullrn, umap, tspan, pmap)
+osol = solve(oprob, Tsit5())
+
+#PLOTTING 
+default(size = (1100,700), lw=2, markersize=1, xlabel="Time (sec)")
+plot(jsol(t)[16,:], label="X1 (monomers)", color = :blue)
+plot!(jsol(t)[17,:], label="X2 (dimers)", color=:orange)
+plot!(jsol(t)[18,:], label="X3 (trimers)", color=:purple)
+plot!(jsol(t)[25,:], label="X10 (10mers)", color=:red)
+
+# plot(osol,linewidth = 1.5, size = (1100,700))
+plot!(osol(t)[16,:], color = :blue, line = :dot, label = "")
+plot!(osol(t)[17,:], color=:orange, line = :dot, label = "")
+plot!(osol(t)[18,:], color=:purple, line = :dot, label = "")
+plot!(osol(t)[25,:], color=:red, line = :dot, label = "")
 
 
 
