@@ -32,16 +32,23 @@ end
 
 
 
-monomers = ["A","B","C","D"]
+monomers = ["X","B","C","D"]
 
 monovars = [string_as_symbolicvar(str)[1] for str in monomers] 
 
 num_mono_rxns = length(collect(combinations(monomers,2)))
 
-function combine_reactants(dimer)::AbstractString
-    dimer[1] * dimer[2]
+function combine_reactants(dimer, noX = false)::AbstractString
+    combostr = dimer[1] * dimer[2]
+    if ! noX
+        return combostr
+    else 
+        if findall(x->x=="X")
 end
 
+any
+
+findall
 function get_dimers(monomers)
     dimers = []
     for di in collect(permutations(monomers,2))
@@ -123,7 +130,7 @@ for (idx, list) in enumerate(var_lists[1:end-1])
         # println(typeof(reactants))
         r1 = string_as_symbolicvar(productstr[1:idx])
         # println(r1[1]) 
-        println("hi")
+        # println("hi")
         r2 = string_as_symbolicvar(productstr[end-1])
         # println(r2[1])
         ka = string_as_parm("ka"*productstr)
@@ -158,7 +165,7 @@ lipid_rn = @reaction_network liprn begin
     (ka6,kb6), LpA + P <--> LpAP 
     (ka5*y,kb5), Lp + LpAP <--> LpAPLp
     kcat5, LpAPLp --> L + LpAP 
-    (ka7,kb7), LpA + T <--> LpAT 
+    (ka7,kb7), LpA + T <--> X
 end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka5 kb5 kcat5 ka6 kb6 ka7 kb7 y
 
 combinedrn = compose(lipid_rn,rs)

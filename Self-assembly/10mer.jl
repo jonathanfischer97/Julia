@@ -145,7 +145,7 @@ plot!(osol(t)[25,:], color=:red, line = :dot, label = "")
 
 title!("10mer Formation on Dynamic Lipid Membrane")
 
-savefig("10mer.png")
+savefig("./10mer.png")
 
 
 
