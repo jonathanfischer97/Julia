@@ -1,0 +1,7 @@
+{
+    "[julia]": {
+        "editor.quickSuggestions": {
+            "other": "off"
+        }
+    }
+}

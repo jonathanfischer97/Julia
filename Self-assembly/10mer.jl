@@ -91,7 +91,7 @@ p = [0.47375415262252124, 70.82403936369272, 300.346311110198, 0.624675949351274
     70, 0.03748055696107644, 500, 10, 0.0624675949351274, 50, 0.1, 70, 0.4, 100, 1500.0]
 
 #initial condition list
-u0 = [200, 50, 100, 0, 150, 0, 0, 0, 100, 0, 0, 0, 500, 500, 2000]
+u0 = [200, 50, 100, 0, 150, 0, 0, 0, 100, 0, 0, 0, 500, 0, 200]
 
 ##REACTION NETWORK
 oldparams = @parameters ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka5 kb5 kcat5 ka6 kb6 ka7 kb7 ka8 kb8 y
@@ -117,12 +117,12 @@ fullrn = extend(coupling_rn, basern)
 fullrn = Catalyst.flatten(fullrn)
 
 #timespan for integration
-tspan = (0., 1.)
+tspan = (0., 10.)
 
 jumpsys = convert(JumpSystem,fullrn)
 dprob = DiscreteProblem(jumpsys, umap, tspan, pmap)
 jprob = JumpProblem(jumpsys, dprob, Direct(), save_positions=(false,false))
-saveinterval = tspan[2]/300
+saveinterval = tspan[2]/100
 jsol = solve(jprob, SSAStepper(), saveat = saveinterval)
 
 t = jsol.t 
@@ -138,10 +138,10 @@ plot!(jsol(t)[18,:], label="Trimers", color=:purple)
 plot!(jsol(t)[25,:], label="10mers", color=:red)
 
 # plot(osol,linewidth = 1.5, size = (1100,700))
-plot!(osol(t)[16,:], color = :blue, line = :dot, label = "")
-plot!(osol(t)[17,:], color=:orange, line = :dot, label = "")
-plot!(osol(t)[18,:], color=:purple, line = :dot, label = "")
-plot!(osol(t)[25,:], color=:red, line = :dot, label = "")
+plot(osol.t, osol[16,:], color = :blue, line = :dot, label = "Monomers")
+plot!(osol.t, osol[17,:], color=:orange, line = :dot, label = "Dimers")
+plot!(osol.t, osol[18,:], color=:purple, line = :dot, label = "Trimers")
+plot!(osol.t, osol[25,:], color=:red, line = :dot, label = "10mers")
 
 title!("10mer Formation on Dynamic Lipid Membrane")
 
