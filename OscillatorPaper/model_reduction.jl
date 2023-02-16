@@ -2,6 +2,7 @@ using Plots
 using Catalyst
 using DifferentialEquations
 using Symbolics
+using Latexify
 
 trimer_rn = @reaction_network trirn begin
     (ka1,kb1), L + K <--> LK
@@ -49,7 +50,7 @@ new_eqs = map(eq -> substitute(eq.rhs-eq.lhs,subs), [equations(ns)...;cons_eq...
 
 Symbolics.solve_for(ns.eqs[1],:LK)
 
-@variables L A K P LK Lp LpA LpAK LpAKL LpP LpAP LpAPLp
+@variables t L(t) A(t) K(t) P(t) LK(t) Lp(t) LpA(t) LpAK(t) LpAKL(t) LpP(t) LpAP(t) LpAPLp(t)
 # Define conservation laws 
 Ltot = L + Lp + LpA + LpAK + LpAKL + LpP + LpAP + LpAPLp
 Atot = A + LpA + LpAK + LpAP + LpAKL + LpAPLp
@@ -58,3 +59,49 @@ Ptot = P + LpP + LpAP + LpAPLp
 
 # Solve the conservation laws for LpAKL, LpP, LpAP, LpAPLp
 sol = Symbolics.solve_for([Ltot,Atot,Ktot,Ptot], [LpAKL,LpP,LpAP,LpAPLp])
+
+# Substitute the conservation laws into the equations
+subs = Dict(MT.parameters(ns) .=> MT.varmap_to_vars([], MT.parameters(ns); defaults=MT.defaults(ns)))
+reduced_eqs = map(eq -> substitute(eq.rhs-eq.lhs,Dict(LpAKL,LpP,LpAP,LpAPLp .=> cons_eq), equations(osys)))
+
+subs = Dict(LpAKL => cons_eq[1].rhs, LpP => cons_eq[2].rhs, LpAP => cons_eq[3].rhs, LpAPLp => cons_eq[4].rhs)
+substitute(osys.eqs[1],Dict(LpAKL => cons_eq[1].rhs))
+reduced_eqs = map(eq -> substitute(eq,subs), [equations(osys)...]); deleteat!(reduced_eqs,[8,10,11,12])
+
+for eq in reduced_eqs
+    println(eq)
+    println("\n")
+end
+
+latexify(reduced_eqs) |> render 
+
+
+
+
+
+
+@named daesys = ODESystem(vcat(osys.eqs,ODESystem, cons_eq))
+
+simplified_eqs = structural_simplify(daesys)
+
+for eq in daesys.eqs
+    println(eq)
+    println("\n")
+end
+
+
+
+
+
+@variables t x(t)  # independent and dependent variables
+@parameters τ       # parameters
+@constants h = 1    # constants
+D = Differential(t) # define an operator for the differentiation w.r.t. time
+
+# your first ODE, consisting of a single equation, indicated by ~
+@named fol_model = ODESystem(D(x) ~ (h - x) / τ)
+@variables t RHS(t)
+@named fol_separate = ODESystem([RHS ~ (h - x) / τ,D(x) ~ RHS])
+
+fol_simplified = structural_simplify(fol_separate)
+equations(fol_simplified)
