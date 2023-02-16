@@ -105,7 +105,6 @@ p = [:ka1 => 0.05485309578515125, :kb1 => 19.774627209108715, :kcat1 => 240.9953
 
 u0 = [:L => 0., :Lp => 3.0, :K => 0.2, :P => 0.3, :LK => 0., :A => 0.6, :LpA => 0., :LpAK => 0., :LpAP => 0., :LpAPLp => 0., :LpAKL => 0., :LpP => 0.]
 
-u0 = SA[0., 3., 0.2, 0.3, 0., 0.6, 0., 0., 0., 0., 0., 0.]
 
 tspan = (0.,20.)
 
@@ -117,6 +116,7 @@ oprob = ODEProblem(osc_rn, u0, tspan, p)
 
 
 
+u0 = SA[0., 0.2, 0., 3.0, 3.0, 0., 0., 0., 0.3, 0., 0., 0.]
 osys = convert(ODESystem, osc_rn)
 p = symmap_to_varmap(osc_rn, p)
 oprob = ODEProblem{false}(osys, u0, tspan, p)
@@ -135,5 +135,16 @@ p_init = [x[2] for x in p]
 result = Evolutionary.optimize(testcost, p_init, GA(populationSize = 5000, crossoverRate = 0.5, crossover = TPX, mutationRate = 0.9, mutation = inversion,  metrics = [Evolutionary.AbsDiff(1e-4)]))
 
 
-newsol = solve(remake(oprob, p = result.minimizer), Tsit5(), saveat = 0.001)
+newp= [1.5088004628136753, 474.74790524323765, 413.77725974011156, 53.161947464834014, 450.48565960154116, 97.63166395821786, 343.31846212387194, 4.858456659722766, 129.45559308306565, 96.4450517730593, 67.91459290725088, 125.82747629586815, 1.0446379594697963/0.001]
+newp = [:ka1 => newp[1], :kb1 => newp[2], :kcat1 => newp[3], 
+    :ka2 => newp[4], :kb2 => newp[5], 
+    :ka3 => newp[6], :kb3 => newp[7],
+    :ka4 => newp[8], :kb4 => newp[9], 
+    :ka7 => newp[10], :kb7 => newp[11], :kcat7 => newp[12], :y => newp[13]]
+newp = symmap_to_varmap(osc_rn, newp)
+oprob = ODEProblem{false}(osys, u0, tspan, newp)
+osol = solve(oprob, Tsit5(), saveat = 0.001)
+plot(osol)
+
+newsol = solve(remake(oprob, p = newp), Tsit5(), saveat = 0.001)
 plot(newsol)
