@@ -130,6 +130,44 @@ plot(osol)
 
 ## GENETIC ALGORITHM
 # make initial population of 5000 random parameter sets
+function generatePopulation(param_values::Dict{String, Dict{String, Float64}}, N::Int)
+    pop = Vector{Array{Float64}}(undef, N)
+    for i in 1:N
+        candidate = zeros(length(param_values))
+        j = 1
+        for (param, bounds) in param_values
+            candidate[j] = rand(collect(range(bounds["min"], bounds["max"], length=100)))
+            j += 1
+        end
+        push!(pop, candidate)
+    end
+    return pop
+end
+
+
+ka_min, ka_max = 0.0, 100.0
+kb_min, kb_max = 0.0, 500.0
+kcat_min, kcat_max = 0.0, 500.0
+
+param_values = Dict(
+    "ka1" => Dict("min" => ka_min, "max" => ka_max),
+    "kb1" => Dict("min" => kb_min, "max" => kb_max),
+    "kcat1" => Dict("min" => kcat_min, "max" => kcat_max),
+    "ka2" => Dict("min" => ka_min, "max" => ka_max),
+    "kb2" => Dict("min" => kb_min, "max" => kb_max),
+    "ka3" => Dict("min" => ka_min, "max" => ka_max),
+    "kb3" => Dict("min" => kb_min, "max" => kb_max),
+    "ka4" => Dict("min" => ka_min, "max" => ka_max),
+    "kb4" => Dict("min" => kb_min, "max" => kb_max),
+    "ka7" => Dict("min" => ka_min, "max" => ka_max),
+    "kb7" => Dict("min" => kb_min, "max" => kb_max),
+    "kcat7" => Dict("min" => kcat_min, "max" => kcat_max),
+    "VA" => Dict("min" => 0.5, "max" => 1.5)
+)
+
+pop = generatePopulation(param_values, 5000)
+
+
 pop = [rand(1:500, 14) for i in 1:5000]
 p_init = [x[2] for x in p]
 result = Evolutionary.optimize(testcost, p_init, GA(populationSize = 5000, crossoverRate = 0.5, crossover = TPX, mutationRate = 0.9, mutation = inversion,  metrics = [Evolutionary.AbsDiff(1e-4)]))
