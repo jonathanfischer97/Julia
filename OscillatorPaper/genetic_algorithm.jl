@@ -12,7 +12,7 @@ using Statistics
 
 
 ## COST FUNCTIONS and dependencies 
-function getDif(indexes, arrayData)
+function getDif(indexes::Vector{Int}, arrayData::Vector{Float64}) 
     arrLen = length(indexes)
     sum = 0
     for (i, ind) in enumerate(indexes)
@@ -22,10 +22,10 @@ function getDif(indexes, arrayData)
         sum += arrayData[ind] - arrayData[indexes[i+1]]
     end
     sum += arrayData[indexes[end]] 
-    return sum #return statement is unneeded but just covering bases 
+    return sum
 end
     
-function getSTD(indexes, arrayData, window) #get standard deviation of fft peak indexes
+function getSTD(indexes::Vector{Int}, arrayData::Vector{Float64}, window::Int) #get standard deviation of fft peak indexes
     numPeaks = length(indexes)
     arrLen = length(arrayData)
     sum = 0
@@ -37,6 +37,35 @@ function getSTD(indexes, arrayData, window) #get standard deviation of fft peak 
     sum = sum/numPeaks 
     return sum
 end
+
+## made by ChatGPT
+function getSTD(indexes::Vector{Int}, arrayData::Vector{Float64})
+    numPeaks = length(indexes)
+    arrLen = length(arrayData)
+    sum = 0
+    for ind in indexes
+        # Determine the frequency corresponding to the current peak
+        freq = (ind - 1) / arrLen
+        
+        # Compute the window size as a function of the frequency
+        windowSize = 0.1 / freq  # Scale the window size by the reciprocal of the frequency
+        
+        # Define the bounds of the window
+        minInd = max(1, Int(ind - windowSize))
+        maxInd = min(arrLen, Int(ind + windowSize))
+        
+        # Compute the standard deviation over the window
+        sum += std(arrayData[minInd:maxInd])
+    end
+    return sum / numPeaks
+end
+
+function getSamplingRate(max_peaks::Int, time_interval::Float64)
+    max_frequency = max_peaks / time_interval
+    sampling_rate = 2 * max_frequency
+    return sampling_rate
+end
+
  
 function getFrequencies1(y) #normally would slice y by interval for a sampling rate but not here
     y1 = y
@@ -68,19 +97,92 @@ function findlocalmaxima(signal::Vector)
     return copy(buff) #return copy of mutable buffer array to make immutable (essential for Zygote pullback)
   end
 
+  function getCorr(fftData::Vector{Float64})
+    n = length(fftData)
+    x = 1:n
+    y = fftData
+    cosine = cos.(2 * π * x / n)
+    mean_y = mean(y)
+    mean_cos = mean(cosine)
+    std_y = std(y)
+    std_cos = std(cosine)
+    corr = sum((y .- mean_y) .* (cosine .- mean_cos)) / ((n-1) * std_y * std_cos)
+    return corr
+end
+
+using Statistics
+
+function findpeaks(x::Vector{T}, prominence::Union{Nothing, T}=nothing, width::Union{Nothing, T}=nothing) where T<:Real
+    # Smooth the data using a Gaussian filter
+    window_size = Int(4 * ceil(prominence / 4) + 1)
+    window = gausswin(window_size, prominence / 4)
+    y = conv(x, window, mode="same")
+
+    # Find local maxima in the smoothed data
+    maxima = findall(2: length(y)-1) do i
+        y[i-1] < y[i] >= y[i+1]
+    end
+
+    # Filter the maxima by prominence and width
+    if prominence != nothing
+        peak_values = x[maxima]
+        peak_prominence = peak_values .- maximum([x[max(i-1,1):min(i+1,length(x))] for i in maxima])
+        maxima = maxima[findall(p -> p >= prominence, peak_prominence)]
+    end
+
+    if width != nothing
+        halfwidth = div(width, 2)
+        maxima = filter(i -> i - halfwidth > 0 && i + halfwidth <= length(x), maxima)
+        maxima = filter(i -> i - halfwidth < 2 || i + halfwidth > length(x)-1 || maximum(x[i-halfwidth:i+halfwidth]) >= x[i], maxima)
+    end
+
+    return maxima
+end
+
+function gausswin(n::Int, alpha::Float64=2.5)
+    if n < 1
+        error("n must be greater than 0")
+    end
+    if alpha < 0
+        error("alpha must be non-negative")
+    end
+    if n == 1
+        return [1.0]
+    end
+    half = div(n, 2)
+    x = collect(-half:half)
+    w = exp.(-0.5 * (x / (alpha * half)).^2)
+    return w ./ sum(w)
+end
+
+
 #current testing cost function, USE 
-function testcost(p)
-    Y = Array(solve(oprob, tspan = (0., 20.), p = p, Tsit5(), saveat = 0.001))
+function testcost(p::Vector{Float64})
+    Y = Array(solve(oprob, tspan = (0., 20.), p = p, saveat = 0.001))
     p1 = Y[1,:]
-    fftData = getFrequencies1(p1)
-    indexes = findlocalmaxima(fftData)[1]
-    if length(indexes) == 0
+    fftData = getFrequencies1(p1) #get Fourier transform of p1
+    indexes = findlocalmaxima(fftData)[1] #get indexes of local maxima of fft
+    if length(indexes) == 0 #if no peaks, return 0
         return 0
     end
-    std = getSTD(indexes, fftData, 1)
-    diff = getDif(indexes, fftData)
+    std = getSTD(indexes, fftData, 1) #get standard deviation of fft peak indexes
+    diff = getDif(indexes, fftData) #get difference between peaks
     return std + diff
 end
+
+function testcost2(p::Vector{Float64})
+    Y = Array(solve(oprob, tspan = (0., 20.), p = p, saveat = 0.001))
+    p1 = Y[1,:]
+    fftData = getFrequencies1(p1) #get Fourier transform of p1
+    indexes = findPeaks(fftData, 0.05) #get indexes of local maxima of fft
+    if length(indexes) == 0 #if no peaks, return 0
+        return 0
+    end
+    std = corrPeakStd(indexes, fftData, 1) #get standard deviation of fft peak indexes
+    diff = corrPeakDiff(indexes, fftData) #get difference between peaks
+    return std + diff
+end
+
 
 ## PROBLEM SETUP
 osc_rn = @reaction_network osc_rn begin
