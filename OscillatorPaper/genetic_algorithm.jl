@@ -7,6 +7,8 @@ using BenchmarkTools
 using FFTW
 using Zygote
 using Statistics
+using Random
+using Distributions
 
 
 
@@ -231,20 +233,31 @@ plot(osol)
 
 
 ## GENETIC ALGORITHM
-# make initial population of 5000 random parameter sets
-function generatePopulation(param_values::Dict{String, Dict{String, Float64}}, N::Int)
-    pop = Vector{Array{Float64}}(undef, N)
-    for i in 1:N
-        candidate = zeros(length(param_values))
-        j = 1
-        for (param, bounds) in param_values
-            candidate[j] = rand(collect(range(bounds["min"], bounds["max"], length=100)))
-            j += 1
-        end
-        push!(pop, candidate)
-    end
-    return pop
+# define Candidate and Model structs
+struct Candidate
+    params::Vector{Float64}
+    fitness::Float64
 end
+
+struct Model
+    rn::ReactionSystem  # a Catalyst.jl reaction network
+    param_values::Dict{String, Dict{String, Float64}}
+    cost_function::Function
+    population::Vector{Candidate}
+    best_candidate::Candidate
+end
+
+# generate candidate parameter vector
+function generateCandidate(param_values::Dict{String, Dict{String, Float64}})
+    candidate = Float64[]
+    for p in param_values
+        param_range = p[2]
+        push!(candidate, rand(Uniform(param_range["min"], param_range["max"])))
+    end
+    return candidate
+end
+
+
 
 
 ka_min, ka_max = 0.0, 100.0
@@ -264,15 +277,14 @@ param_values = Dict(
     "ka7" => Dict("min" => ka_min, "max" => ka_max),
     "kb7" => Dict("min" => kb_min, "max" => kb_max),
     "kcat7" => Dict("min" => kcat_min, "max" => kcat_max),
-    "VA" => Dict("min" => 0.5, "max" => 1.5)
+    "y" => Dict("min" => 100, "max" => 1500)
 )
 
-pop = generatePopulation(param_values, 5000)
 
 
-pop = [rand(1:500, 14) for i in 1:5000]
-p_init = [x[2] for x in p]
-result = Evolutionary.optimize(testcost, p_init, GA(populationSize = 5000, crossoverRate = 0.5, crossover = TPX, mutationRate = 0.9, mutation = inversion,  metrics = [Evolutionary.AbsDiff(1e-4)]))
+result = Evolutionary.optimize(testcost, generateCandidate(param_values), GA(populationSize = 5000, crossoverRate = 0.5, crossover = TPX, mutationRate = 0.9, mutation = inversion,  metrics = [Evolutionary.AbsDiff(1e-4)]))
+newsol = solve(remake(oprob, p = result.minimizer), Tsit5(), saveat = 0.001)
+plot(newsol)
 
 
 newp= [1.5088004628136753, 474.74790524323765, 413.77725974011156, 53.161947464834014, 450.48565960154116, 97.63166395821786, 343.31846212387194, 4.858456659722766, 129.45559308306565, 96.4450517730593, 67.91459290725088, 125.82747629586815, 1.0446379594697963/0.001]
