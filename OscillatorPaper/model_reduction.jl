@@ -64,6 +64,7 @@ sol = Symbolics.solve_for([Ltot,Atot,Ktot,Ptot], [LpAKL,LpP,LpAP,LpAPLp])
 subs = Dict(MT.parameters(ns) .=> MT.varmap_to_vars([], MT.parameters(ns); defaults=MT.defaults(ns)))
 reduced_eqs = map(eq -> substitute(eq.rhs-eq.lhs,Dict(LpAKL,LpP,LpAP,LpAPLp .=> cons_eq), equations(osys)))
 
+conlaw_constants = conservationlaw_constants(trimer_rn)
 subs = Dict(LpAKL => cons_eq[1].rhs, LpP => cons_eq[2].rhs, LpAP => cons_eq[3].rhs, LpAPLp => cons_eq[4].rhs)
 substitute(osys.eqs[1],Dict(LpAKL => cons_eq[1].rhs))
 reduced_eqs = map(eq -> substitute(eq,subs), [equations(osys)...]); deleteat!(reduced_eqs,[8,10,11,12])
@@ -74,6 +75,7 @@ for eq in reduced_eqs
 end
 
 latexify(reduced_eqs) |> render 
+latexify(conlaw_constants) |> render
 
 
 
