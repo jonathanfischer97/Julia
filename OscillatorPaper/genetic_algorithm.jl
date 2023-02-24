@@ -74,7 +74,7 @@ function getFrequencies1(y) #normally would slice y by interval for a sampling r
     #fft sample rate: 1 sample per 5 minutes
     res = broadcast(abs,rfft(y1)) #broadcast abs to all elements of rfft return array. Think .= syntax does the same 
     #normalize the amplitudes
-    norm_res = res/cld(1000, 2)
+    norm_res = res/cld(250, 2)
     return norm_res #smallest integer larger than or equal to. Rounding up
 end
 
@@ -99,7 +99,36 @@ function findlocalmaxima(signal::Vector)
     return inds #return copy of mutable buffer array to make immutable (essential for Zygote pullback)
   end
 
-  function getCorr(fftData::Vector{Float64})
+using StatsBase
+
+function find_peak_indexes(data::AbstractArray{T}, thres::Union{Real, Nothing}=0.5, min_dist::Int=1) where T<:Real
+    length(data) < 3 && return Int[] # Return an empty array for data with length < 3
+    thres = isnothing(thres) ? 0.0 : thres # If threshold is not provided, set it to 0.0
+    dx = 1
+    y = data .- thres
+    dy = diff(y) |> Vector{T} # Ensure that dy is always a 1-dimensional vector
+    min_peak_distance = max(1, min_dist)
+    zero_crossings = findall(dy .> 0) .+ 1
+    zero_crossings_diff = diff(zero_crossings)
+    candidate_peaks = zero_crossings[zero_crossings_diff >= min_peak_distance]
+    if isempty(candidate_peaks)
+        return Int[]
+    end
+    peak_properties = [
+        (p - 1 + argmax(y[p:min(p+dx, end)]), y[p - 1 + argmax(y[p:min(p+dx, end)])])
+        for p in candidate_peaks
+    ]
+    peak_properties = filter(p -> p[1] > 0, peak_properties)
+    return sort([p[1] for p in peak_properties])
+end
+
+
+
+
+
+
+
+function getCorr(fftData::Vector{Float64})
     n = length(fftData)
     x = 1:n
     y = fftData
@@ -160,7 +189,7 @@ end
 
 #current testing cost function, USE 
 function testcost(p::Vector{Float64})
-    Y = Array(solve(oprob, tspan = (0., 20.), p = p, saveat = 0.001))
+    Y = solve(remake(oprob2, p=p), tspan = (0., 20.), saveat = 0.001)
     p1 = Y[1,:]
     fftData = getFrequencies1(p1) #get Fourier transform of p1
     indexes = findlocalmaxima(fftData) #get indexes of local maxima of fft
@@ -185,6 +214,16 @@ function testcost2(p::Vector{Float64})
     return std + diff
 end
 
+function parse_input(input::AbstractString)::Vector{Float64}
+    output = Float64[]
+    input = replace(input, r"[\{\}]"=> "") # remove curly braces
+    items = split(input, ", ")
+    for s in items
+        val = split(s, ": ")[2]
+        push!(output, parse(Float64, val))
+    end
+    return output
+end
 
 ## PROBLEM SETUP
 osc_rn = @reaction_network osc_rn begin
@@ -199,6 +238,20 @@ osc_rn = @reaction_network osc_rn begin
     (ka4,kb4), LpA + P <--> LpAP 
     (ka7*y,kb7), Lp + LpAP <--> LpAPLp
     kcat7, LpAPLp --> L + LpAP 
+
+    #previously hidden NERDSS reactions
+    (ka2,kb2), Lp + AK <--> LpAK
+    (ka2*y,kb2), Lp + AKL <--> LpAKL
+    (ka2,kb2), Lp + AP <--> LpAP
+    (ka2*y,kb2), Lp + APLp <--> LpAPLp
+    (ka3,kb3), A + K <--> AK
+    (ka4,kb4), A + P <--> AP
+    (ka3,kb3), A + LK <--> AKL
+    (ka4,kb4), A + LpP <--> APLp
+    (ka3*y,kb3), LpA + LK <--> LpAKL
+    (ka4*y,kb4), LpA + LpP <--> LpAPLp
+    (ka1,kb1), AK + L <--> AKL #binding of kinase to lipid
+    (ka2,kb2), AP + Lp <--> APLp #binding of phosphatase to lipid
 end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka7 kb7 kcat7 y 
 
 p = [:ka1 => 0.05485309578515125, :kb1 => 19.774627209108715, :kcat1 => 240.99536193310848, 
@@ -207,15 +260,17 @@ p = [:ka1 => 0.05485309578515125, :kb1 => 19.774627209108715, :kcat1 => 240.9953
     :ka4 => 0.19184180144850807, :kb4 => 0.12960624157489123, 
     :ka7 => 0.6179131289475834, :kb7 => 3.3890271820244195, :kcat7 => 4.622923709012232, :y => 750.]
 
-plist = [x[2] for x in p]
+input = "{'ka1': 71.1660475072189, 'kb1': 1.5159502159283402, 'kcat1': 13.424687589058786, 'ka2': 0.01, 'kb2': 0.5917927793632454, 'ka3': 2.8460552266571644, 'kb3': 0.01, 'ka4': 59.51538294987245, 'kb4': 0.13776483888525468, 'ka7': 23.590647636435467, 'kb7': 1.3220997829155607, 'kcat7': 36.90013394947226, 'VA': 525.170659247689}"
+p = parse_input(input)
 
-u0 = [:L => 0., :Lp => 3.0, :K => 0.2, :P => 0.3, :LK => 0., :A => 0.6, :LpA => 0., :LpAK => 0., :LpAP => 0., :LpAPLp => 0., :LpAKL => 0., :LpP => 0.]
+u0 = [:L => 0., :Lp => 3.0, :K => 0.2, :P => 0.3, :LK => 0., :A => 2.0, :LpA => 0., :LpAK => 0., :LpAP => 0., :LpAPLp => 0., :LpAKL => 0., :LpP => 0., :AK => 0., :AP => 0., :AKL => 0., :APLp => 0.]
 
 
 tspan = (0.,20.)
 
-oprob = ODEProblem(osc_rn, u0, tspan, p)
-@btime osol = solve(oprob, Tsit5(), saveat = 0.001)
+oprob2 = ODEProblem(osc_rn, u0, tspan, p)
+osol = solve(oprob2, Tsit5(), saveat = 0.001)
+plot(osol)
 
 
 
