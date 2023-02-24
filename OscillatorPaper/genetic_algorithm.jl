@@ -80,23 +80,23 @@ end
 
 
 #homemade peakfinder
-function findlocalmaxima(signal::Vector)
+function findlocalmaxima(signal::Vector) 
     inds = Int[]
-    buff = Zygote.Buffer(inds) #Zygote.Buffer creates mutable array that is invisible to autodifferention, aka no matrix operations allowed
+    # buff = Zygote.Buffer(inds) #Zygote.Buffer creates mutable array that is invisible to autodifferention, aka no matrix operations allowed
     if length(signal)>1
         if signal[1]>signal[2]
-            push!(buff,1)
+            push!(inds,1)
         end
         for i=2:length(signal)-1
             if signal[i-1]<signal[i]>signal[i+1]
-                push!(buff,i)
+                push!(inds,i)
             end
         end
         if signal[end]>signal[end-1]
-            push!(buff,length(signal))
+            push!(inds,length(signal))
         end
     end
-    return copy(buff) #return copy of mutable buffer array to make immutable (essential for Zygote pullback)
+    return inds #return copy of mutable buffer array to make immutable (essential for Zygote pullback)
   end
 
   function getCorr(fftData::Vector{Float64})
@@ -163,7 +163,7 @@ function testcost(p::Vector{Float64})
     Y = Array(solve(oprob, tspan = (0., 20.), p = p, saveat = 0.001))
     p1 = Y[1,:]
     fftData = getFrequencies1(p1) #get Fourier transform of p1
-    indexes = findlocalmaxima(fftData)[1] #get indexes of local maxima of fft
+    indexes = findlocalmaxima(fftData) #get indexes of local maxima of fft
     if length(indexes) == 0 #if no peaks, return 0
         return 0
     end
@@ -207,6 +207,8 @@ p = [:ka1 => 0.05485309578515125, :kb1 => 19.774627209108715, :kcat1 => 240.9953
     :ka4 => 0.19184180144850807, :kb4 => 0.12960624157489123, 
     :ka7 => 0.6179131289475834, :kb7 => 3.3890271820244195, :kcat7 => 4.622923709012232, :y => 750.]
 
+plist = [x[2] for x in p]
+
 u0 = [:L => 0., :Lp => 3.0, :K => 0.2, :P => 0.3, :LK => 0., :A => 0.6, :LpA => 0., :LpAK => 0., :LpAP => 0., :LpAPLp => 0., :LpAKL => 0., :LpP => 0.]
 
 
@@ -225,7 +227,7 @@ osys = convert(ODESystem, osc_rn)
 p = symmap_to_varmap(osc_rn, p)
 oprob = ODEProblem{false}(osys, u0, tspan, p)
 
-@btime osol = solve(oprob, Tsit5(), saveat = 0.001)
+osol = solve(oprob, Tsit5(), saveat = 0.001)
 
 
 plot(osol)
@@ -248,7 +250,7 @@ struct Model
 end
 
 # generate candidate parameter vector
-function generateCandidate(param_values::Dict{String, Dict{String, Float64}})
+function generateCandidate(param_values::Dict{String, Dict{String}})
     candidate = Float64[]
     for p in param_values
         param_range = p[2]
@@ -280,9 +282,10 @@ param_values = Dict(
     "y" => Dict("min" => 100, "max" => 1500)
 )
 
+generateCandidate(param_values)
 
 
-result = Evolutionary.optimize(testcost, generateCandidate(param_values), GA(populationSize = 5000, crossoverRate = 0.5, crossover = TPX, mutationRate = 0.9, mutation = inversion,  metrics = [Evolutionary.AbsDiff(1e-4)]))
+result = Evolutionary.optimize(testcost, generateCandidate(param_values), GA(populationSize = 5000, crossoverRate = 0.5, crossover = TPX, mutationRate = 0.9, mutation = PLM,  metrics = [Evolutionary.AbsDiff(1e-4)]))
 newsol = solve(remake(oprob, p = result.minimizer), Tsit5(), saveat = 0.001)
 plot(newsol)
 
