@@ -5,10 +5,11 @@ using Evolutionary
 using StaticArrays
 using BenchmarkTools
 using FFTW
-using Zygote
+# using Zygote
 using Statistics
 using Random
 using Distributions
+using Peaks
 
 
 
@@ -254,11 +255,11 @@ osc_rn = @reaction_network osc_rn begin
     (ka2,kb2), AP + Lp <--> APLp #binding of phosphatase to lipid
 end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka7 kb7 kcat7 y 
 
-p = [:ka1 => 0.05485309578515125, :kb1 => 19.774627209108715, :kcat1 => 240.99536193310848, 
-    :ka2 => 1.0, :kb2 => 0.9504699043910143, 
-    :ka3 => 41.04322510426121, :kb3 => 192.86642772763489,
-    :ka4 => 0.19184180144850807, :kb4 => 0.12960624157489123, 
-    :ka7 => 0.6179131289475834, :kb7 => 3.3890271820244195, :kcat7 => 4.622923709012232, :y => 750.]
+# p = [:ka1 => 0.05485309578515125, :kb1 => 19.774627209108715, :kcat1 => 240.99536193310848, 
+#     :ka2 => 1.0, :kb2 => 0.9504699043910143, 
+#     :ka3 => 41.04322510426121, :kb3 => 192.86642772763489,
+#     :ka4 => 0.19184180144850807, :kb4 => 0.12960624157489123, 
+#     :ka7 => 0.6179131289475834, :kb7 => 3.3890271820244195, :kcat7 => 4.622923709012232, :y => 750.]
 
 input = "{'ka1': 71.1660475072189, 'kb1': 1.5159502159283402, 'kcat1': 13.424687589058786, 'ka2': 0.01, 'kb2': 0.5917927793632454, 'ka3': 2.8460552266571644, 'kb3': 0.01, 'ka4': 59.51538294987245, 'kb4': 0.13776483888525468, 'ka7': 23.590647636435467, 'kb7': 1.3220997829155607, 'kcat7': 36.90013394947226, 'VA': 525.170659247689}"
 p = parse_input(input)
@@ -266,12 +267,18 @@ p = parse_input(input)
 u0 = [:L => 0., :Lp => 3.0, :K => 0.2, :P => 0.3, :LK => 0., :A => 2.0, :LpA => 0., :LpAK => 0., :LpAP => 0., :LpAPLp => 0., :LpAKL => 0., :LpP => 0., :AK => 0., :AP => 0., :AKL => 0., :APLp => 0.]
 
 
-tspan = (0.,20.)
+tspan = (0.,100.)
 
 oprob2 = ODEProblem(osc_rn, u0, tspan, p)
 osol = solve(oprob2, Tsit5(), saveat = 0.001)
 plot(osol)
 
+signal = osol[1,:]
+
+pks,vals = findmaxima(signal,3)
+for idx in pks
+    println("Peak at time $(osol.t[idx])")
+end
 
 
 
