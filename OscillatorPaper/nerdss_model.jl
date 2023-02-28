@@ -29,7 +29,9 @@ trimer_rn = @reaction_network trirn begin
     (ka3*y,kb3), LpA + LK <--> LpAKL
     (ka4*y,kb4), LpA + LpP <--> LpAPLp
     (ka1,kb1), AK + L <--> AKL #binding of kinase to lipid
-    (ka2,kb2), AP + Lp <--> APLp #binding of phosphatase to lipid
+    kcat1, AKL --> Lp + AK #phosphorylation of lipid
+    (ka7,kb7), AP + Lp <--> APLp #binding of phosphatase to lipid
+    kcat7, APLp --> L + AP #dephosphorylation of lipid
 end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka7 kb7 kcat7 y 
 
 osys = convert(ODESystem, trimer_rn)
