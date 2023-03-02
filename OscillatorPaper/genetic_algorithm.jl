@@ -11,6 +11,8 @@ using Random
 using Distributions
 using Peaks
 
+Threads.nthreads()
+
 
 
 
@@ -189,7 +191,7 @@ end
 #current testing cost function, USE 
 function get_fitness(p::Vector{Float64})::Float64
     Y = solve(remake(oprob2, p=p))
-    p1 = Y[1,:]
+    p1 = Y[6,:]
     fftData = getFrequencies(p1) #get Fourier transform of p1
     indexes = findmaxima(fftData)[1] #get indexes of local maxima of fft
     if length(indexes) == 0 #if no peaks, return 0
@@ -250,20 +252,26 @@ osc_rn = @reaction_network osc_rn begin
     (ka3*y,kb3), LpA + LK <--> LpAKL
     (ka4*y,kb4), LpA + LpP <--> LpAPLp
     (ka1,kb1), AK + L <--> AKL #binding of kinase to lipid
-    (ka2,kb2), AP + Lp <--> APLp #binding of phosphatase to lipid
+    kcat1, AKL --> Lp + AK #phosphorylation of lipid
+    (ka7,kb7), AP + Lp <--> APLp #binding of phosphatase to lipid
+    kcat7, APLp --> L + AP #dephosphorylation of lipid
 end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka7 kb7 kcat7 y 
 
-input = "{'ka1': 71.1660475072189, 'kb1': 1.5159502159283402, 'kcat1': 13.424687589058786, 'ka2': 0.01, 'kb2': 0.5917927793632454, 'ka3': 2.8460552266571644, 'kb3': 0.01, 'ka4': 59.51538294987245, 'kb4': 0.13776483888525468, 'ka7': 23.590647636435467, 'kb7': 1.3220997829155607, 'kcat7': 36.90013394947226, 'VA': 525.170659247689}"
-p = parse_input(input)
+input = "{'ka1': 0.01642097502199415, 'kb1': 0.0643048008980449, 'kcat1': 286.6382253193995, 'ka2': 1.0, 'kb2': 0.39569337786534897, 'ka3': 0.024784025572903687, 'kb3': 0.5393197910059361, 'ka4': 0.03281183067630924, 'kb4': 0.2897657637531564, 'ka7': 0.11450246770405478, 'kb7': 0.0028126177315505618, 'kcat7': 1.2733781341040291, 'VA': 2650.5049775102034, 'L': 2.107360215531841, 'Lp': 2.624942515606095, 'K': 0.15746804082956445, 'P': 0.7958264308210892, 'A': 2.785231513223431}"
+parsed = parse_input(input)
 
-u0 = [:L => 0., :Lp => 3.0, :K => 0.2, :P => 0.3, :LK => 0., :A => 2.0, :LpA => 0., :LpAK => 0., :LpAP => 0., :LpAPLp => 0., :LpAKL => 0., :LpP => 0., :AK => 0., :AP => 0., :AKL => 0., :APLp => 0.]
+p = parsed[1:end-5]
+u0 = [:L => parsed[end-4], :Lp => parsed[end-3], :K => parsed[end-2], :P => parsed[end-1], :A => parsed[end], :LK => 0., :LpA => 0., :LpAK => 0., :LpAP => 0., :LpAPLp => 0., :LpAKL => 0., :LpP => 0., :AK => 0., :AP => 0., :AKL => 0., :APLp => 0.]
 
 
 tspan = (0.,100.)
 
 oprob2 = ODEProblem(osc_rn, u0, tspan, p)
 osol2 = solve(oprob2, saveat = 0.01)
-plot(osol)
+plot(osol2)
+get_fitness(p)
+
+
 
 signal = osol[1,:]
 
