@@ -15,7 +15,7 @@ using Peaks
 
 
 ## COST FUNCTIONS and dependencies 
-function getDif(indexes::Vector{Int}, arrayData::Vector{Float64}) 
+function getDif(indexes::Vector{Int}, arrayData::Vector{Float64})::Float64 #get difference between peaks 
     arrLen = length(indexes)
     sum = 0
     for (i, ind) in enumerate(indexes)
@@ -28,7 +28,7 @@ function getDif(indexes::Vector{Int}, arrayData::Vector{Float64})
     return sum
 end
     
-function getSTD(indexes::Vector{Int}, arrayData::Vector{Float64}, window::Int) #get standard deviation of fft peak indexes
+function getSTD(indexes::Vector{Int}, arrayData::Vector{Float64}, window::Int)::Float64 #get standard deviation of fft peak indexes
     numPeaks = length(indexes)
     arrLen = length(arrayData)
     sum = 0
@@ -70,13 +70,11 @@ function getSamplingRate(max_peaks::Int, time_interval::Float64)
 end
 
  
-function getFrequencies1(y) #normally would slice y by interval for a sampling rate but not here
-    y1 = y
+function getFrequencies(y::Vector{Float64}) #normally would slice y by interval for a sampling rate but not here
     #fft sample rate: 1 sample per 5 minutes
-    res = broadcast(abs,rfft(y1)) #broadcast abs to all elements of rfft return array. Think .= syntax does the same 
+    res = broadcast(abs,rfft(y)) #broadcast abs to all elements of rfft return array. Think .= syntax does the same 
     #normalize the amplitudes
-    norm_res = res/cld(250, 2)
-    return norm_res #smallest integer larger than or equal to. Rounding up
+    res/cld(10000, 2)
 end
 
 
@@ -189,13 +187,13 @@ end
 
 
 #current testing cost function, USE 
-function testcost(p::Vector{Float64})
-    Y = solve(remake(oprob2, p=p), tspan = (0., 20.), saveat = 0.001)
+function get_fitness(p::Vector{Float64})::Float64
+    Y = solve(remake(oprob2, p=p))
     p1 = Y[1,:]
-    fftData = getFrequencies1(p1) #get Fourier transform of p1
+    fftData = getFrequencies(p1) #get Fourier transform of p1
     indexes = findmaxima(fftData)[1] #get indexes of local maxima of fft
     if length(indexes) == 0 #if no peaks, return 0
-        return 0
+        return 0.
     end
     std = getSTD(indexes, fftData, 1) #get standard deviation of fft peak indexes
     diff = getDif(indexes, fftData) #get difference between peaks
@@ -255,12 +253,6 @@ osc_rn = @reaction_network osc_rn begin
     (ka2,kb2), AP + Lp <--> APLp #binding of phosphatase to lipid
 end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka7 kb7 kcat7 y 
 
-# p = [:ka1 => 0.05485309578515125, :kb1 => 19.774627209108715, :kcat1 => 240.99536193310848, 
-#     :ka2 => 1.0, :kb2 => 0.9504699043910143, 
-#     :ka3 => 41.04322510426121, :kb3 => 192.86642772763489,
-#     :ka4 => 0.19184180144850807, :kb4 => 0.12960624157489123, 
-#     :ka7 => 0.6179131289475834, :kb7 => 3.3890271820244195, :kcat7 => 4.622923709012232, :y => 750.]
-
 input = "{'ka1': 71.1660475072189, 'kb1': 1.5159502159283402, 'kcat1': 13.424687589058786, 'ka2': 0.01, 'kb2': 0.5917927793632454, 'ka3': 2.8460552266571644, 'kb3': 0.01, 'ka4': 59.51538294987245, 'kb4': 0.13776483888525468, 'ka7': 23.590647636435467, 'kb7': 1.3220997829155607, 'kcat7': 36.90013394947226, 'VA': 525.170659247689}"
 p = parse_input(input)
 
@@ -270,7 +262,7 @@ u0 = [:L => 0., :Lp => 3.0, :K => 0.2, :P => 0.3, :LK => 0., :A => 2.0, :LpA => 
 tspan = (0.,100.)
 
 oprob2 = ODEProblem(osc_rn, u0, tspan, p)
-osol = solve(oprob2, Tsit5(), saveat = 0.001)
+osol2 = solve(oprob2, saveat = 0.01)
 plot(osol)
 
 signal = osol[1,:]
@@ -296,32 +288,16 @@ getFrequencies1(signal)
 
 
 
-u0 = SA[0., 0.2, 0., 3.0, 3.0, 0., 0., 0., 0.3, 0., 0., 0.]
+uSA = SA[0., 0.2, 0., 3.0, 3.0, 0., 0., 0., 0.3, 0., 0., 0., 0., 0., 0., 0.]
 osys = convert(ODESystem, osc_rn)
-p = symmap_to_varmap(osc_rn, p)
-oprob = ODEProblem{false}(osys, u0, tspan, p)
+pmap = symmap_to_varmap(osc_rn, p)
+oprob = ODEProblem{false}(osys, uSA, tspan, pmap)
 
-osol = solve(oprob, Tsit5(), saveat = 0.001)
+@benchmark osol = solve(oprob, saveat = 0.01)
 
 
 plot(osol)
 
-
-
-## GENETIC ALGORITHM
-# define Candidate and Model structs
-struct Candidate
-    params::Vector{Float64}
-    fitness::Float64
-end
-
-struct Model
-    rn::ReactionSystem  # a Catalyst.jl reaction network
-    param_values::Dict{String, Dict{String, Float64}}
-    cost_function::Function
-    population::Vector{Candidate}
-    best_candidate::Candidate
-end
 
 # generate candidate parameter vector
 function generateCandidate(param_values::Dict{String, Dict{String}})
@@ -353,15 +329,80 @@ param_values = Dict(
     "ka7" => Dict("min" => ka_min, "max" => ka_max),
     "kb7" => Dict("min" => kb_min, "max" => kb_max),
     "kcat7" => Dict("min" => kcat_min, "max" => kcat_max),
-    "y" => Dict("min" => 100, "max" => 1500)
+    "y" => Dict("min" => 100., "max" => 1500.)
 )
 
-generateCandidate(param_values)
 
 constraints = BoxConstraints([param_values[p]["min"] for p in keys(param_values)], [param_values[p]["max"] for p in keys(param_values)])
+opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=20, parallelization=:thread)
+mthd = GA(populationSize = 5000, selection = tournament(2;select=argmax),
+          crossover = TPX, crossoverRate = 0.5,
+          mutation  = uniform(), mutationRate = 0.7)
+
+result = Evolutionary.optimize(get_fitness, constraints, mthd, opts)
 
 
-result = Evolutionary.optimize(testcost, constraints, GA(populationSize = 5000, crossoverRate = 0.5, crossover = TPX, mutationRate = 0.9, mutation = PLM(),  metrics = [Evolutionary.AbsDiff(1e-2)]))
+function make_fitness_function(oprob::ODEProblem)
+    function fitness_function(p::Vector{Float64})
+        Y = solve(remake(oprob, p=p))
+        p1 = Y[1,:]
+        fftData = getFrequencies(p1) #get Fourier transform of p1
+        indexes = findmaxima(fftData)[1] #get indexes of local maxima of fft
+        if length(indexes) == 0 #if no peaks, return 0
+            return 0.
+        end
+        std = getSTD(indexes, fftData, 1) #get standard deviation of fft peak indexes
+        diff = getDif(indexes, fftData) #get difference between peaks
+        return std + diff+1.
+    end
+    return fitness_function
+end
+
+fitness_function = make_fitness_function(oprob2) # Create a fitness function that includes your ODE problem as a constant
+
+opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=10, parallelization=:thread)
+mthd = GA(populationSize = 5000, selection = roulette,
+          crossover = TPX, crossoverRate = 0.5,
+          mutation  = PLM(), mutationRate = 0.9)
+
+result = Evolutionary.optimize(get_fitness(;oprob2), constraints, mthd, opts)
+
+newp = result.minimizer
+newsol = solve(remake(oprob2, p=newp))
+plot(newsol)
+
+# access the population of each generation
+for gen in result.trace
+    pop = gen.population
+    fitness_values = gen.fitness_values
+    # do something with the population and fitness values
+end
+
+
+
+
+
+
+result = Evolutionary.optimize(
+    testcost, constraints, GA(
+        populationSize = 5000,
+        crossoverRate = 0.5,
+        crossover = TPX,
+        mutationRate = 0.9,
+        mutation = PLM(),
+        selection = tournament(2),
+        metrics = [Evolutionary.AbsDiff(1e-2)]
+    )
+)
+
+
+
+
+
+
+
+
+result = Evolutionary.optimize(testcost, constraints, GA(populationSize = Int(5000), crossoverRate = 0.5, crossover = TPX, mutationRate = 0.90, mutation = inversion,  metrics = [Evolutionary.AbsDiff(1e-2)]))
 newsol = solve(remake(oprob, p = result.minimizer), Tsit5(), saveat = 0.001)
 plot(newsol)
 
@@ -374,7 +415,7 @@ newp = [:ka1 => newp[1], :kb1 => newp[2], :kcat1 => newp[3],
     :ka7 => newp[10], :kb7 => newp[11], :kcat7 => newp[12], :y => newp[13]]
 newp = symmap_to_varmap(osc_rn, newp)
 oprob = ODEProblem{false}(osys, u0, tspan, newp)
-osol = solve(oprob, Tsit5(), saveat = 0.001)
+osol = solve(oprob, saveat = 0.001)
 plot(osol)
 
 newsol = solve(remake(oprob, p = newp), Tsit5(), saveat = 0.001)
