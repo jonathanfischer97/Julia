@@ -193,7 +193,7 @@ function testcost(p::Vector{Float64})
     Y = solve(remake(oprob2, p=p), tspan = (0., 20.), saveat = 0.001)
     p1 = Y[1,:]
     fftData = getFrequencies1(p1) #get Fourier transform of p1
-    indexes = findlocalmaxima(fftData) #get indexes of local maxima of fft
+    indexes = findmaxima(fftData)[1] #get indexes of local maxima of fft
     if length(indexes) == 0 #if no peaks, return 0
         return 0
     end
@@ -280,6 +280,18 @@ for idx in pks
     println("Peak at time $(osol.t[idx])")
 end
 
+getFrequencies1(signal)
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -346,8 +358,10 @@ param_values = Dict(
 
 generateCandidate(param_values)
 
+constraints = BoxConstraints([param_values[p]["min"] for p in keys(param_values)], [param_values[p]["max"] for p in keys(param_values)])
 
-result = Evolutionary.optimize(testcost, generateCandidate(param_values), GA(populationSize = 5000, crossoverRate = 0.5, crossover = TPX, mutationRate = 0.9, mutation = PLM,  metrics = [Evolutionary.AbsDiff(1e-4)]))
+
+result = Evolutionary.optimize(testcost, constraints, GA(populationSize = 5000, crossoverRate = 0.5, crossover = TPX, mutationRate = 0.9, mutation = PLM(),  metrics = [Evolutionary.AbsDiff(1e-2)]))
 newsol = solve(remake(oprob, p = result.minimizer), Tsit5(), saveat = 0.001)
 plot(newsol)
 
