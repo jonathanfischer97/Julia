@@ -109,7 +109,6 @@ tspan = (0.,100.)
 oprob = ODEProblem(osc_rn, u0, tspan, p)
 osol = solve(oprob, saveat = 0.01)
 plot(osol)
-get_fitness(p)
 
 
 
@@ -120,9 +119,10 @@ get_fitness(p)
 
 
 
-ka_min, ka_max = 0.0, 100.0
-kb_min, kb_max = 0.0, 500.0
-kcat_min, kcat_max = 0.0, 500.0
+
+ka_min, ka_max = 0.0001, 1.0
+kb_min, kb_max = 0.0001, 1000.0
+kcat_min, kcat_max = 0.0001, 1000.0
 
 param_values = Dict(
     "ka1" => Dict("min" => ka_min, "max" => ka_max),
@@ -137,7 +137,7 @@ param_values = Dict(
     "ka7" => Dict("min" => ka_min, "max" => ka_max),
     "kb7" => Dict("min" => kb_min, "max" => kb_max),
     "kcat7" => Dict("min" => kcat_min, "max" => kcat_max),
-    "y" => Dict("min" => 100., "max" => 5000.)
+    "y" => Dict("min" => 100., "max" => 10000.)
 )
 
 
@@ -174,7 +174,8 @@ function make_test_fitness_function(prob::ODEProblem, target_ss::Vector{Float64}
     return fitness_function
 end
 
-result = Evolutionary.optimize(test_fitness_function, constraints, mthd, opts)
+target_ss = [2.107] # Replace with your desired target steady-state values
+test_fitness_function = make_test_fitness_function(oprob, target_ss)
 
 
 
@@ -185,11 +186,10 @@ common_range = 0.5
 valrange = fill(common_range, 13)
 
 mthd = GA(populationSize = 5000, selection = tournament(500;select=argmax),
-          crossover = TPX, crossoverRate = 0.5,
-          mutation  = BGA(valrange, 2), mutationRate = 0.75)
-          
-target_ss = [2.107] # Replace with your desired target steady-state values
-test_fitness_function = make_test_fitness_function(oprob2, target_ss)
+crossover = TPX, crossoverRate = 0.5,
+mutation  = BGA(valrange, 2), mutationRate = 0.75)
+
+result = Evolutionary.optimize(test_fitness_function, constraints, mthd, opts)
 
 newp = result.minimizer
 newsol = solve(remake(oprob2, p=newp))
@@ -211,7 +211,7 @@ function eval_fitness(p::Vector{Float64}, prob::ODEProblem)
     end
     std = getSTD(indexes, fftData, 1) #get standard deviation of fft peak indexes
     diff = getDif(indexes, fftData) #get difference between peaks
-    return std + diff
+    return std + diff 
 end
 
 function make_fitness_function(prob::ODEProblem)
@@ -228,14 +228,14 @@ fitness_function = make_fitness_function(oprob) # Create a fitness function that
 
 #Real optimization
 constraints = BoxConstraints([param_values[p]["min"] for p in keys(param_values)], [param_values[p]["max"] for p in keys(param_values)])
-opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=20, parallelization=:thread)
+opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=10, parallelization=:threads)
 
-common_range = 0.5
+common_range = 0.7
 valrange = fill(common_range, 13)
-mthd = GA(populationSize = 5000, selection = tournament(500;select=argmax),
+mthd = GA(populationSize = 10000, selection = tournament(1000;select=argmax),
           crossover = TPX, crossoverRate = 0.5,
           mutation  = BGA(valrange, 2), mutationRate = 0.75)
-result = Evolutionary.optimize(fitness_function, constraints, mthd, opts)
+result = Evolutionary.optimize(fitness_function, p, mthd, opts)
 
 
 
