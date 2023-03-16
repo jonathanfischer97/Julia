@@ -190,10 +190,13 @@ end
 
 #current testing cost function, USE 
 function get_fitness(p::Vector{Float64})::Float64
-    Y = solve(remake(oprob2, p=p))
-    p1 = Y[6,:]
+    Y = solve(remake(oprob2, p=p),saveat=0.001)
+    p1 = Y[1,:]
+    # println(length(p1))
     fftData = getFrequencies(p1) #get Fourier transform of p1
     indexes = findmaxima(fftData)[1] #get indexes of local maxima of fft
+    # println(indexes)
+    # println("Peak Number: ", findmaxima(p1, 400)[1])
     if length(indexes) == 0 #if no peaks, return 0
         return 0.
     end
@@ -337,7 +340,7 @@ param_values = Dict(
     "ka7" => Dict("min" => ka_min, "max" => ka_max),
     "kb7" => Dict("min" => kb_min, "max" => kb_max),
     "kcat7" => Dict("min" => kcat_min, "max" => kcat_max),
-    "y" => Dict("min" => 100., "max" => 1500.)
+    "y" => Dict("min" => 100., "max" => 5000.)
 )
 
 
@@ -350,58 +353,22 @@ mthd = GA(populationSize = 5000, selection = tournament(2;select=argmax),
 result = Evolutionary.optimize(get_fitness, constraints, mthd, opts)
 
 
-function make_fitness_function(oprob::ODEProblem)
-    function fitness_function(p::Vector{Float64})
-        Y = solve(remake(oprob, p=p))
-        p1 = Y[1,:]
-        fftData = getFrequencies(p1) #get Fourier transform of p1
-        indexes = findmaxima(fftData)[1] #get indexes of local maxima of fft
-        if length(indexes) == 0 #if no peaks, return 0
-            return 0.
-        end
-        std = getSTD(indexes, fftData, 1) #get standard deviation of fft peak indexes
-        diff = getDif(indexes, fftData) #get difference between peaks
-        return std + diff+1.
-    end
-    return fitness_function
-end
 
-fitness_function = make_fitness_function(oprob2) # Create a fitness function that includes your ODE problem as a constant
-
-opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=10, parallelization=:thread)
+opts = Evolutionary.Options(show_trace=true,show_every=10, store_trace=true, iterations=10, parallelization=:thread)
 mthd = GA(populationSize = 5000, selection = roulette,
-          crossover = TPX, crossoverRate = 0.5,
-          mutation  = PLM(), mutationRate = 0.9)
+crossover = TPX, crossoverRate = 0.5,
+mutation  = PLM(), mutationRate = 0.9)
 
-result = Evolutionary.optimize(get_fitness(;oprob2), constraints, mthd, opts)
+result = Evolutionary.optimize(fitness_function, constraints, mthd, opts)
 
 newp = result.minimizer
 newsol = solve(remake(oprob2, p=newp))
 plot(newsol)
 
-# access the population of each generation
-for gen in result.trace
-    pop = gen.population
-    fitness_values = gen.fitness_values
-    # do something with the population and fitness values
-end
 
 
 
 
-
-
-result = Evolutionary.optimize(
-    testcost, constraints, GA(
-        populationSize = 5000,
-        crossoverRate = 0.5,
-        crossover = TPX,
-        mutationRate = 0.9,
-        mutation = PLM(),
-        selection = tournament(2),
-        metrics = [Evolutionary.AbsDiff(1e-2)]
-    )
-)
 
 
 
@@ -417,10 +384,10 @@ plot(newsol)
 
 newp= [1.5088004628136753, 474.74790524323765, 413.77725974011156, 53.161947464834014, 450.48565960154116, 97.63166395821786, 343.31846212387194, 4.858456659722766, 129.45559308306565, 96.4450517730593, 67.91459290725088, 125.82747629586815, 1.0446379594697963/0.001]
 newp = [:ka1 => newp[1], :kb1 => newp[2], :kcat1 => newp[3], 
-    :ka2 => newp[4], :kb2 => newp[5], 
-    :ka3 => newp[6], :kb3 => newp[7],
-    :ka4 => newp[8], :kb4 => newp[9], 
-    :ka7 => newp[10], :kb7 => newp[11], :kcat7 => newp[12], :y => newp[13]]
+:ka2 => newp[4], :kb2 => newp[5], 
+:ka3 => newp[6], :kb3 => newp[7],
+:ka4 => newp[8], :kb4 => newp[9], 
+:ka7 => newp[10], :kb7 => newp[11], :kcat7 => newp[12], :y => newp[13]]
 newp = symmap_to_varmap(osc_rn, newp)
 oprob = ODEProblem{false}(osys, u0, tspan, newp)
 osol = solve(oprob, saveat = 0.001)
@@ -428,3 +395,80 @@ plot(osol)
 
 newsol = solve(remake(oprob, p = newp), Tsit5(), saveat = 0.001)
 plot(newsol)
+
+
+
+
+
+
+
+function eval_fitness(p::Vector{Float64}, oprob::ODEProblem)
+    Y = solve(remake(oprob, p=p), saveat = 0.01)
+    p1 = Y[1,:]
+    fftData = getFrequencies(p1) #get Fourier transform of p1
+    indexes = findmaxima(fftData)[1] #get indexes of local maxima of fft
+    if length(indexes) == 0 #if no peaks, return 0
+        return 0.
+    end
+    std = getSTD(indexes, fftData, 1) #get standard deviation of fft peak indexes
+    diff = getDif(indexes, fftData) #get difference between peaks
+    return std + diff
+end
+
+function make_fitness_function(oprob::ODEProblem)
+    function fitness_function(p::Vector{Float64})
+        return eval_fitness(p, oprob)  
+    end
+    return fitness_function
+end
+
+fitness_function = make_fitness_function(oprob2) # Create a fitness function that includes your ODE problem as a constant
+
+
+### SANITY CHECK ### 
+function test_cost_function(p::Vector{Float64}, oprob::ODEProblem, target_ss::Vector{Float64})
+    Y = solve(remake(oprob, p=p))
+    ss_values = Y[1, end] # Get the steady-state values of the ODEProblem solution
+    cost = sum((ss_values .- target_ss).^2) # Calculate the sum of squared differences
+    return cost
+end
+
+function make_test_fitness_function(oprob::ODEProblem, target_ss::Vector{Float64})
+    function fitness_function(p::Vector{Float64})
+        return test_cost_function(p, oprob, target_ss)
+    end
+    return fitness_function
+end
+
+
+
+
+
+
+
+constraints = BoxConstraints([param_values[p]["min"] for p in keys(param_values)], [param_values[p]["max"] for p in keys(param_values)])
+opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=20, parallelization=:thread)
+
+common_range = 0.5
+valrange = fill(common_range, 13)
+
+mthd = GA(populationSize = 5000, selection = tournament(500;select=argmax),
+          crossover = TPX, crossoverRate = 0.5,
+          mutation  = BGA(valrange, 2), mutationRate = 0.75)
+
+target_ss = [2.107] # Replace with your desired target steady-state values
+test_fitness_function = make_test_fitness_function(oprob2, target_ss)
+result = Evolutionary.optimize(test_fitness_function, constraints, mthd, opts)
+
+#Real fitness function
+result = Evolutionary.optimize(fitness_function, constraints, mthd, opts)
+
+
+newp = result.minimizer
+newsol = solve(remake(oprob2, p=newp))
+newsol[1, end] # Get the steady-state values of the ODEProblem solution
+
+trace_vals = [x.value for x in result.trace]
+trace_time = [x.iteration for x in result.trace]
+
+plot(trace_time,trace_vals, xlabel="Iteration", ylabel="Cost", label="Cost", title="Cost vs Iteration", legend=:topleft)
