@@ -10,6 +10,7 @@ using Statistics
 using Random
 using Distributions
 using Peaks
+using LinearAlgebra
 
 
 
@@ -69,20 +70,20 @@ osc_rn = @reaction_network osc_rn begin
     kcat7, LpAPLp --> L + LpAP 
 
     #previously hidden NERDSS reactions
-    # (ka2,kb2), Lp + AK <--> LpAK
-    # (ka2*y,kb2), Lp + AKL <--> LpAKL
-    # (ka2,kb2), Lp + AP <--> LpAP
-    # (ka2*y,kb2), Lp + APLp <--> LpAPLp
-    # (ka3,kb3), A + K <--> AK
-    # (ka4,kb4), A + P <--> AP
-    # (ka3,kb3), A + LK <--> AKL
-    # (ka4,kb4), A + LpP <--> APLp
-    # (ka3*y,kb3), LpA + LK <--> LpAKL
-    # (ka4*y,kb4), LpA + LpP <--> LpAPLp
-    # (ka1,kb1), AK + L <--> AKL #binding of kinase to lipid
-    # kcat1, AKL --> Lp + AK #phosphorylation of lipid
-    # (ka7,kb7), AP + Lp <--> APLp #binding of phosphatase to lipid
-    # kcat7, APLp --> L + AP #dephosphorylation of lipid
+    (ka2,kb2), Lp + AK <--> LpAK
+    (ka2*y,kb2), Lp + AKL <--> LpAKL
+    (ka2,kb2), Lp + AP <--> LpAP
+    (ka2*y,kb2), Lp + APLp <--> LpAPLp
+    (ka3,kb3), A + K <--> AK
+    (ka4,kb4), A + P <--> AP
+    (ka3,kb3), A + LK <--> AKL
+    (ka4,kb4), A + LpP <--> APLp
+    (ka3*y,kb3), LpA + LK <--> LpAKL
+    (ka4*y,kb4), LpA + LpP <--> LpAPLp
+    (ka1,kb1), AK + L <--> AKL #binding of kinase to lipid
+    kcat1, AKL --> Lp + AK #phosphorylation of lipid
+    (ka7,kb7), AP + Lp <--> APLp #binding of phosphatase to lipid
+    kcat7, APLp --> L + AP #dephosphorylation of lipid
 end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka7 kb7 kcat7 y 
 
 
@@ -107,17 +108,21 @@ plot(osol)
 
 
 
+p2 = p./2
+osol2 = solve(remake(oprob, p=p2))
+plot(osol2)
+
+
+osolshort = solve(remake(oprob, tspan=(0.,10.)))
+osollong = solve(remake(oprob, tspan=(0.,100.)))
 
 
 
 
 
-
-
-
-ka_min, ka_max = 0.0, 10.
-kb_min, kb_max = 0.00, 1000.0
-kcat_min, kcat_max = 0.00, 1000.0
+ka_min, ka_max = 0.0, 1.
+kb_min, kb_max = 0.00, 100.0
+kcat_min, kcat_max = 0.00, 500.0
 
 
 param_values = Dict(
@@ -144,17 +149,19 @@ param_values = Dict(
 
 ## REAL FITNESS FUNCTION ##
 function eval_fitness(p::Vector{Float64}, prob::ODEProblem)::Float64
-    Y = solve(remake(prob, p=p))
-    p1 = Y[5,:] #get first species
-    fftData = getFrequencies(p1, length(Y.t)) #get Fourier transform of p1
+    Y = solve(remake(prob, p=p), saveat=0.01, save_idxs = 5)
+    # p1 = Y[5,:] #get first species
+    fftData = getFrequencies(Y.u, length(Y.t)) #get Fourier transform of p1
     indexes = findmaxima(fftData)[1] #get indexes of local maxima of fft
-    realpeaks = length(findmaxima(p1)[1]) #get indexes of local maxima of p1
-    if length(indexes) == 0 || realpeaks < 3  #if no peaks, return 0
+    realpeaks = length(findmaxima(Y.u, 10)[1]) #get indexes of local maxima of p1
+    if length(indexes) == 0 || realpeaks < 4  #if no peaks, return 0
         return 0.
     end
     std = getSTD(indexes, fftData, 1) #get standard deviation of fft peak indexes
+    println(std)
     diff = getDif(indexes, fftData) #get difference between peaks
-    return std - diff 
+    println(diff)
+    return - (std*10) - diff 
 end
 
 # NEW EVALUATION FUNCTION
@@ -171,17 +178,19 @@ function autocorrelation(y::Vector{Float64})::Vector{Float64}
 end
 
 function peak_count(y::Vector{Float64}, threshold::Float64)::Int
+    abs_threshold = threshold * maximum(y)
     peaks = findmaxima(y)
-    return length(filter(x -> y[x] > threshold, peaks[1]))
+    return length(filter(x -> x > abs_threshold, peaks[2]))
 end
 
-function eval_fitness2(p::Vector{Float64}, prob::ODEProblem, threshold::Float64 = 100.)::Float64
-    Y = solve(remake(prob, p=p))
-    p1 = Y[5,:] #get first species
-    p1_normalized = normalize_time_series(p1)
-    autocorr = autocorrelation(p1_normalized)
-    peak_count = peak_count(autocorr, threshold)
-    return -peak_count
+function eval_fitness2(p::Vector{Float64}, prob::ODEProblem, threshold::Float64 = 0.1)::Float64
+    Y = solve(remake(prob, p=p), saveat=0.01, save_idxs = 5)
+
+    Y_normalized = normalize_time_series(Y.u)
+    autocorr = autocorrelation(Y_normalized)
+    println(autocorr)
+    fitness = peak_count(autocorr, threshold)
+    return -fitness
 end
 
 
@@ -204,13 +213,30 @@ common_range = 0.5
 valrange = fill(common_range, 13)
 mthd = GA(populationSize = 5000, selection = tournament(500;select=argmin),
           crossover = TPX, crossoverRate = 0.5,
-          mutation  = BGA(valrange, 2), mutationRate = 0.75, ɛ = 0.1)
+          mutation  = BGA(valrange, 2), mutationRate = 0.9, ɛ = 0.1)
 result = Evolutionary.optimize(fitness_function, constraints, mthd, opts)
 
 newp = result.minimizer
 newsol = solve(remake(oprob, p=newp))
 # plot(newsol, vars=(1,2), title="ODE Solution", xlabel="Time", ylabel="Concentration", label="Concentration")
 plot(newsol)
+
+newsol1 = newsol[1,:]
+newfft = abs.(rfft(newsol1))
+optfft = abs.(rfft(osol[1,:]))
+
+#subplots with time plot and fft plot
+default(size=(800,600), dpi=300)
+p1 = plot(newsol.t, newsol1, title="ODE Solution", xlabel="Time", ylabel="Concentration", label = "New")
+plot!(osol.t, osol[1,:], label="Optimal")
+p2 = plot(newfft, title="Fourier Transform", xlabel="Frequency", ylabel="Amplitude", xlim = (0.,20.), label="New")
+plot!(p2, optfft, label="Optimal")
+plot(p1, p2, layout=(2,1))
+
+
+plot(newfft, title="Fourier Transform", xlabel="Frequency", ylabel="Amplitude", label="New")
+plot!(optfft, label="Optimal")
+
 
 
 
