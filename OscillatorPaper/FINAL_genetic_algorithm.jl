@@ -70,20 +70,20 @@ osc_rn = @reaction_network osc_rn begin
     kcat7, LpAPLp --> L + LpAP 
 
     #previously hidden NERDSS reactions
-    (ka2,kb2), Lp + AK <--> LpAK
-    (ka2*y,kb2), Lp + AKL <--> LpAKL
-    (ka2,kb2), Lp + AP <--> LpAP
-    (ka2*y,kb2), Lp + APLp <--> LpAPLp
-    (ka3,kb3), A + K <--> AK
-    (ka4,kb4), A + P <--> AP
-    (ka3,kb3), A + LK <--> AKL
-    (ka4,kb4), A + LpP <--> APLp
-    (ka3*y,kb3), LpA + LK <--> LpAKL
-    (ka4*y,kb4), LpA + LpP <--> LpAPLp
-    (ka1,kb1), AK + L <--> AKL #binding of kinase to lipid
-    kcat1, AKL --> Lp + AK #phosphorylation of lipid
-    (ka7,kb7), AP + Lp <--> APLp #binding of phosphatase to lipid
-    kcat7, APLp --> L + AP #dephosphorylation of lipid
+    # (ka2,kb2), Lp + AK <--> LpAK
+    # (ka2*y,kb2), Lp + AKL <--> LpAKL
+    # (ka2,kb2), Lp + AP <--> LpAP
+    # (ka2*y,kb2), Lp + APLp <--> LpAPLp
+    # (ka3,kb3), A + K <--> AK
+    # (ka4,kb4), A + P <--> AP
+    # (ka3,kb3), A + LK <--> AKL
+    # (ka4,kb4), A + LpP <--> APLp
+    # (ka3*y,kb3), LpA + LK <--> LpAKL
+    # (ka4*y,kb4), LpA + LpP <--> LpAPLp
+    # (ka1,kb1), AK + L <--> AKL #binding of kinase to lipid
+    # kcat1, AKL --> Lp + AK #phosphorylation of lipid
+    # (ka7,kb7), AP + Lp <--> APLp #binding of phosphatase to lipid
+    # kcat7, APLp --> L + AP #dephosphorylation of lipid
 end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka7 kb7 kcat7 y 
 
 
@@ -101,7 +101,7 @@ u0 = [:L => parsed[end-4], :Lp => parsed[end-3], :K => parsed[end-2], :P => pars
 tspan = (0.,100.)
 
 
-u0 = [0.0, 0.3, 0.0, 3.0, 0.9, 0.0, 0.0, 0.0, 0.2, 0.0, 0.0, 0.0]
+u0 = [0.0, 0.3, 0.0, 3.0, 1.5, 0.0, 0.0, 0.0, 0.2, 0.0, 0.0, 0.0]
 oprob = ODEProblem(osc_rn, u0, tspan, p)
 osol = solve(oprob)
 plot(osol)
@@ -120,8 +120,8 @@ osollong = solve(remake(oprob, tspan=(0.,100.)))
 
 
 
-ka_min, ka_max = 0.0, 1.
-kb_min, kb_max = 0.00, 100.0
+ka_min, ka_max = 0.0, 100.
+kb_min, kb_max = 0.00, 500.0
 kcat_min, kcat_max = 0.00, 500.0
 
 
@@ -149,19 +149,19 @@ param_values = Dict(
 
 ## REAL FITNESS FUNCTION ##
 function eval_fitness(p::Vector{Float64}, prob::ODEProblem)::Float64
-    Y = solve(remake(prob, p=p), saveat=0.01, save_idxs = 5)
+    Y = solve(remake(prob, p=p), saveat=0.1, save_idxs = 5)
     # p1 = Y[5,:] #get first species
     fftData = getFrequencies(Y.u, length(Y.t)) #get Fourier transform of p1
     indexes = findmaxima(fftData)[1] #get indexes of local maxima of fft
-    realpeaks = length(findmaxima(Y.u, 10)[1]) #get indexes of local maxima of p1
-    if length(indexes) == 0 || realpeaks < 4  #if no peaks, return 0
+    # realpeaks = length(findmaxima(Y.u, 10)[1]) #get indexes of local maxima of p1
+    if length(indexes) == 0 #|| realpeaks < 4  #if no peaks, return 0
         return 0.
     end
     std = getSTD(indexes, fftData, 1) #get standard deviation of fft peak indexes
-    println(std)
+    # println(std)
     diff = getDif(indexes, fftData) #get difference between peaks
-    println(diff)
-    return - (std*10) - diff 
+    # println(diff)
+    return - std - diff 
 end
 
 # NEW EVALUATION FUNCTION
@@ -207,13 +207,13 @@ fitness_function = make_fitness_function(oprob) # Create a fitness function that
 
 #Real optimization
 constraints = BoxConstraints([param_values[p]["min"] for p in keys(param_values)], [param_values[p]["max"] for p in keys(param_values)])
-opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=20, parallelization=:thread)
+opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=30, parallelization=:thread)
 
 common_range = 0.5
 valrange = fill(common_range, 13)
-mthd = GA(populationSize = 5000, selection = tournament(500;select=argmin),
+mthd = GA(populationSize = 10000, selection = tournament(1000;select=argmin),
           crossover = TPX, crossoverRate = 0.5,
-          mutation  = BGA(valrange, 2), mutationRate = 0.9, ɛ = 0.1)
+          mutation  = BGA(valrange, 2), mutationRate = 0.9)
 result = Evolutionary.optimize(fitness_function, constraints, mthd, opts)
 
 newp = result.minimizer
