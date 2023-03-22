@@ -33,6 +33,31 @@ function getSTD(indexes::Vector{Int}, arrayData::Vector{Float64}, window::Int)::
     return sum_std / length(indexes)
 end
 
+function getSTD2(indexes::Vector{Int}, arrayData::Vector{Float64}, window::Int)::Float64 #get standard deviation of fft peak indexes
+    sum_std = @inbounds sum(std(arrayData[max(1, ind - window):min(end, ind + window)]) for ind in indexes)
+    return sum_std / length(indexes)
+end
+
+
+function getSTD(arrayData::Vector{Float64}, window::Int)::Float64 #method if only array is given, gets fft peak indexes before
+    """method if only array is given, computes fft peak indexes from array before computing std
+    Also plots the time series and fft as label subplots"""
+    fft = getFrequencies(arrayData, length(arrayData))
+    indexes = findmaxima(fft)[1]
+
+    # sum_std = @inbounds sum(std(arrayData[max(1, ind - window):min(length(arrayData), ind + window)]) for ind in indexes)
+    sum_std = @inbounds sum(std(arrayData[max(1, ind - window):min(end, ind + window)]) for ind in indexes)
+
+    println("STD: ", sum_std / length(indexes))
+
+    #plotting
+    p1 = plot(arrayData ,label="Time Series")
+    p2 = plot(fft, label="FFT")
+    plot!(p2, indexes, fft[indexes], seriestype=:scatter, label="FFT Peaks")
+    display(plot(p1, p2, layout=(2,1), size=(800,600)))
+    return sum_std / length(indexes)
+end
+
 
  
 function getFrequencies(y::Vector{Float64}, tlen::Int)::Vector{Float64} #get fft of ODE solution
@@ -218,8 +243,20 @@ result = Evolutionary.optimize(fitness_function, constraints, mthd, opts)
 
 newp = result.minimizer
 newsol = solve(remake(oprob, p=newp))
+newsol1 = newsol[1,:]
+newsol1dense = solve(remake(oprob, p=newp), saveat=0.1, save_idxs = 1)
+getSTD(newsol1, 1)
+getSTD(newsol1dense.u, 100)
 # plot(newsol, vars=(1,2), title="ODE Solution", xlabel="Time", ylabel="Concentration", label="Concentration")
 plot(newsol)
+#save newp vector to text file, in text not binary
+open("newp.txt", "w") do io
+    writedlm(io, newp)
+end
+
+
+
+
 
 newsol1 = newsol[1,:]
 newfft = abs.(rfft(newsol1))
