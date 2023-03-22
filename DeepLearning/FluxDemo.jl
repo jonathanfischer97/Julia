@@ -1,5 +1,9 @@
 # With Julia 1.7+, this will prompt if neccessary to install everything, including CUDA:
-using Flux, Statistics, ProgressMeter
+using Flux, Statistics, ProgressMeter, Optimisers, CUDA
+
+# Test if CUDA is available:
+CUDA.functional() && CUDA.allowscalar(false)  # allowscalar(false) is default in Julia 1.7+
+
 
 # Generate some data for the XOR problem: vectors of length 2, as columns of a matrix:
 noisy = rand(Float32, 2, 1000)                                    # 2×1000 Matrix{Float32}
@@ -10,18 +14,18 @@ model = Chain(
     Dense(2 => 3, tanh),   # activation function inside layer
     BatchNorm(3),
     Dense(3 => 2),
-    softmax)        # move model to GPU, if available
+    softmax) |> gpu        # move model to GPU, if available
 
 # The model encapsulates parameters, randomly initialised. Its initial output is:
-out1 = model(noisy) |> cpu                              # 2×1000 Matrix{Float32}
+out1 = model(noisy |> gpu) |> cpu                              # 2×1000 Matrix{Float32}
 
 # To train the model, we use batches of 64 samples, and one-hot encoding:
 target = Flux.onehotbatch(truth, [true, false])                   # 2×1000 OneHotMatrix
-loader = Flux.DataLoader((noisy, target) |> cpu, batchsize=64, shuffle=true);
+loader = Flux.DataLoader((noisy, target) |> gpu, batchsize=64, shuffle=true);
 # 16-element DataLoader with first element: (2×64 Matrix{Float32}, 2×64 OneHotMatrix)
 
 optim = Flux.setup(Flux.Adam(0.01), model)  # will store optimiser momentum, etc.
-optim = Flux.Adam(0.01)
+# optim = Flux.Adam(0.01)
 
 # Training loop, using the whole data set 1000 times:
 losses = []
@@ -41,3 +45,12 @@ optim # parameters, momenta and output have all changed
 out2 = model(noisy |> gpu) |> cpu  # first row is prob. of true, second row p(false)
 
 mean((out2[1,:] .> 0.5) .== truth)  # accuracy 94% so far!
+
+
+using Plots  # to draw the above figure
+
+p_true = scatter(noisy[1,:], noisy[2,:], zcolor=truth, title="True classification", legend=false)
+p_raw =  scatter(noisy[1,:], noisy[2,:], zcolor=out1[1,:], title="Untrained network", label="", clims=(0,1))
+p_done = scatter(noisy[1,:], noisy[2,:], zcolor=out2[1,:], title="Trained network", legend=false)
+
+plot(p_true, p_raw, p_done, layout=(1,3), size=(1000,330))
