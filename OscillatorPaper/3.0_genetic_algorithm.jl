@@ -24,13 +24,11 @@ function getDif(indexes::Vector{Int}, arrayData::Vector{Float64})::Float64 #get 
     return sum_diff
 end
 
-
 function getSTD(indexes::Vector{Int}, arrayData::Vector{Float64}, window::Int)::Float64 #get standard deviation of fft peak indexes
     sum_std = @inbounds sum(std(arrayData[max(1, ind - window):min(length(arrayData), ind + window)]) for ind in indexes)
     return sum_std / length(indexes)
 end
 
- 
 function getFrequencies(y::Vector{Float64}, tlen::Int)::Vector{Float64} #get fft of ODE solution
     res = broadcast(abs,rfft(y)) #broadcast abs to all elements of rfft return array. 
     res./cld(tlen, 2) #normalize the amplitudes

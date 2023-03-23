@@ -1,8 +1,9 @@
 using Plots 
 using Catalyst
 using DifferentialEquations
-using Symbolics
-using Latexify
+using MKL 
+# using Symbolics
+# using Latexify
 
 #The oscillator model has 12 variables, or 12 unknowns, and 12 differential
 #equations plus 4 mass conservation equations. 
@@ -21,40 +22,6 @@ using Latexify
 #A+K is reaction 3: ka3, kb3
 #A+P is reaction 4: ka4, kb4
 #Lp+P is reaction 7: ka7, kb7, kcat7
-
-redrn = @reaction_network redrn begin
-    (ka1, kb1), L + K ↔ LK
-    kcat1, LK → Lp + K
-    (ka2, kb2), Lp + A ↔ LpA
-    (ka3, kb3), A + K ↔ LpAK
-    (ka4, kb4), A + P ↔ LpAP
-    (ka7, kb7), Lp + P ↔ LpP
-    kcat7, LpP → LpAP + P
-end 
-
-osys = convert(ODESystem, redrn)
-
-
-"""
-Format the equations in a way that is readable by the ODE solver
-"""
-function format_equations(eqs::Symbolics.Arr{Equation,1})
-    for ode in eqs
-        ode_str = string(ode)
-        # ode_str = replace(ode_str, "~" => "=")
-        ode_str = replace(ode_str, "(t)" => "")
-        ode_str = replace(ode_str, "Differential(" => "d")
-        ode_str = replace(ode_str, ") ~" => " =")
-        println(ode_str)
-    end
-end
-
-eqs = format_equations(osys.eqs)
-
-
-
-
-
 
 
 """Given the unknowns, calculate the dependent variables"""
@@ -102,7 +69,7 @@ function calc_other_vars(y, p, tots)
     return P, LpP, LK, LpAK, LpAPLp, LpAKL, A, K
 end
 
-"""ODE function for the reduced oscillator model"""
+"""ODE function for the reduced 4th order oscillator model"""
 function reduced_oscillator_odes!(dy, y, p, t)
     L, Lp, LpA, LpAP = y
     ka1, kb1, kcat1, ka2, kb2, ka3, kb3, ka4, kb4, ka7, kb7, kcat7, DF = p
@@ -145,7 +112,7 @@ p = [0.05485309578515125, 19.774627209108715, 240.99536193310848,
 
 u0 = [0., 3.0, 0.2, 0.3, 0.2, 0.0, 0., 0., 0., 0., 0., 0.] #working 
 u0 = [0., 3.0, 0.0, 0.0, 0.0, 0.0, 0., 0., 0., 0.6, 0.3, 0.2]
-L, Lp, LpA, LpAP, LK, LpAK, LpAKL, LpP, LpAPLP, A, K, P = u0
+L, Lp, LpA, LpAP, LK, LpAK, LpAKL, LpP, LpAPLp, A, K, P = u0
 
 umap = [:L => L, :Lp => Lp, :LpA => LpA, :LpAP => LpAP, :LK => LK, :LpAK => LpAK, :LpAKL => LpAKL, :LpP => LpP, :LpAPLp => LpAPLp, :A => A, :K => K, :P => P]
 
@@ -174,3 +141,103 @@ sol2 = solve(prob2, save_idxs=[1,4,6,11])
 p1 = plot(sol, label = ["L" "Lp" "LpA" "LpAP"] ,  lw=2, title="Reduced Oscillator Model", xlabel="Time", ylabel="Concentration");
 p2 = plot(sol2, label = ["L" "Lp" "LpA" "LpAP"], lw=2, title="Full Oscillator Model", xlabel="Time", ylabel="Concentration");
 plot(p1, p2, layout=(2,1), size=(800,800))
+
+
+
+
+## Genetic algorithm to find the best parameters for the reduced model ## 
+using Evolutionary
+using FFTW
+
+## COST FUNCTIONS and dependencies 
+function getDif(indexes::Vector{Int}, arrayData::Vector{Float64})::Float64 #get difference between fft peak indexes
+    arrLen = length(indexes)
+    if arrLen < 2
+        return 0.0
+    end
+    sum_diff = @inbounds sum(arrayData[indexes[i]] - arrayData[indexes[i+1]] for i in 1:(arrLen-1))
+    sum_diff += arrayData[indexes[end]]
+    return sum_diff
+end
+
+
+function getSTD(indexes::Vector{Int}, arrayData::Vector{Float64}, window::Int)::Float64 #get standard deviation of fft peak indexes
+    sum_std = @inbounds sum(std(arrayData[max(1, ind - window):min(length(arrayData), ind + window)]) for ind in indexes)
+    return sum_std / length(indexes)
+end
+
+function getFrequencies(y::Vector{Float64}, tlen::Int)::Vector{Float64} #get fft of ODE solution
+    res = broadcast(abs,rfft(y)) #broadcast abs to all elements of rfft return array. 
+    res./cld(tlen, 2) #normalize the amplitudes
+end
+
+
+
+## REAL FITNESS FUNCTION ##
+function eval_fitness(p::Vector{Float64}, prob::ODEProblem, idxs)::Float64
+    Y = solve(remake(prob, p=p), saveat=0.1, save_idxs = idxs)
+    fftData = getFrequencies(Y.u, length(Y.t)) #get Fourier transform of p1
+    indexes = findmaxima(fftData)[1] #get indexes of local maxima of fft
+    # realpeaks = length(findmaxima(Y.u, 10)[1]) #get indexes of local maxima of p1
+    if length(indexes) == 0 #|| realpeaks < 4  #if no peaks, return 0
+        return 0.
+    end
+    std = getSTD(indexes, fftData, 1) #get standard deviation of fft peak indexes
+    diff = getDif(indexes, fftData) #get difference between peaks
+    return - std - diff 
+end
+
+function make_fitness_function(prob::ODEProblem; idxs = [1])::Function # Create a fitness function that includes your ODE problem as a constant
+    function fitness_function(p::Vector{Float64})
+        return eval_fitness(p, prob, idxs)  
+    end
+    return fitness_function
+end
+
+fitness_function = make_fitness_function(prob) # Create a fitness function that includes your ODE problem as a constant
+
+
+
+## parameter constraint ranges ##
+ka_min, ka_max = 0.0, 100.
+kb_min, kb_max = 0.00, 500.0
+kcat_min, kcat_max = 0.00, 500.0
+
+
+param_values = Dict(
+    "ka1" => Dict("min" => ka_min, "max" => ka_max),
+    "kb1" => Dict("min" => kb_min, "max" => kb_max),
+    "kcat1" => Dict("min" => kcat_min, "max" => kcat_max),
+    "ka2" => Dict("min" => ka_min, "max" => ka_max),
+    "kb2" => Dict("min" => kb_min, "max" => kb_max),
+    "ka3" => Dict("min" => ka_min, "max" => ka_max),
+    "kb3" => Dict("min" => kb_min, "max" => kb_max),
+    "ka4" => Dict("min" => ka_min, "max" => ka_max),
+    "kb4" => Dict("min" => kb_min, "max" => kb_max),
+    "ka7" => Dict("min" => ka_min, "max" => ka_max),
+    "kb7" => Dict("min" => kb_min, "max" => kb_max),
+    "kcat7" => Dict("min" => kcat_min, "max" => kcat_max),
+    "y" => Dict("min" => 100., "max" => 5000.)
+)
+
+
+
+#Optimization parameters
+constraints = BoxConstraints([param_values[p]["min"] for p in keys(param_values)], [param_values[p]["max"] for p in keys(param_values)])
+opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=30, parallelization=:thread, abstol=1e-6, reltol=1e-6)
+
+common_range = 0.5
+valrange = fill(common_range, 13)
+mthd = GA(populationSize = 10000, selection = tournament(1000;select=argmin),
+          crossover = TPX, crossoverRate = 0.5,
+          mutation  = BGA(valrange, 2), mutationRate = 0.9)
+
+
+# function callback(trace)
+
+#Optimization
+result = Evolutionary.optimize(fitness_function, constraints, mthd, opts)
+
+newp = result.minimizer
+newsol = solve(remake(oprob, p=newp))
+plot(newsol)
