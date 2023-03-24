@@ -1,7 +1,9 @@
 using Plots 
 using Catalyst
 using DifferentialEquations
-using MKL 
+using Peaks
+using Statistics
+# using MKL 
 # using Symbolics
 # using Latexify
 
@@ -24,42 +26,76 @@ using MKL
 #Lp+P is reaction 7: ka7, kb7, kcat7
 
 
+# """Given the unknowns, calculate the dependent variables"""
+# function calc_other_vars(y, p, tots)
+#     L, Lp, LpA, LpAP = y
+#     ka1, kb1, kcat1, ka2, kb2, ka3, kb3, ka4, kb4, ka7, kb7, kcat7, DF = p
+#     ktot, ptot, atot, liptot = tots
+
+#     P = ((kb7 + kcat7) * (kb1 * kb3 * (L - liptot + Lp + LpA - LpAP + 2 * ptot) +
+#         kb3 * kcat1 * (L - liptot + Lp + LpA - LpAP + 2 * ptot) +
+#         ka1 * kb3 * L * (ktot + L - liptot + Lp + LpA - LpAP + 2 * ptot) +
+#         ka3 * kb1 * LpA * (ktot + L - liptot + Lp + LpA - LpAP + 2 * ptot) +
+#         ka3 * kcat1 * LpA * (ktot + L - liptot + Lp + LpA - LpAP + 2 * ptot) +
+#         DF * ka1 * ka3 * L * LpA * (2 * ktot + L - liptot + Lp + LpA - LpAP + 2 * ptot))) /
+#         ((2 * kb7 + 2 * kcat7 + ka7 * Lp) * (kb3 * (kcat1 + ka1 * L) +
+#         ka3 * (kcat1 + DF * ka1 * L) * LpA + kb1 * (kb3 + ka3 * LpA)))
+
+#     LpP = (ka7 *Lp* (kb1* kb3 *(L - liptot + Lp + LpA - LpAP + 2 *ptot) +
+#         kb3 *kcat1 *(L - liptot + Lp + LpA - LpAP + 2* ptot) + 
+#         ka1 *kb3* L *(ktot + L - liptot + Lp + LpA - LpAP + 2* ptot) +
+#         ka3 *kb1 *LpA *(ktot + L - liptot + Lp + LpA - LpAP + 2* ptot) + 
+#         ka3* kcat1 *LpA* (ktot + L - liptot + Lp + LpA - LpAP + 2 *ptot) + 
+#         DF *ka1* ka3* L *LpA* (2* ktot + L - liptot + Lp + LpA - LpAP + 
+#         2 *ptot)))/((2 *kb7 + 2 *kcat7 + ka7* Lp)* (kb3* (kcat1 + ka1* L) + 
+#         ka3 *(kcat1 + DF* ka1* L)* LpA + kb1* (kb3 + ka3* LpA)))
+
+#     LK = (ka1 *L* (kb1 *(ktot + L - liptot + Lp + LpA - LpAP - LpP - 2 *P + 2 *ptot) + 
+#         kcat1 *(ktot + L - liptot + Lp + LpA - LpAP - LpP - 2* P + 2 *ptot) + 
+#         DF *ka1* L *(2 *ktot + L - liptot + Lp + LpA - LpAP - LpP - 2 *P + 
+#         2* ptot)))/((kb1 + kcat1)^2 + 2 *DF *ka1 *(kb1 + kcat1)* L + 
+#         DF *ka1^2* L^2)
+
+#     LpAK = -(((kb1 + kcat1)* (kb1 *(L - liptot + Lp + LpA - LpAP - LpP - 2 *P + 2* ptot) + 
+#         kcat1* (L - liptot + Lp + LpA - LpAP - LpP - 2 *P + 2 *ptot) + 
+#         ka1* L* (ktot + L - liptot + Lp + LpA - LpAP - LpP - 2* P + 
+#         2 *ptot)))/((kb1 + kcat1)^2 + 2* DF *ka1* (kb1 + kcat1) *L + 
+#         DF *ka1^2* L^2))
+
+
+#     LpAPLp= -LpAP - LpP - P + ptot
+#     LpAKL = 0.5*(-L + liptot - LK - Lp - LpA - LpAK + LpAP + LpP + 2*P - 2*ptot)
+#     A= 0.5*(2*atot + L - liptot + LK + Lp - LpA - LpAK - LpAP + LpP)
+#     K = 0.5* (2*ktot + L - liptot - LK + Lp + LpA - LpAK - LpAP - LpP - 2*P + 2*ptot)
+
+#     return P, LpP, LK, LpAK, LpAPLp, LpAKL, A, K
+# end
+
 """Given the unknowns, calculate the dependent variables"""
 function calc_other_vars(y, p, tots)
     L, Lp, LpA, LpAP = y
     ka1, kb1, kcat1, ka2, kb2, ka3, kb3, ka4, kb4, ka7, kb7, kcat7, DF = p
     ktot, ptot, atot, liptot = tots
 
-    P = ((kb7 + kcat7) * (kb1 * kb3 * (L - liptot + Lp + LpA - LpAP + 2 * ptot) +
-        kb3 * kcat1 * (L - liptot + Lp + LpA - LpAP + 2 * ptot) +
-        ka1 * kb3 * L * (ktot + L - liptot + Lp + LpA - LpAP + 2 * ptot) +
-        ka3 * kb1 * LpA * (ktot + L - liptot + Lp + LpA - LpAP + 2 * ptot) +
-        ka3 * kcat1 * LpA * (ktot + L - liptot + Lp + LpA - LpAP + 2 * ptot) +
-        DF * ka1 * ka3 * L * LpA * (2 * ktot + L - liptot + Lp + LpA - LpAP + 2 * ptot))) /
-        ((2 * kb7 + 2 * kcat7 + ka7 * Lp) * (kb3 * (kcat1 + ka1 * L) +
-        ka3 * (kcat1 + DF * ka1 * L) * LpA + kb1 * (kb3 + ka3 * LpA)))
+    common_sum = kb1 * kb3 * (L - liptot + Lp + LpA - LpAP + 2 * ptot) +
+                 kb3 * kcat1 * (L - liptot + Lp + LpA - LpAP + 2 * ptot) +
+                 ka1 * kb3 * L * (ktot + L - liptot + Lp + LpA - LpAP + 2 * ptot) +
+                 ka3 * kb1 * LpA * (ktot + L - liptot + Lp + LpA - LpAP + 2 * ptot) +
+                 ka3 * kcat1 * LpA * (ktot + L - liptot + Lp + LpA - LpAP + 2 * ptot) +
+                 DF * ka1 * ka3 * L * LpA * (2 * ktot + L - liptot + Lp + LpA - LpAP + 2 * ptot)
 
-    LpP = (ka7 *Lp* (kb1* kb3 *(L - liptot + Lp + LpA - LpAP + 2 *ptot) +
-        kb3 *kcat1 *(L - liptot + Lp + LpA - LpAP + 2* ptot) + 
-        ka1 *kb3* L *(ktot + L - liptot + Lp + LpA - LpAP + 2* ptot) +
-        ka3 *kb1 *LpA *(ktot + L - liptot + Lp + LpA - LpAP + 2* ptot) + 
-        ka3* kcat1 *LpA* (ktot + L - liptot + Lp + LpA - LpAP + 2 *ptot) + 
-        DF *ka1* ka3* L *LpA* (2* ktot + L - liptot + Lp + LpA - LpAP + 
-        2 *ptot)))/((2 *kb7 + 2 *kcat7 + ka7* Lp)* (kb3* (kcat1 + ka1* L) + 
-        ka3 *(kcat1 + DF* ka1* L)* LpA + kb1* (kb3 + ka3* LpA)))
+    denominator = (2 * kb7 + 2 * kcat7 + ka7 * Lp) * (kb3 * (kcat1 + ka1 * L) + ka3 * (kcat1 + DF * ka1 * L) * LpA + kb1 * (kb3 + ka3 * LpA))
 
-    LK = (ka1 *L* (kb1 *(ktot + L - liptot + Lp + LpA - LpAP - LpP - 2 *P + 2 *ptot) + 
-        kcat1 *(ktot + L - liptot + Lp + LpA - LpAP - LpP - 2* P + 2 *ptot) + 
-        DF *ka1* L *(2 *ktot + L - liptot + Lp + LpA - LpAP - LpP - 2 *P + 
-        2* ptot)))/((kb1 + kcat1)^2 + 2 *DF *ka1 *(kb1 + kcat1)* L + 
-        DF *ka1^2* L^2)
+    P = common_sum / denominator
 
-    LpAK = -(((kb1 + kcat1)* (kb1 *(L - liptot + Lp + LpA - LpAP - LpP - 2 *P + 2* ptot) + 
-        kcat1* (L - liptot + Lp + LpA - LpAP - LpP - 2 *P + 2 *ptot) + 
-        ka1* L* (ktot + L - liptot + Lp + LpA - LpAP - LpP - 2* P + 
-        2 *ptot)))/((kb1 + kcat1)^2 + 2* DF *ka1* (kb1 + kcat1) *L + 
-        DF *ka1^2* L^2))
+    LpP = ka7 * Lp * common_sum / denominator
 
+    LK_denom = (kb1 + kcat1)^2 + 2 * DF * ka1 * (kb1 + kcat1) * L + DF * ka1^2 * L^2
+    LK = ka1 * L * (kb1 * (ktot + L - liptot + Lp + LpA - LpAP - LpP - 2 * P + 2 * ptot) + kcat1 * (ktot + L - liptot + Lp + LpA - LpAP - LpP - 2 * P + 2 * ptot) + DF * ka1 * L * 
+            (2 * ktot + L - liptot + Lp + LpA - LpAP - LpP - 2 * P + 2 * ptot)) / LK_denom
+
+    LpAK = -((kb1 + kcat1) * (kb1 * (L - liptot + Lp + LpA - LpAP - LpP - 2 * P + 2 * ptot) + kcat1 * (L - liptot + Lp + LpA - LpAP - LpP - 2 * P + 2 * ptot) + ka1 * L * 
+            (ktot + L - liptot + Lp + LpA - LpAP - LpP - 2 * P + 2 * ptot))) / LK_denom
 
     LpAPLp= -LpAP - LpP - P + ptot
     LpAKL = 0.5*(-L + liptot - LK - Lp - LpA - LpAK + LpAP + LpP + 2*P - 2*ptot)
@@ -71,11 +107,11 @@ end
 
 """ODE function for the reduced 4th order oscillator model"""
 function reduced_oscillator_odes!(dy, y, p, t)
-    L, Lp, LpA, LpAP = y
-    ka1, kb1, kcat1, ka2, kb2, ka3, kb3, ka4, kb4, ka7, kb7, kcat7, DF = p
-    tots = p[end-3:end]
+    L, Lp, LpA, LpAP = y #variables in the model
+    ka1, kb1, kcat1, ka2, kb2, ka3, kb3, ka4, kb4, ka7, kb7, kcat7, DF = p #parameters in the model
+    tots = p[end-3:end] #total concentrations of the species as constraints
 
-    P, LpP, LK, LpAK, LpAPLp, LpAKL, A, K = calc_other_vars(y, p, tots)
+    P, LpP, LK, LpAK, LpAPLp, LpAKL, A, K = calc_other_vars(y, p, tots) #calculate other variables as "constants"
 
     dy[1] = kb1*LK + kb1*LpAKL + kcat7*LpAPLp + kcat7*LpP - ka1*K*L - ka1*DF*L*LpAK # L
     dy[2] = kcat1*LK + kb2*LpA + kcat1*LpAKL + kb7*LpAPLp + kb7*LpP - ka2*A*Lp - ka7*Lp*P - ka7*DF*Lp*LpAP # Lp
@@ -110,27 +146,29 @@ p = [0.05485309578515125, 19.774627209108715, 240.99536193310848,
 #initial condition list
 # L, Lp, K, P, A, LpA, LK, LpAK, LpAKL, LpP, LpAP, LpAPLp = u0
 
-u0 = [0., 3.0, 0.2, 0.3, 0.2, 0.0, 0., 0., 0., 0., 0., 0.] #working 
+# u0 = [0., 3.0, 0.2, 0.3, 0.2, 0.0, 0., 0., 0., 0., 0., 0.] #working 
 u0 = [0., 3.0, 0.0, 0.0, 0.0, 0.0, 0., 0., 0., 0.6, 0.3, 0.2]
 L, Lp, LpA, LpAP, LK, LpAK, LpAKL, LpP, LpAPLp, A, K, P = u0
 
 umap = [:L => L, :Lp => Lp, :LpA => LpA, :LpAP => LpAP, :LK => LK, :LpAK => LpAK, :LpAKL => LpAKL, :LpP => LpP, :LpAPLp => LpAPLp, :A => A, :K => K, :P => P]
 
 #conserved quantities
-ktot=K+LK+LpAK+LpAKL
-ptot=P+LpP+LpAP+LpAPLp
-atot=A+LpA+LpAK+LpAKL+LpAP+LpAPLp
-ltot=L+LK+LpAKL
-lptot=Lp+LpA+LpAK+LpAKL+LpP+LpAP+2*LpAPLp
-liptot=ltot+lptot
+ktot=K+LK+LpAK+LpAKL;
+ptot=P+LpP+LpAP+LpAPLp;
+atot=A+LpA+LpAK+LpAKL+LpAP+LpAPLp;
+ltot=L+LK+LpAKL;
+lptot=Lp+LpA+LpAK+LpAKL+LpP+LpAP+2*LpAPLp;
+liptot=ltot+lptot;
 tots = [ktot, ptot, atot, liptot]
 
 #timespan for integration
-tspan = (0., 200.)
+tspan = (0., 100.);
 
 #solve the reduced ODEs
 prob = ODEProblem(reduced_oscillator_odes!, u0[1:4], tspan, vcat(p, tots))
 sol = solve(prob)
+@time sol = solve(remake(prob, p=vcat(p, tots)))
+
 
 #solve the full ODEs
 
@@ -150,7 +188,7 @@ using Evolutionary
 using FFTW
 
 ## COST FUNCTIONS and dependencies 
-function getDif(indexes::Vector{Int}, arrayData::Vector{Float64})::Float64 #get difference between fft peak indexes
+function getDif(indexes::Vector{Int}, arrayData::Vector{Float64})::Float64 #get summed difference between fft peak indexes
     arrLen = length(indexes)
     if arrLen < 2
         return 0.0
@@ -160,8 +198,36 @@ function getDif(indexes::Vector{Int}, arrayData::Vector{Float64})::Float64 #get 
     return sum_diff
 end
 
+function getSTD(indexes::Vector{Int}, arrayData::Vector{Float64}, window::Int)::Float64
+    normalized_frequencies = [(ind - 1) / (2 * length(arrayData)) for ind in indexes]
+    sum_std = sum(std(normalized_frequencies[max(1, ind - window):min(end, ind + window)]) for ind in 1:length(normalized_frequencies))
+    return sum_std / length(normalized_frequencies)
+end
 
-function getSTD(indexes::Vector{Int}, arrayData::Vector{Float64}, window::Int)::Float64 #get standard deviation of fft peak indexes
+function getFrequencies(y::Vector{Float64}, tlen::Int)::Vector{Float64}
+    res = abs.(rfft(y))
+    return res ./ cld(tlen, 2)
+end
+
+function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProblem, idxs)::Float64
+    Y = solve(remake(prob, p=vcat(p,tots)), save_idxs=idxs)
+    println(length(Y.t))
+    fftData = getFrequencies(Y.u, length(Y.t))
+    indexes = findmaxima(fftData)[1]
+    if isempty(indexes)
+        return 0.
+    end
+    std = getSTD(indexes, fftData, 1)
+    diff = getDif(indexes, fftData)
+    return -std - diff
+end
+
+
+
+
+
+
+function getSTD(indexes::Vector{Int}, arrayData::Vector{Float64}, window::Int)::Float64 #get average standard deviation of fft peak indexes
     sum_std = @inbounds sum(std(arrayData[max(1, ind - window):min(length(arrayData), ind + window)]) for ind in indexes)
     return sum_std / length(indexes)
 end
@@ -170,8 +236,6 @@ function getFrequencies(y::Vector{Float64}, tlen::Int)::Vector{Float64} #get fft
     res = broadcast(abs,rfft(y)) #broadcast abs to all elements of rfft return array. 
     res./cld(tlen, 2) #normalize the amplitudes
 end
-
-
 
 ## REAL FITNESS FUNCTION ##
 function eval_fitness(p::Vector{Float64}, prob::ODEProblem, idxs)::Float64
@@ -187,9 +251,15 @@ function eval_fitness(p::Vector{Float64}, prob::ODEProblem, idxs)::Float64
     return - std - diff 
 end
 
-function make_fitness_function(prob::ODEProblem; idxs = [1])::Function # Create a fitness function that includes your ODE problem as a constant
+
+
+
+
+
+
+function make_fitness_function(prob::ODEProblem, tots; idxs = 1)::Function # Create a fitness function that includes your ODE problem as a constant
     function fitness_function(p::Vector{Float64})
-        return eval_fitness(p, prob, idxs)  
+        return eval_fitness(p, tots, prob, idxs)  
     end
     return fitness_function
 end
@@ -228,7 +298,7 @@ opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iter
 
 common_range = 0.5
 valrange = fill(common_range, 13)
-mthd = GA(populationSize = 10000, selection = tournament(1000;select=argmin),
+mthd = GA(populationSize = 5000, selection = tournament(500),
           crossover = TPX, crossoverRate = 0.5,
           mutation  = BGA(valrange, 2), mutationRate = 0.9)
 
