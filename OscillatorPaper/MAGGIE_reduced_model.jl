@@ -264,7 +264,7 @@ function make_fitness_function(prob::ODEProblem, tots; idxs = 1)::Function # Cre
     return fitness_function
 end
 
-fitness_function = make_fitness_function(prob) # Create a fitness function that includes your ODE problem as a constant
+fitness_function = make_fitness_function(prob, tots) # Create a fitness function that includes your ODE problem as a constant
 
 
 
