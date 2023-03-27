@@ -27,7 +27,7 @@ using Statistics
 
 
 # """Given the unknowns, calculate the dependent variables"""
-# function calc_other_vars(y, p, tots)
+# function calc_other_vars_old(y, p, tots)
 #     L, Lp, LpA, LpAP = y
 #     ka1, kb1, kcat1, ka2, kb2, ka3, kb3, ka4, kb4, ka7, kb7, kcat7, DF = p
 #     ktot, ptot, atot, liptot = tots
@@ -74,7 +74,7 @@ using Statistics
 """Given the unknowns, calculate the dependent variables"""
 function calc_other_vars(y, p, tots)
     L, Lp, LpA, LpAP = y
-    ka1, kb1, kcat1, ka2, kb2, ka3, kb3, ka4, kb4, ka7, kb7, kcat7, DF = p
+    ka1, kb1, kcat1, _, _, ka3, kb3, _, _, ka7, kb7, kcat7, DF = p
     ktot, ptot, atot, liptot = tots
 
     common_sum = kb1 * kb3 * (L - liptot + Lp + LpA - LpAP + 2 * ptot) +
@@ -86,7 +86,7 @@ function calc_other_vars(y, p, tots)
 
     denominator = (2 * kb7 + 2 * kcat7 + ka7 * Lp) * (kb3 * (kcat1 + ka1 * L) + ka3 * (kcat1 + DF * ka1 * L) * LpA + kb1 * (kb3 + ka3 * LpA))
 
-    P = common_sum / denominator
+    P = ((kb7 + kcat7) * common_sum) / denominator
 
     LpP = ka7 * Lp * common_sum / denominator
 
@@ -166,20 +166,22 @@ tspan = (0., 100.);
 
 #solve the reduced ODEs
 prob = ODEProblem(reduced_oscillator_odes!, u0[1:4], tspan, vcat(p, tots))
-sol = solve(prob)
-@time sol = solve(remake(prob, p=vcat(p, tots)))
+sol = solve(prob, p=vcat(p, tots), saveat=0.01)
+# sol = solve(remake(prob, p=vcat(p, tots)))
 
 
 #solve the full ODEs
 
 prob2 = ODEProblem(osc_rn, umap, tspan, p)
-sol2 = solve(prob2, save_idxs=[1,4,6,11])
+sol2 = solve(prob2, save_idxs=[1,4,6,11], saveat=0.1)
 
 #plot the results
 p1 = plot(sol, label = ["L" "Lp" "LpA" "LpAP"] ,  lw=2, title="Reduced Oscillator Model", xlabel="Time", ylabel="Concentration");
 p2 = plot(sol2, label = ["L" "Lp" "LpA" "LpAP"], lw=2, title="Full Oscillator Model", xlabel="Time", ylabel="Concentration");
 plot(p1, p2, layout=(2,1), size=(800,800))
 
+calc_other_vars(u0,p,tots)
+calc_other_vars_old(u0,p,tots)
 
 
 
@@ -188,7 +190,7 @@ using Evolutionary
 using FFTW
 
 ## COST FUNCTIONS and dependencies 
-function getDif(indexes::Vector{Int}, arrayData::Vector{Float64})::Float64 #get summed difference between fft peak indexes
+function getDif(indexes::Vector{Int}, arrayData::Vector{Float64}) #get summed difference between fft peak indexes
     arrLen = length(indexes)
     if arrLen < 2
         return 0.0
@@ -198,7 +200,7 @@ function getDif(indexes::Vector{Int}, arrayData::Vector{Float64})::Float64 #get 
     return sum_diff
 end
 
-function getSTD(indexes::Vector{Int}, arrayData::Vector{Float64}, window::Int)::Float64
+function getSTD(indexes::Vector{Int}, arrayData::Vector{Float64}, window::Int)
     normalized_frequencies = [(ind - 1) / (2 * length(arrayData)) for ind in indexes]
     sum_std = sum(std(normalized_frequencies[max(1, ind - window):min(end, ind + window)]) for ind in 1:length(normalized_frequencies))
     return sum_std / length(normalized_frequencies)
@@ -209,9 +211,9 @@ function getFrequencies(y::Vector{Float64}, tlen::Int)::Vector{Float64}
     return res ./ cld(tlen, 2)
 end
 
-function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProblem, idxs)::Float64
-    Y = solve(remake(prob, p=vcat(p,tots)), save_idxs=idxs)
-    println(length(Y.t))
+function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProblem, idxs)
+    Y = solve(remake(prob, p=vcat(p,tots)), save_idxs=idxs, saveat=0.01)
+    # println(length(Y.t))
     fftData = getFrequencies(Y.u, length(Y.t))
     indexes = findmaxima(fftData)[1]
     if isempty(indexes)
@@ -227,37 +229,37 @@ end
 
 
 
-function getSTD(indexes::Vector{Int}, arrayData::Vector{Float64}, window::Int)::Float64 #get average standard deviation of fft peak indexes
-    sum_std = @inbounds sum(std(arrayData[max(1, ind - window):min(length(arrayData), ind + window)]) for ind in indexes)
-    return sum_std / length(indexes)
-end
+# function getSTD(indexes::Vector{Int}, arrayData::Vector{Float64}, window::Int)::Float64 #get average standard deviation of fft peak indexes
+#     sum_std = @inbounds sum(std(arrayData[max(1, ind - window):min(length(arrayData), ind + window)]) for ind in indexes)
+#     return sum_std / length(indexes)
+# end
 
-function getFrequencies(y::Vector{Float64}, tlen::Int)::Vector{Float64} #get fft of ODE solution
-    res = broadcast(abs,rfft(y)) #broadcast abs to all elements of rfft return array. 
-    res./cld(tlen, 2) #normalize the amplitudes
-end
+# function getFrequencies(y::Vector{Float64}, tlen::Int)::Vector{Float64} #get fft of ODE solution
+#     res = broadcast(abs,rfft(y)) #broadcast abs to all elements of rfft return array. 
+#     res./cld(tlen, 2) #normalize the amplitudes
+# end
 
-## REAL FITNESS FUNCTION ##
-function eval_fitness(p::Vector{Float64}, prob::ODEProblem, idxs)::Float64
-    Y = solve(remake(prob, p=p), saveat=0.1, save_idxs = idxs)
-    fftData = getFrequencies(Y.u, length(Y.t)) #get Fourier transform of p1
-    indexes = findmaxima(fftData)[1] #get indexes of local maxima of fft
-    # realpeaks = length(findmaxima(Y.u, 10)[1]) #get indexes of local maxima of p1
-    if length(indexes) == 0 #|| realpeaks < 4  #if no peaks, return 0
-        return 0.
-    end
-    std = getSTD(indexes, fftData, 1) #get standard deviation of fft peak indexes
-    diff = getDif(indexes, fftData) #get difference between peaks
-    return - std - diff 
-end
-
-
+# ## REAL FITNESS FUNCTION ##
+# function eval_fitness(p::Vector{Float64}, prob::ODEProblem, idxs)::Float64
+#     Y = solve(remake(prob, p=p), saveat=0.1, save_idxs = idxs)
+#     fftData = getFrequencies(Y.u, length(Y.t)) #get Fourier transform of p1
+#     indexes = findmaxima(fftData)[1] #get indexes of local maxima of fft
+#     # realpeaks = length(findmaxima(Y.u, 10)[1]) #get indexes of local maxima of p1
+#     if length(indexes) == 0 #|| realpeaks < 4  #if no peaks, return 0
+#         return 0.
+#     end
+#     std = getSTD(indexes, fftData, 1) #get standard deviation of fft peak indexes
+#     diff = getDif(indexes, fftData) #get difference between peaks
+#     return - std - diff 
+# end
 
 
 
 
 
-function make_fitness_function(prob::ODEProblem, tots; idxs = 1)::Function # Create a fitness function that includes your ODE problem as a constant
+
+
+function make_fitness_function(prob::ODEProblem, tots; idxs = 1) # Create a fitness function that includes your ODE problem as a constant
     function fitness_function(p::Vector{Float64})
         return eval_fitness(p, tots, prob, idxs)  
     end
@@ -269,7 +271,7 @@ fitness_function = make_fitness_function(prob, tots) # Create a fitness function
 
 
 ## parameter constraint ranges ##
-ka_min, ka_max = 0.0, 100.
+ka_min, ka_max = 0.0, 1.
 kb_min, kb_max = 0.00, 500.0
 kcat_min, kcat_max = 0.00, 500.0
 
@@ -288,7 +290,7 @@ param_values = Dict(
     "kb7" => Dict("min" => kb_min, "max" => kb_max),
     "kcat7" => Dict("min" => kcat_min, "max" => kcat_max),
     "y" => Dict("min" => 100., "max" => 5000.)
-)
+);
 
 
 
@@ -298,7 +300,7 @@ opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iter
 
 common_range = 0.5
 valrange = fill(common_range, 13)
-mthd = GA(populationSize = 5000, selection = tournament(500),
+mthd = GA(populationSize = 500, selection = tournament(50),
           crossover = TPX, crossoverRate = 0.5,
           mutation  = BGA(valrange, 2), mutationRate = 0.9)
 
