@@ -273,16 +273,16 @@ param_values = Dict(
     "y" => Dict("min" => 100., "max" => 5000.)
 );
 
-random_p = [rand(param_values[p]["min"]:0.01:param_values[p]["max"]) for p in keys(param_values)]
-eval_fitness(random_p, tots, prob, 1)
-eval_fitness(random_p, tots, prob2, 1)
-testprob = ODEProblem(reduced_oscillator_odes!, u0[1:4], tspan, vcat(random_p, tots))
-testsol = solve(testprob, p=vcat(p, tots))
-plot(testsol)
+# random_p = [rand(param_values[p]["min"]:0.01:param_values[p]["max"]) for p in keys(param_values)]
+# eval_fitness(random_p, tots, prob, 1)
+# eval_fitness(random_p, tots, prob2, 1)
+# testprob = ODEProblem(reduced_oscillator_odes!, u0[1:4], tspan, vcat(random_p, tots))
+# testsol = solve(testprob, p=vcat(p, tots))
+# plot(testsol)
 
 #Optimization parameters
 constraints = BoxConstraints([param_values[p]["min"] for p in keys(param_values)], [param_values[p]["max"] for p in keys(param_values)])
-opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=30, parallelization=:thread, abstol=1e-6, reltol=1e-6)
+opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=10, parallelization=:thread, abstol=1e-6, reltol=1e-6)
 
 common_range = 0.5
 valrange = fill(common_range, 13)
@@ -298,7 +298,12 @@ result = Evolutionary.optimize(fitness_function, constraints, mthd, opts)
 
 newp = result.minimizer
 newsol = solve(remake(prob, p=vcat(newp, tots)))
-plot(newsol)
-eval_fitness(newp, tots, prob, 1)
+newsol2 = solve(remake(prob2, p = vcat(newp,tots)), save_idxs=[1,4,6,11])
 
-calc_other_vars(u0, newp, tots)
+#plot the results
+p1 = plot(newsol, label = ["L" "Lp" "LpA" "LpAP"] ,  lw=2, title="Reduced Oscillator Model", xlabel="Time", ylabel="Concentration");
+p2 = plot(newsol2, label = ["L" "Lp" "LpA" "LpAP"], lw=2, title="Full Oscillator Model", xlabel="Time", ylabel="Concentration");
+plot(p1, p2, layout=(2,1), size=(800,800))
+
+
+eval_fitness(newp, tots, prob, 1)
