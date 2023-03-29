@@ -358,7 +358,7 @@ p = [0.05485309578515125, 19.774627209108715, 240.99536193310848,
 # L, Lp, K, P, A, LpA, LK, LpAK, LpAKL, LpP, LpAP, LpAPLp = u0
 
 # u0 = [0., 3.0, 0.2, 0.3, 0.2, 0.0, 0., 0., 0., 0., 0., 0.] #working 
-u0 = [0.01, 3.0, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.6, 0.3, 0.2]
+u0 = [1.01, 3.0, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 1.6, 0.3, 0.2]
 L, Lp, LpA, LpAP, LK, LpAK, LpAKL, LpP, LpAPLp, A, K, P = u0
 
 umap = [:L => L, :Lp => Lp, :LpA => LpA, :LpAP => LpAP, :LK => LK, :LpAK => LpAK, :LpAKL => LpAKL, :LpP => LpP, :LpAPLp => LpAPLp, :A => A, :K => K, :P => P]
@@ -423,10 +423,10 @@ end
 
 
 
-function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProblem, idxs; dt = 0.01)
+function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProblem, idxs)
     Y = nothing
     try 
-        Y = solve(remake(prob, p=vcat(p,tots)), save_idxs=idxs)
+        Y = solve(remake(prob, p=vcat(p,tots)), save_idxs=idxs, saveat=0.01)
     catch e
         if isa(e, DomainError)
             return 0.0
@@ -442,7 +442,7 @@ function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProbl
     fftData = getFrequencies(Y.u)
     indexes = findmaxima(fftData)[1]
     if isempty(indexes)
-        return 0.
+        return 0.0
     end
     std = getSTD(indexes, fftData, 0.1)
     diff = getDif(indexes, fftData)
@@ -469,12 +469,12 @@ function make_fitness_function(prob::ODEProblem, tots; idxs = 1) # Create a fitn
     return fitness_function
 end
 
-fitness_function = make_fitness_function(prob, tots, idxs=2) # Create a fitness function that includes your ODE problem as a constant
+fitness_function = make_fitness_function(prob, tots) # Create a fitness function that includes your ODE problem as a constant
 
 
 
 ## parameter constraint ranges ##
-ka_min, ka_max = 0.001, 100.
+ka_min, ka_max = 0.001, 1.
 kb_min, kb_max = 0.001, 500.0
 kcat_min, kcat_max = 0.001, 500.0
 
@@ -499,7 +499,8 @@ random_p = [rand(param_values[p]["min"]:0.01:param_values[p]["max"]) for p in ke
 eval_fitness(random_p, tots, prob, 1)
 # eval_fitness(random_p, tots, prob2, 1)
 testprob = ODEProblem(reduced_oscillator_odes!, u0[1:2:3], tspan, vcat(random_p, tots))
-testsol = solve(testprob, p=vcat(p, tots))
+testsol = solve(testprob,Tsit5(), p=vcat(p, tots), dense=true)
+findmaxima(testsol[1,:], 10)
 plot(testsol)
 
 #Optimization parameters
@@ -508,7 +509,7 @@ opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iter
 
 common_range = 0.5
 valrange = fill(common_range, 13)
-mthd = GA(populationSize = 5000, selection = tournament(500),
+mthd = GA(populationSize = 500, selection = tournament(50),
           crossover = TPX, crossoverRate = 0.5,
           mutation  = BGA(valrange, 2), mutationRate = 0.9)
 
