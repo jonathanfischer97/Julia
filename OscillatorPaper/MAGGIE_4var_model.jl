@@ -218,8 +218,9 @@ function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProbl
         return 0.0
     end
     fftData = getFrequencies(Y.u)
-    indexes = findmaxima(fftData)[1]
-    if isempty(indexes)
+    indexes = findmaxima(fftData,10)[1]
+    peaknumber = length(findmaxima(Y.u,100)[1])
+    if isempty(indexes) || peaknumber < 3
         return 0.
     end
     std = getSTD(indexes, fftData, 0.1)
@@ -228,7 +229,21 @@ function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProbl
 end
 
 
-
+function eval_fitness(p::Vector{Float64},  prob::ODEProblem, idxs; dt = 0.1)
+    Y = solve(remake(prob, p=p), save_idxs=idxs, saveat=dt)
+    if any(isnan.(Y.u)) || any(isless.(Y.u, 0.0))
+        return 0.0
+    end
+    fftData = getFrequencies(Y.u)
+    indexes = findmaxima(fftData,10)[1]
+    peaknumber = length(findmaxima(Y.u,100)[1])
+    if isempty(indexes) || peaknumber < 3
+        return 0.
+    end
+    std = getSTD(indexes, fftData, 0.1)
+    diff = getDif(indexes, fftData)
+    return -std - diff
+end
 
 
 
@@ -247,7 +262,15 @@ function make_fitness_function(prob::ODEProblem, tots; idxs = 1) # Create a fitn
     return fitness_function
 end
 
-fitness_function = make_fitness_function(prob, tots) # Create a fitness function that includes your ODE problem as a constant
+function make_fitness_function(prob::ODEProblem; idxs = 1) # Create a fitness function that includes your ODE problem as a constant
+    function fitness_function(p::Vector{Float64})
+        return eval_fitness(p, prob, idxs)  
+    end
+    return fitness_function
+end
+
+
+fitness_function = make_fitness_function(prob2) # Create a fitness function that includes your ODE problem as a constant
 
 
 
@@ -286,7 +309,7 @@ opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iter
 
 common_range = 0.5
 valrange = fill(common_range, 13)
-mthd = GA(populationSize = 500, selection = tournament(50),
+mthd = GA(populationSize = 5000, selection = tournament(500),
           crossover = TPX, crossoverRate = 0.5,
           mutation  = BGA(valrange, 2), mutationRate = 0.9)
 
@@ -298,7 +321,7 @@ result = Evolutionary.optimize(fitness_function, constraints, mthd, opts)
 
 newp = result.minimizer
 newsol = solve(remake(prob, p=vcat(newp, tots)))
-newsol2 = solve(remake(prob2, p = vcat(newp,tots)), save_idxs=[1,4,6,11])
+newsol2 = solve(remake(prob2, p = newp), saveat=0.1)
 
 #plot the results
 p1 = plot(newsol, label = ["L" "Lp" "LpA" "LpAP"] ,  lw=2, title="Reduced Oscillator Model", xlabel="Time", ylabel="Concentration");
@@ -306,4 +329,7 @@ p2 = plot(newsol2, label = ["L" "Lp" "LpA" "LpAP"], lw=2, title="Full Oscillator
 plot(p1, p2, layout=(2,1), size=(800,800))
 
 
-eval_fitness(newp, tots, prob, 1)
+eval_fitness(newp, tots, prob2, 1)
+
+
+length(findmaxima(newsol2[1,:],100)[1])
