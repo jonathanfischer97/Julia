@@ -32,7 +32,7 @@ trimer_rn = @reaction_network trirn begin
     kcat1, AKL --> Lp + AK #phosphorylation of lipid
     (ka7,kb7), AP + Lp <--> APLp #binding of phosphatase to lipid
     kcat7, APLp --> L + AP #dephosphorylation of lipid
-end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka7 kb7 kcat7 y 
+end  
 
 osys = convert(ODESystem, trimer_rn)
 
