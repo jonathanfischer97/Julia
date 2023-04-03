@@ -25,31 +25,34 @@ function getLp(L, LpA, p, tots)
     # L, LpA = y
     ka1, kb1, kcat1, _, _, ka3, kb3, ka4, kb4, ka7, kb7, kcat7, DF = p
     ktot, ptot, _, liptot = tots
+    ka34 = ka3*ka4
+    kb34 = kb3*kb4
+    LpAsqred = LpA^2
 
-        (kb1*kb3*kb4*kb7^2 + kb3*kb4*kb7^2*kcat1 + 2*kb1*kb3*kb4*kb7*kcat7 + 
-        2*kb3*kb4*kb7*kcat1*kcat7 + kb1*kb3*kb4*kcat7^2 + kb3*kb4*kcat1*kcat7^2 + 
-        ka7*kb1*kb3*kb4*kb7*L + ka1*kb3*kb4*kb7^2*L + ka7*kb3*kb4*kb7*kcat1*L + 
-        ka7*kb1*kb3*kb4*kcat7*L + 2*ka1*kb3*kb4*kb7*kcat7*L + 
-        ka7*kb3*kb4*kcat1*kcat7*L + ka1*kb3*kb4*kcat7^2*L + 
-        ka1*ka7*kb3*kb4*kb7*ktot*L + ka1*ka7*kb3*kb4*kcat7*ktot*L + 
-        ka1*ka7*kb3*kb4*kb7*L^2 + ka1*ka7*kb3*kb4*kcat7*L^2 - 
-        ka7*kb1*kb3*kb4*kb7*liptot - ka7*kb3*kb4*kb7*kcat1*liptot - 
-        ka7*kb1*kb3*kb4*kcat7*liptot - ka7*kb3*kb4*kcat1*kcat7*liptot - 
-        ka1*ka7*kb3*kb4*kb7*L*liptot - ka1*ka7*kb3*kb4*kcat7*L*liptot + 
-        ka7*kb1*kb3*kb4*kb7*LpA + ka4*kb1*kb3*kb7^2*LpA + 2*ka3*kb1*kb4*kb7^2*LpA + 
-        ka7*kb3*kb4*kb7*kcat1*LpA + ka4*kb3*kb7^2*kcat1*LpA + 
-        2*ka3*kb4*kb7^2*kcat1*LpA + ka7*kb1*kb3*kb4*kcat7*LpA + 
+        (kb1*kb34*kb7^2 + kb34*kb7^2*kcat1 + 2*kb1*kb34*kb7*kcat7 + 
+        2*kb34*kb7*kcat1*kcat7 + kb1*kb34*kcat7^2 + kb34*kcat1*kcat7^2 + 
+        ka7*kb1*kb34*kb7*L + ka1*kb34*kb7^2*L + ka7*kb34*kb7*kcat1*L + 
+        ka7*kb1*kb34*kcat7*L + 2*ka1*kb34*kb7*kcat7*L + 
+        ka7*kb34*kcat1*kcat7*L + ka1*kb34*kcat7^2*L + 
+        ka1*ka7*kb34*kb7*ktot*L + ka1*ka7*kb34*kcat7*ktot*L + 
+        ka1*ka7*kb34*kb7*L^2 + ka1*ka7*kb34*kcat7*L^2 - 
+        ka7*kb1*kb34*kb7*liptot - ka7*kb34*kb7*kcat1*liptot - 
+        ka7*kb1*kb34*kcat7*liptot - ka7*kb34*kcat1*kcat7*liptot - 
+        ka1*ka7*kb34*kb7*L*liptot - ka1*ka7*kb34*kcat7*L*liptot + 
+        ka7*kb1*kb34*kb7*LpA + ka4*kb1*kb3*kb7^2*LpA + 2*ka3*kb1*kb4*kb7^2*LpA + 
+        ka7*kb34*kb7*kcat1*LpA + ka4*kb3*kb7^2*kcat1*LpA + 
+        2*ka3*kb4*kb7^2*kcat1*LpA + ka7*kb1*kb34*kcat7*LpA + 
         2*ka4*kb1*kb3*kb7*kcat7*LpA + 4*ka3*kb1*kb4*kb7*kcat7*LpA + 
-        ka7*kb3*kb4*kcat1*kcat7*LpA + 2*ka4*kb3*kb7*kcat1*kcat7*LpA + 
+        ka7*kb34*kcat1*kcat7*LpA + 2*ka4*kb3*kb7*kcat1*kcat7*LpA + 
         4*ka3*kb4*kb7*kcat1*kcat7*LpA + ka4*kb1*kb3*kcat7^2*LpA + 
         2*ka3*kb1*kb4*kcat7^2*LpA + ka4*kb3*kcat1*kcat7^2*LpA + 
         2*ka3*kb4*kcat1*kcat7^2*LpA + ka3*ka7*kb1*kb4*kb7*ktot*LpA + 
         ka3*ka7*kb4*kb7*kcat1*ktot*LpA + ka3*ka7*kb1*kb4*kcat7*ktot*LpA + 
         ka3*ka7*kb4*kcat1*kcat7*ktot*LpA + DF*ka4*ka7*kb1*kb3*kb7*L*LpA + 
-        2*ka3*ka7*kb1*kb4*kb7*L*LpA + ka1*ka7*kb3*kb4*kb7*L*LpA + 
+        2*ka3*ka7*kb1*kb4*kb7*L*LpA + ka1*ka7*kb34*kb7*L*LpA + 
         ka1*ka4*kb3*kb7^2*L*LpA + DF*ka4*ka7*kb3*kb7*kcat1*L*LpA + 
         2*ka3*ka7*kb4*kb7*kcat1*L*LpA + DF*ka4*ka7*kb1*kb3*kcat7*L*LpA + 
-        2*ka3*ka7*kb1*kb4*kcat7*L*LpA + ka1*ka7*kb3*kb4*kcat7*L*LpA + 
+        2*ka3*ka7*kb1*kb4*kcat7*L*LpA + ka1*ka7*kb34*kcat7*L*LpA + 
         2*ka1*ka4*kb3*kb7*kcat7*L*LpA + DF*ka4*ka7*kb3*kcat1*kcat7*L*LpA + 
         2*ka3*ka7*kb4*kcat1*kcat7*L*LpA + ka1*ka4*kb3*kcat7^2*L*LpA + 
         DF*ka1*ka4*ka7*kb3*kb7*ktot*L*LpA + 2*DF*ka1*ka3*ka7*kb4*kb7*ktot*L*LpA + 
@@ -60,63 +63,63 @@ function getLp(L, LpA, p, tots)
         DF*ka4*ka7*kb1*kb3*kcat7*liptot*LpA - 2*ka3*ka7*kb1*kb4*kcat7*liptot*LpA - 
         DF*ka4*ka7*kb3*kcat1*kcat7*liptot*LpA - 2*ka3*ka7*kb4*kcat1*kcat7*liptot*LpA - 
         DF*ka1*ka4*ka7*kb3*kb7*L*liptot*LpA - DF*ka1*ka4*ka7*kb3*kcat7*L*liptot*LpA + 
-        DF*ka4*ka7*kb1*kb3*kb7*LpA^2 + 2*ka3*ka7*kb1*kb4*kb7*LpA^2 + 
-        2*ka3*ka4*kb1*kb7^2*LpA^2 + DF*ka4*ka7*kb3*kb7*kcat1*LpA^2 + 
-        2*ka3*ka7*kb4*kb7*kcat1*LpA^2 + 2*ka3*ka4*kb7^2*kcat1*LpA^2 + 
-        DF*ka4*ka7*kb1*kb3*kcat7*LpA^2 + 2*ka3*ka7*kb1*kb4*kcat7*LpA^2 + 
-        4*ka3*ka4*kb1*kb7*kcat7*LpA^2 + DF*ka4*ka7*kb3*kcat1*kcat7*LpA^2 + 
-        2*ka3*ka7*kb4*kcat1*kcat7*LpA^2 + 4*ka3*ka4*kb7*kcat1*kcat7*LpA^2 + 
-        2*ka3*ka4*kb1*kcat7^2*LpA^2 + 2*ka3*ka4*kcat1*kcat7^2*LpA^2 + 
-        DF*ka3*ka4*ka7*kb1*kb7*ktot*LpA^2 + DF*ka3*ka4*ka7*kb7*kcat1*ktot*LpA^2 + 
-        DF*ka3*ka4*ka7*kb1*kcat7*ktot*LpA^2 + 
-        DF*ka3*ka4*ka7*kcat1*kcat7*ktot*LpA^2 + 2*DF*ka3*ka4*ka7*kb1*kb7*L*LpA^2 + 
-        DF*ka1*ka4*ka7*kb3*kb7*L*LpA^2 + 2*DF*ka3*ka4*ka7*kb7*kcat1*L*LpA^2 + 
-        2*DF*ka3*ka4*ka7*kb1*kcat7*L*LpA^2 + DF*ka1*ka4*ka7*kb3*kcat7*L*LpA^2 + 
-        2*DF*ka3*ka4*ka7*kcat1*kcat7*L*LpA^2 + 
-        2*DF^2*ka1*ka3*ka4*ka7*kb7*ktot*L*LpA^2 + 
-        2*DF^2*ka1*ka3*ka4*ka7*kcat7*ktot*L*LpA^2 - 
-        2*DF*ka3*ka4*ka7*kb1*kb7*liptot*LpA^2 - 
-        2*DF*ka3*ka4*ka7*kb7*kcat1*liptot*LpA^2 - 
-        2*DF*ka3*ka4*ka7*kb1*kcat7*liptot*LpA^2 - 
-        2*DF*ka3*ka4*ka7*kcat1*kcat7*liptot*LpA^2 + 2*DF*ka3*ka4*ka7*kb1*kb7*LpA^3 + 
-        2*DF*ka3*ka4*ka7*kb7*kcat1*LpA^3 + 2*DF*ka3*ka4*ka7*kb1*kcat7*LpA^3 + 
-        2*DF*ka3*ka4*ka7*kcat1*kcat7*LpA^3 + ka7*kb1*kb3*kb4*kb7*ptot + 
-        ka7*kb3*kb4*kb7*kcat1*ptot + ka7*kb1*kb3*kb4*kcat7*ptot + 
-        ka7*kb3*kb4*kcat1*kcat7*ptot + ka1*ka7*kb3*kb4*kb7*L*ptot + 
-        ka1*ka7*kb3*kb4*kcat7*L*ptot + 2*DF*ka4*ka7*kb1*kb3*kb7*LpA*ptot + 
+        DF*ka4*ka7*kb1*kb3*kb7*LpAsqred + 2*ka3*ka7*kb1*kb4*kb7*LpAsqred + 
+        2*ka34*kb1*kb7^2*LpAsqred + DF*ka4*ka7*kb3*kb7*kcat1*LpAsqred + 
+        2*ka3*ka7*kb4*kb7*kcat1*LpAsqred + 2*ka34*kb7^2*kcat1*LpAsqred + 
+        DF*ka4*ka7*kb1*kb3*kcat7*LpAsqred + 2*ka3*ka7*kb1*kb4*kcat7*LpAsqred + 
+        4*ka34*kb1*kb7*kcat7*LpAsqred + DF*ka4*ka7*kb3*kcat1*kcat7*LpAsqred + 
+        2*ka3*ka7*kb4*kcat1*kcat7*LpAsqred + 4*ka34*kb7*kcat1*kcat7*LpAsqred + 
+        2*ka34*kb1*kcat7^2*LpAsqred + 2*ka34*kcat1*kcat7^2*LpAsqred + 
+        DF*ka34*ka7*kb1*kb7*ktot*LpAsqred + DF*ka34*ka7*kb7*kcat1*ktot*LpAsqred + 
+        DF*ka34*ka7*kb1*kcat7*ktot*LpAsqred + 
+        DF*ka34*ka7*kcat1*kcat7*ktot*LpAsqred + 2*DF*ka34*ka7*kb1*kb7*L*LpAsqred + 
+        DF*ka1*ka4*ka7*kb3*kb7*L*LpAsqred + 2*DF*ka34*ka7*kb7*kcat1*L*LpAsqred + 
+        2*DF*ka34*ka7*kb1*kcat7*L*LpAsqred + DF*ka1*ka4*ka7*kb3*kcat7*L*LpAsqred + 
+        2*DF*ka34*ka7*kcat1*kcat7*L*LpAsqred + 
+        2*DF^2*ka1*ka34*ka7*kb7*ktot*L*LpAsqred + 
+        2*DF^2*ka1*ka34*ka7*kcat7*ktot*L*LpAsqred - 
+        2*DF*ka34*ka7*kb1*kb7*liptot*LpAsqred - 
+        2*DF*ka34*ka7*kb7*kcat1*liptot*LpAsqred - 
+        2*DF*ka34*ka7*kb1*kcat7*liptot*LpAsqred - 
+        2*DF*ka34*ka7*kcat1*kcat7*liptot*LpAsqred + 2*DF*ka34*ka7*kb1*kb7*LpA^3 + 
+        2*DF*ka34*ka7*kb7*kcat1*LpA^3 + 2*DF*ka34*ka7*kb1*kcat7*LpA^3 + 
+        2*DF*ka34*ka7*kcat1*kcat7*LpA^3 + ka7*kb1*kb34*kb7*ptot + 
+        ka7*kb34*kb7*kcat1*ptot + ka7*kb1*kb34*kcat7*ptot + 
+        ka7*kb34*kcat1*kcat7*ptot + ka1*ka7*kb34*kb7*L*ptot + 
+        ka1*ka7*kb34*kcat7*L*ptot + 2*DF*ka4*ka7*kb1*kb3*kb7*LpA*ptot + 
         2*ka3*ka7*kb1*kb4*kb7*LpA*ptot + 2*DF*ka4*ka7*kb3*kb7*kcat1*LpA*ptot + 
         2*ka3*ka7*kb4*kb7*kcat1*LpA*ptot + 2*DF*ka4*ka7*kb1*kb3*kcat7*LpA*ptot + 
         2*ka3*ka7*kb1*kb4*kcat7*LpA*ptot + 2*DF*ka4*ka7*kb3*kcat1*kcat7*LpA*ptot + 
         2*ka3*ka7*kb4*kcat1*kcat7*LpA*ptot + 2*DF*ka1*ka4*ka7*kb3*kb7*L*LpA*ptot + 
-        2*DF*ka1*ka4*ka7*kb3*kcat7*L*LpA*ptot + 4*DF*ka3*ka4*ka7*kb1*kb7*LpA^2*ptot + 
-        4*DF*ka3*ka4*ka7*kb7*kcat1*LpA^2*ptot + 
-        4*DF*ka3*ka4*ka7*kb1*kcat7*LpA^2*ptot + 
-        4*DF*ka3*ka4*ka7*kcat1*kcat7*LpA^2*ptot - 
-        sqrt((-(kb1*kb3*kb4*kb7^2) - kb3*kb4*kb7^2*kcat1 - 2*kb1*kb3*kb4*kb7*kcat7 - 
-              2*kb3*kb4*kb7*kcat1*kcat7 - kb1*kb3*kb4*kcat7^2 - 
-              kb3*kb4*kcat1*kcat7^2 - ka7*kb1*kb3*kb4*kb7*L - ka1*kb3*kb4*kb7^2*L - 
-              ka7*kb3*kb4*kb7*kcat1*L - ka7*kb1*kb3*kb4*kcat7*L - 
-              2*ka1*kb3*kb4*kb7*kcat7*L - ka7*kb3*kb4*kcat1*kcat7*L - 
-              ka1*kb3*kb4*kcat7^2*L - ka1*ka7*kb3*kb4*kb7*ktot*L - 
-              ka1*ka7*kb3*kb4*kcat7*ktot*L - ka1*ka7*kb3*kb4*kb7*L^2 - 
-              ka1*ka7*kb3*kb4*kcat7*L^2 + ka7*kb1*kb3*kb4*kb7*liptot + 
-              ka7*kb3*kb4*kb7*kcat1*liptot + ka7*kb1*kb3*kb4*kcat7*liptot + 
-              ka7*kb3*kb4*kcat1*kcat7*liptot + ka1*ka7*kb3*kb4*kb7*L*liptot + 
-              ka1*ka7*kb3*kb4*kcat7*L*liptot - ka7*kb1*kb3*kb4*kb7*LpA - 
+        2*DF*ka1*ka4*ka7*kb3*kcat7*L*LpA*ptot + 4*DF*ka34*ka7*kb1*kb7*LpAsqred*ptot + 
+        4*DF*ka34*ka7*kb7*kcat1*LpAsqred*ptot + 
+        4*DF*ka34*ka7*kb1*kcat7*LpAsqred*ptot + 
+        4*DF*ka34*ka7*kcat1*kcat7*LpAsqred*ptot - 
+        sqrt((-(kb1*kb34*kb7^2) - kb34*kb7^2*kcat1 - 2*kb1*kb34*kb7*kcat7 - 
+              2*kb34*kb7*kcat1*kcat7 - kb1*kb34*kcat7^2 - 
+              kb34*kcat1*kcat7^2 - ka7*kb1*kb34*kb7*L - ka1*kb34*kb7^2*L - 
+              ka7*kb34*kb7*kcat1*L - ka7*kb1*kb34*kcat7*L - 
+              2*ka1*kb34*kb7*kcat7*L - ka7*kb34*kcat1*kcat7*L - 
+              ka1*kb34*kcat7^2*L - ka1*ka7*kb34*kb7*ktot*L - 
+              ka1*ka7*kb34*kcat7*ktot*L - ka1*ka7*kb34*kb7*L^2 - 
+              ka1*ka7*kb34*kcat7*L^2 + ka7*kb1*kb34*kb7*liptot + 
+              ka7*kb34*kb7*kcat1*liptot + ka7*kb1*kb34*kcat7*liptot + 
+              ka7*kb34*kcat1*kcat7*liptot + ka1*ka7*kb34*kb7*L*liptot + 
+              ka1*ka7*kb34*kcat7*L*liptot - ka7*kb1*kb34*kb7*LpA - 
               ka4*kb1*kb3*kb7^2*LpA - 2*ka3*kb1*kb4*kb7^2*LpA - 
-              ka7*kb3*kb4*kb7*kcat1*LpA - ka4*kb3*kb7^2*kcat1*LpA - 
-              2*ka3*kb4*kb7^2*kcat1*LpA - ka7*kb1*kb3*kb4*kcat7*LpA - 
+              ka7*kb34*kb7*kcat1*LpA - ka4*kb3*kb7^2*kcat1*LpA - 
+              2*ka3*kb4*kb7^2*kcat1*LpA - ka7*kb1*kb34*kcat7*LpA - 
               2*ka4*kb1*kb3*kb7*kcat7*LpA - 4*ka3*kb1*kb4*kb7*kcat7*LpA - 
-              ka7*kb3*kb4*kcat1*kcat7*LpA - 2*ka4*kb3*kb7*kcat1*kcat7*LpA - 
+              ka7*kb34*kcat1*kcat7*LpA - 2*ka4*kb3*kb7*kcat1*kcat7*LpA - 
               4*ka3*kb4*kb7*kcat1*kcat7*LpA - ka4*kb1*kb3*kcat7^2*LpA - 
               2*ka3*kb1*kb4*kcat7^2*LpA - ka4*kb3*kcat1*kcat7^2*LpA - 
               2*ka3*kb4*kcat1*kcat7^2*LpA - ka3*ka7*kb1*kb4*kb7*ktot*LpA - 
               ka3*ka7*kb4*kb7*kcat1*ktot*LpA - ka3*ka7*kb1*kb4*kcat7*ktot*LpA - 
               ka3*ka7*kb4*kcat1*kcat7*ktot*LpA - DF*ka4*ka7*kb1*kb3*kb7*L*LpA - 
-              2*ka3*ka7*kb1*kb4*kb7*L*LpA - ka1*ka7*kb3*kb4*kb7*L*LpA - 
+              2*ka3*ka7*kb1*kb4*kb7*L*LpA - ka1*ka7*kb34*kb7*L*LpA - 
               ka1*ka4*kb3*kb7^2*L*LpA - DF*ka4*ka7*kb3*kb7*kcat1*L*LpA - 
               2*ka3*ka7*kb4*kb7*kcat1*L*LpA - DF*ka4*ka7*kb1*kb3*kcat7*L*LpA - 
-              2*ka3*ka7*kb1*kb4*kcat7*L*LpA - ka1*ka7*kb3*kb4*kcat7*L*LpA - 
+              2*ka3*ka7*kb1*kb4*kcat7*L*LpA - ka1*ka7*kb34*kcat7*L*LpA - 
               2*ka1*ka4*kb3*kb7*kcat7*L*LpA - DF*ka4*ka7*kb3*kcat1*kcat7*L*LpA - 
               2*ka3*ka7*kb4*kcat1*kcat7*L*LpA - ka1*ka4*kb3*kcat7^2*L*LpA - 
               DF*ka1*ka4*ka7*kb3*kb7*ktot*L*LpA - 2*DF*ka1*ka3*ka7*kb4*kb7*ktot*L*LpA - 
@@ -130,32 +133,32 @@ function getLp(L, LpA, p, tots)
               DF*ka4*ka7*kb3*kcat1*kcat7*liptot*LpA + 
               2*ka3*ka7*kb4*kcat1*kcat7*liptot*LpA + 
               DF*ka1*ka4*ka7*kb3*kb7*L*liptot*LpA + 
-              DF*ka1*ka4*ka7*kb3*kcat7*L*liptot*LpA - DF*ka4*ka7*kb1*kb3*kb7*LpA^2 - 
-              2*ka3*ka7*kb1*kb4*kb7*LpA^2 - 2*ka3*ka4*kb1*kb7^2*LpA^2 - 
-              DF*ka4*ka7*kb3*kb7*kcat1*LpA^2 - 2*ka3*ka7*kb4*kb7*kcat1*LpA^2 - 
-              2*ka3*ka4*kb7^2*kcat1*LpA^2 - DF*ka4*ka7*kb1*kb3*kcat7*LpA^2 - 
-              2*ka3*ka7*kb1*kb4*kcat7*LpA^2 - 4*ka3*ka4*kb1*kb7*kcat7*LpA^2 - 
-              DF*ka4*ka7*kb3*kcat1*kcat7*LpA^2 - 2*ka3*ka7*kb4*kcat1*kcat7*LpA^2 - 
-              4*ka3*ka4*kb7*kcat1*kcat7*LpA^2 - 2*ka3*ka4*kb1*kcat7^2*LpA^2 - 
-              2*ka3*ka4*kcat1*kcat7^2*LpA^2 - DF*ka3*ka4*ka7*kb1*kb7*ktot*LpA^2 - 
-              DF*ka3*ka4*ka7*kb7*kcat1*ktot*LpA^2 - 
-              DF*ka3*ka4*ka7*kb1*kcat7*ktot*LpA^2 - 
-              DF*ka3*ka4*ka7*kcat1*kcat7*ktot*LpA^2 - 
-              2*DF*ka3*ka4*ka7*kb1*kb7*L*LpA^2 - DF*ka1*ka4*ka7*kb3*kb7*L*LpA^2 - 
-              2*DF*ka3*ka4*ka7*kb7*kcat1*L*LpA^2 - 
-              2*DF*ka3*ka4*ka7*kb1*kcat7*L*LpA^2 - DF*ka1*ka4*ka7*kb3*kcat7*L*LpA^2 - 
-              2*DF*ka3*ka4*ka7*kcat1*kcat7*L*LpA^2 - 
-              2*DF^2*ka1*ka3*ka4*ka7*kb7*ktot*L*LpA^2 - 
-              2*DF^2*ka1*ka3*ka4*ka7*kcat7*ktot*L*LpA^2 + 
-              2*DF*ka3*ka4*ka7*kb1*kb7*liptot*LpA^2 + 
-              2*DF*ka3*ka4*ka7*kb7*kcat1*liptot*LpA^2 + 
-              2*DF*ka3*ka4*ka7*kb1*kcat7*liptot*LpA^2 + 
-              2*DF*ka3*ka4*ka7*kcat1*kcat7*liptot*LpA^2 - 
-              2*DF*ka3*ka4*ka7*kb1*kb7*LpA^3 - 2*DF*ka3*ka4*ka7*kb7*kcat1*LpA^3 - 
-              2*DF*ka3*ka4*ka7*kb1*kcat7*LpA^3 - 2*DF*ka3*ka4*ka7*kcat1*kcat7*LpA^3 - 
-              ka7*kb1*kb3*kb4*kb7*ptot - ka7*kb3*kb4*kb7*kcat1*ptot - 
-              ka7*kb1*kb3*kb4*kcat7*ptot - ka7*kb3*kb4*kcat1*kcat7*ptot - 
-              ka1*ka7*kb3*kb4*kb7*L*ptot - ka1*ka7*kb3*kb4*kcat7*L*ptot - 
+              DF*ka1*ka4*ka7*kb3*kcat7*L*liptot*LpA - DF*ka4*ka7*kb1*kb3*kb7*LpAsqred - 
+              2*ka3*ka7*kb1*kb4*kb7*LpAsqred - 2*ka34*kb1*kb7^2*LpAsqred - 
+              DF*ka4*ka7*kb3*kb7*kcat1*LpAsqred - 2*ka3*ka7*kb4*kb7*kcat1*LpAsqred - 
+              2*ka34*kb7^2*kcat1*LpAsqred - DF*ka4*ka7*kb1*kb3*kcat7*LpAsqred - 
+              2*ka3*ka7*kb1*kb4*kcat7*LpAsqred - 4*ka34*kb1*kb7*kcat7*LpAsqred - 
+              DF*ka4*ka7*kb3*kcat1*kcat7*LpAsqred - 2*ka3*ka7*kb4*kcat1*kcat7*LpAsqred - 
+              4*ka34*kb7*kcat1*kcat7*LpAsqred - 2*ka34*kb1*kcat7^2*LpAsqred - 
+              2*ka34*kcat1*kcat7^2*LpAsqred - DF*ka34*ka7*kb1*kb7*ktot*LpAsqred - 
+              DF*ka34*ka7*kb7*kcat1*ktot*LpAsqred - 
+              DF*ka34*ka7*kb1*kcat7*ktot*LpAsqred - 
+              DF*ka34*ka7*kcat1*kcat7*ktot*LpAsqred - 
+              2*DF*ka34*ka7*kb1*kb7*L*LpAsqred - DF*ka1*ka4*ka7*kb3*kb7*L*LpAsqred - 
+              2*DF*ka34*ka7*kb7*kcat1*L*LpAsqred - 
+              2*DF*ka34*ka7*kb1*kcat7*L*LpAsqred - DF*ka1*ka4*ka7*kb3*kcat7*L*LpAsqred - 
+              2*DF*ka34*ka7*kcat1*kcat7*L*LpAsqred - 
+              2*DF^2*ka1*ka34*ka7*kb7*ktot*L*LpAsqred - 
+              2*DF^2*ka1*ka34*ka7*kcat7*ktot*L*LpAsqred + 
+              2*DF*ka34*ka7*kb1*kb7*liptot*LpAsqred + 
+              2*DF*ka34*ka7*kb7*kcat1*liptot*LpAsqred + 
+              2*DF*ka34*ka7*kb1*kcat7*liptot*LpAsqred + 
+              2*DF*ka34*ka7*kcat1*kcat7*liptot*LpAsqred - 
+              2*DF*ka34*ka7*kb1*kb7*LpA^3 - 2*DF*ka34*ka7*kb7*kcat1*LpA^3 - 
+              2*DF*ka34*ka7*kb1*kcat7*LpA^3 - 2*DF*ka34*ka7*kcat1*kcat7*LpA^3 - 
+              ka7*kb1*kb34*kb7*ptot - ka7*kb34*kb7*kcat1*ptot - 
+              ka7*kb1*kb34*kcat7*ptot - ka7*kb34*kcat1*kcat7*ptot - 
+              ka1*ka7*kb34*kb7*L*ptot - ka1*ka7*kb34*kcat7*L*ptot - 
               2*DF*ka4*ka7*kb1*kb3*kb7*LpA*ptot - 2*ka3*ka7*kb1*kb4*kb7*LpA*ptot - 
               2*DF*ka4*ka7*kb3*kb7*kcat1*LpA*ptot - 2*ka3*ka7*kb4*kb7*kcat1*LpA*ptot - 
               2*DF*ka4*ka7*kb1*kb3*kcat7*LpA*ptot - 2*ka3*ka7*kb1*kb4*kcat7*LpA*ptot - 
@@ -163,43 +166,43 @@ function getLp(L, LpA, p, tots)
               2*ka3*ka7*kb4*kcat1*kcat7*LpA*ptot - 
               2*DF*ka1*ka4*ka7*kb3*kb7*L*LpA*ptot - 
               2*DF*ka1*ka4*ka7*kb3*kcat7*L*LpA*ptot - 
-              4*DF*ka3*ka4*ka7*kb1*kb7*LpA^2*ptot - 
-              4*DF*ka3*ka4*ka7*kb7*kcat1*LpA^2*ptot - 
-              4*DF*ka3*ka4*ka7*kb1*kcat7*LpA^2*ptot - 
-              4*DF*ka3*ka4*ka7*kcat1*kcat7*LpA^2*ptot)^2 - 
-           4*(-(ka7*kb1*kb3*kb4*kb7) - ka7*kb3*kb4*kb7*kcat1 - ka7*kb1*kb3*kb4*kcat7 - 
-              ka7*kb3*kb4*kcat1*kcat7 - ka1*ka7*kb3*kb4*kb7*L - 
-              ka1*ka7*kb3*kb4*kcat7*L - DF*ka4*ka7*kb1*kb3*kb7*LpA - 
+              4*DF*ka34*ka7*kb1*kb7*LpAsqred*ptot - 
+              4*DF*ka34*ka7*kb7*kcat1*LpAsqred*ptot - 
+              4*DF*ka34*ka7*kb1*kcat7*LpAsqred*ptot - 
+              4*DF*ka34*ka7*kcat1*kcat7*LpAsqred*ptot)^2 - 
+           4*(-(ka7*kb1*kb34*kb7) - ka7*kb34*kb7*kcat1 - ka7*kb1*kb34*kcat7 - 
+              ka7*kb34*kcat1*kcat7 - ka1*ka7*kb34*kb7*L - 
+              ka1*ka7*kb34*kcat7*L - DF*ka4*ka7*kb1*kb3*kb7*LpA - 
               2*ka3*ka7*kb1*kb4*kb7*LpA - DF*ka4*ka7*kb3*kb7*kcat1*LpA - 
               2*ka3*ka7*kb4*kb7*kcat1*LpA - DF*ka4*ka7*kb1*kb3*kcat7*LpA - 
               2*ka3*ka7*kb1*kb4*kcat7*LpA - DF*ka4*ka7*kb3*kcat1*kcat7*LpA - 
               2*ka3*ka7*kb4*kcat1*kcat7*LpA - DF*ka1*ka4*ka7*kb3*kb7*L*LpA - 
-              DF*ka1*ka4*ka7*kb3*kcat7*L*LpA - 2*DF*ka3*ka4*ka7*kb1*kb7*LpA^2 - 
-              2*DF*ka3*ka4*ka7*kb7*kcat1*LpA^2 - 2*DF*ka3*ka4*ka7*kb1*kcat7*LpA^2 - 
-              2*DF*ka3*ka4*ka7*kcat1*kcat7*LpA^2)*
-            (-(kb1*kb3*kb4*kb7^2*L) - kb3*kb4*kb7^2*kcat1*L - 
-              2*kb1*kb3*kb4*kb7*kcat7*L - 2*kb3*kb4*kb7*kcat1*kcat7*L - 
-              kb1*kb3*kb4*kcat7^2*L - kb3*kb4*kcat1*kcat7^2*L - 
-              ka1*kb3*kb4*kb7^2*ktot*L - 2*ka1*kb3*kb4*kb7*kcat7*ktot*L - 
-              ka1*kb3*kb4*kcat7^2*ktot*L - ka1*kb3*kb4*kb7^2*L^2 - 
-              2*ka1*kb3*kb4*kb7*kcat7*L^2 - ka1*kb3*kb4*kcat7^2*L^2 + 
-              kb1*kb3*kb4*kb7^2*liptot + kb3*kb4*kb7^2*kcat1*liptot + 
-              2*kb1*kb3*kb4*kb7*kcat7*liptot + 2*kb3*kb4*kb7*kcat1*kcat7*liptot + 
-              kb1*kb3*kb4*kcat7^2*liptot + kb3*kb4*kcat1*kcat7^2*liptot + 
-              ka1*kb3*kb4*kb7^2*L*liptot + 2*ka1*kb3*kb4*kb7*kcat7*L*liptot + 
-              ka1*kb3*kb4*kcat7^2*L*liptot - kb1*kb3*kb4*kb7^2*LpA - 
-              kb3*kb4*kb7^2*kcat1*LpA - 2*kb1*kb3*kb4*kb7*kcat7*LpA - 
-              2*kb3*kb4*kb7*kcat1*kcat7*LpA - kb1*kb3*kb4*kcat7^2*LpA - 
-              kb3*kb4*kcat1*kcat7^2*LpA - ka3*kb1*kb4*kb7^2*ktot*LpA - 
+              DF*ka1*ka4*ka7*kb3*kcat7*L*LpA - 2*DF*ka34*ka7*kb1*kb7*LpAsqred - 
+              2*DF*ka34*ka7*kb7*kcat1*LpAsqred - 2*DF*ka34*ka7*kb1*kcat7*LpAsqred - 
+              2*DF*ka34*ka7*kcat1*kcat7*LpAsqred)*
+            (-(kb1*kb34*kb7^2*L) - kb34*kb7^2*kcat1*L - 
+              2*kb1*kb34*kb7*kcat7*L - 2*kb34*kb7*kcat1*kcat7*L - 
+              kb1*kb34*kcat7^2*L - kb34*kcat1*kcat7^2*L - 
+              ka1*kb34*kb7^2*ktot*L - 2*ka1*kb34*kb7*kcat7*ktot*L - 
+              ka1*kb34*kcat7^2*ktot*L - ka1*kb34*kb7^2*L^2 - 
+              2*ka1*kb34*kb7*kcat7*L^2 - ka1*kb34*kcat7^2*L^2 + 
+              kb1*kb34*kb7^2*liptot + kb34*kb7^2*kcat1*liptot + 
+              2*kb1*kb34*kb7*kcat7*liptot + 2*kb34*kb7*kcat1*kcat7*liptot + 
+              kb1*kb34*kcat7^2*liptot + kb34*kcat1*kcat7^2*liptot + 
+              ka1*kb34*kb7^2*L*liptot + 2*ka1*kb34*kb7*kcat7*L*liptot + 
+              ka1*kb34*kcat7^2*L*liptot - kb1*kb34*kb7^2*LpA - 
+              kb34*kb7^2*kcat1*LpA - 2*kb1*kb34*kb7*kcat7*LpA - 
+              2*kb34*kb7*kcat1*kcat7*LpA - kb1*kb34*kcat7^2*LpA - 
+              kb34*kcat1*kcat7^2*LpA - ka3*kb1*kb4*kb7^2*ktot*LpA - 
               ka3*kb4*kb7^2*kcat1*ktot*LpA - 2*ka3*kb1*kb4*kb7*kcat7*ktot*LpA - 
               2*ka3*kb4*kb7*kcat1*kcat7*ktot*LpA - ka3*kb1*kb4*kcat7^2*ktot*LpA - 
               ka3*kb4*kcat1*kcat7^2*ktot*LpA - ka4*kb1*kb3*kb7^2*L*LpA - 
-              2*ka3*kb1*kb4*kb7^2*L*LpA - ka1*kb3*kb4*kb7^2*L*LpA - 
+              2*ka3*kb1*kb4*kb7^2*L*LpA - ka1*kb34*kb7^2*L*LpA - 
               ka4*kb3*kb7^2*kcat1*L*LpA - 2*ka3*kb4*kb7^2*kcat1*L*LpA - 
               2*ka4*kb1*kb3*kb7*kcat7*L*LpA - 4*ka3*kb1*kb4*kb7*kcat7*L*LpA - 
-              2*ka1*kb3*kb4*kb7*kcat7*L*LpA - 2*ka4*kb3*kb7*kcat1*kcat7*L*LpA - 
+              2*ka1*kb34*kb7*kcat7*L*LpA - 2*ka4*kb3*kb7*kcat1*kcat7*L*LpA - 
               4*ka3*kb4*kb7*kcat1*kcat7*L*LpA - ka4*kb1*kb3*kcat7^2*L*LpA - 
-              2*ka3*kb1*kb4*kcat7^2*L*LpA - ka1*kb3*kb4*kcat7^2*L*LpA - 
+              2*ka3*kb1*kb4*kcat7^2*L*LpA - ka1*kb34*kcat7^2*L*LpA - 
               ka4*kb3*kcat1*kcat7^2*L*LpA - 2*ka3*kb4*kcat1*kcat7^2*L*LpA - 
               ka1*ka4*kb3*kb7^2*ktot*L*LpA - 2*DF*ka1*ka3*kb4*kb7^2*ktot*L*LpA - 
               2*ka1*ka4*kb3*kb7*kcat7*ktot*L*LpA - 
@@ -214,51 +217,51 @@ function getLp(L, LpA, p, tots)
               2*ka3*kb1*kb4*kcat7^2*liptot*LpA + ka4*kb3*kcat1*kcat7^2*liptot*LpA + 
               2*ka3*kb4*kcat1*kcat7^2*liptot*LpA + ka1*ka4*kb3*kb7^2*L*liptot*LpA + 
               2*ka1*ka4*kb3*kb7*kcat7*L*liptot*LpA + 
-              ka1*ka4*kb3*kcat7^2*L*liptot*LpA - ka4*kb1*kb3*kb7^2*LpA^2 - 
-              2*ka3*kb1*kb4*kb7^2*LpA^2 - ka4*kb3*kb7^2*kcat1*LpA^2 - 
-              2*ka3*kb4*kb7^2*kcat1*LpA^2 - 2*ka4*kb1*kb3*kb7*kcat7*LpA^2 - 
-              4*ka3*kb1*kb4*kb7*kcat7*LpA^2 - 2*ka4*kb3*kb7*kcat1*kcat7*LpA^2 - 
-              4*ka3*kb4*kb7*kcat1*kcat7*LpA^2 - ka4*kb1*kb3*kcat7^2*LpA^2 - 
-              2*ka3*kb1*kb4*kcat7^2*LpA^2 - ka4*kb3*kcat1*kcat7^2*LpA^2 - 
-              2*ka3*kb4*kcat1*kcat7^2*LpA^2 - ka3*ka4*kb1*kb7^2*ktot*LpA^2 - 
-              ka3*ka4*kb7^2*kcat1*ktot*LpA^2 - 2*ka3*ka4*kb1*kb7*kcat7*ktot*LpA^2 - 
-              2*ka3*ka4*kb7*kcat1*kcat7*ktot*LpA^2 - 
-              ka3*ka4*kb1*kcat7^2*ktot*LpA^2 - ka3*ka4*kcat1*kcat7^2*ktot*LpA^2 - 
-              2*ka3*ka4*kb1*kb7^2*L*LpA^2 - ka1*ka4*kb3*kb7^2*L*LpA^2 - 
-              2*ka3*ka4*kb7^2*kcat1*L*LpA^2 - 4*ka3*ka4*kb1*kb7*kcat7*L*LpA^2 - 
-              2*ka1*ka4*kb3*kb7*kcat7*L*LpA^2 - 4*ka3*ka4*kb7*kcat1*kcat7*L*LpA^2 - 
-              2*ka3*ka4*kb1*kcat7^2*L*LpA^2 - ka1*ka4*kb3*kcat7^2*L*LpA^2 - 
-              2*ka3*ka4*kcat1*kcat7^2*L*LpA^2 - 
-              2*DF*ka1*ka3*ka4*kb7^2*ktot*L*LpA^2 - 
-              4*DF*ka1*ka3*ka4*kb7*kcat7*ktot*L*LpA^2 - 
-              2*DF*ka1*ka3*ka4*kcat7^2*ktot*L*LpA^2 + 
-              2*ka3*ka4*kb1*kb7^2*liptot*LpA^2 + 
-              2*ka3*ka4*kb7^2*kcat1*liptot*LpA^2 + 
-              4*ka3*ka4*kb1*kb7*kcat7*liptot*LpA^2 + 
-              4*ka3*ka4*kb7*kcat1*kcat7*liptot*LpA^2 + 
-              2*ka3*ka4*kb1*kcat7^2*liptot*LpA^2 + 
-              2*ka3*ka4*kcat1*kcat7^2*liptot*LpA^2 - 2*ka3*ka4*kb1*kb7^2*LpA^3 - 
-              2*ka3*ka4*kb7^2*kcat1*LpA^3 - 4*ka3*ka4*kb1*kb7*kcat7*LpA^3 - 
-              4*ka3*ka4*kb7*kcat1*kcat7*LpA^3 - 2*ka3*ka4*kb1*kcat7^2*LpA^3 - 
-              2*ka3*ka4*kcat1*kcat7^2*LpA^3 - ka4*kb1*kb3*kb7^2*LpA*ptot - 
+              ka1*ka4*kb3*kcat7^2*L*liptot*LpA - ka4*kb1*kb3*kb7^2*LpAsqred - 
+              2*ka3*kb1*kb4*kb7^2*LpAsqred - ka4*kb3*kb7^2*kcat1*LpAsqred - 
+              2*ka3*kb4*kb7^2*kcat1*LpAsqred - 2*ka4*kb1*kb3*kb7*kcat7*LpAsqred - 
+              4*ka3*kb1*kb4*kb7*kcat7*LpAsqred - 2*ka4*kb3*kb7*kcat1*kcat7*LpAsqred - 
+              4*ka3*kb4*kb7*kcat1*kcat7*LpAsqred - ka4*kb1*kb3*kcat7^2*LpAsqred - 
+              2*ka3*kb1*kb4*kcat7^2*LpAsqred - ka4*kb3*kcat1*kcat7^2*LpAsqred - 
+              2*ka3*kb4*kcat1*kcat7^2*LpAsqred - ka34*kb1*kb7^2*ktot*LpAsqred - 
+              ka34*kb7^2*kcat1*ktot*LpAsqred - 2*ka34*kb1*kb7*kcat7*ktot*LpAsqred - 
+              2*ka34*kb7*kcat1*kcat7*ktot*LpAsqred - 
+              ka34*kb1*kcat7^2*ktot*LpAsqred - ka34*kcat1*kcat7^2*ktot*LpAsqred - 
+              2*ka34*kb1*kb7^2*L*LpAsqred - ka1*ka4*kb3*kb7^2*L*LpAsqred - 
+              2*ka34*kb7^2*kcat1*L*LpAsqred - 4*ka34*kb1*kb7*kcat7*L*LpAsqred - 
+              2*ka1*ka4*kb3*kb7*kcat7*L*LpAsqred - 4*ka34*kb7*kcat1*kcat7*L*LpAsqred - 
+              2*ka34*kb1*kcat7^2*L*LpAsqred - ka1*ka4*kb3*kcat7^2*L*LpAsqred - 
+              2*ka34*kcat1*kcat7^2*L*LpAsqred - 
+              2*DF*ka1*ka34*kb7^2*ktot*L*LpAsqred - 
+              4*DF*ka1*ka34*kb7*kcat7*ktot*L*LpAsqred - 
+              2*DF*ka1*ka34*kcat7^2*ktot*L*LpAsqred + 
+              2*ka34*kb1*kb7^2*liptot*LpAsqred + 
+              2*ka34*kb7^2*kcat1*liptot*LpAsqred + 
+              4*ka34*kb1*kb7*kcat7*liptot*LpAsqred + 
+              4*ka34*kb7*kcat1*kcat7*liptot*LpAsqred + 
+              2*ka34*kb1*kcat7^2*liptot*LpAsqred + 
+              2*ka34*kcat1*kcat7^2*liptot*LpAsqred - 2*ka34*kb1*kb7^2*LpA^3 - 
+              2*ka34*kb7^2*kcat1*LpA^3 - 4*ka34*kb1*kb7*kcat7*LpA^3 - 
+              4*ka34*kb7*kcat1*kcat7*LpA^3 - 2*ka34*kb1*kcat7^2*LpA^3 - 
+              2*ka34*kcat1*kcat7^2*LpA^3 - ka4*kb1*kb3*kb7^2*LpA*ptot - 
               ka4*kb3*kb7^2*kcat1*LpA*ptot - 2*ka4*kb1*kb3*kb7*kcat7*LpA*ptot - 
               2*ka4*kb3*kb7*kcat1*kcat7*LpA*ptot - ka4*kb1*kb3*kcat7^2*LpA*ptot - 
               ka4*kb3*kcat1*kcat7^2*LpA*ptot - ka1*ka4*kb3*kb7^2*L*LpA*ptot - 
               2*ka1*ka4*kb3*kb7*kcat7*L*LpA*ptot - ka1*ka4*kb3*kcat7^2*L*LpA*ptot - 
-              2*ka3*ka4*kb1*kb7^2*LpA^2*ptot - 2*ka3*ka4*kb7^2*kcat1*LpA^2*ptot - 
-              4*ka3*ka4*kb1*kb7*kcat7*LpA^2*ptot - 
-              4*ka3*ka4*kb7*kcat1*kcat7*LpA^2*ptot - 
-              2*ka3*ka4*kb1*kcat7^2*LpA^2*ptot - 2*ka3*ka4*kcat1*kcat7^2*LpA^2*ptot)
-            ))/(2*(-(ka7*kb1*kb3*kb4*kb7) - ka7*kb3*kb4*kb7*kcat1 - 
-            ka7*kb1*kb3*kb4*kcat7 - ka7*kb3*kb4*kcat1*kcat7 - ka1*ka7*kb3*kb4*kb7*L - 
-            ka1*ka7*kb3*kb4*kcat7*L - DF*ka4*ka7*kb1*kb3*kb7*LpA - 
+              2*ka34*kb1*kb7^2*LpAsqred*ptot - 2*ka34*kb7^2*kcat1*LpAsqred*ptot - 
+              4*ka34*kb1*kb7*kcat7*LpAsqred*ptot - 
+              4*ka34*kb7*kcat1*kcat7*LpAsqred*ptot - 
+              2*ka34*kb1*kcat7^2*LpAsqred*ptot - 2*ka34*kcat1*kcat7^2*LpAsqred*ptot)
+            ))/(2*(-(ka7*kb1*kb34*kb7) - ka7*kb34*kb7*kcat1 - 
+            ka7*kb1*kb34*kcat7 - ka7*kb34*kcat1*kcat7 - ka1*ka7*kb34*kb7*L - 
+            ka1*ka7*kb34*kcat7*L - DF*ka4*ka7*kb1*kb3*kb7*LpA - 
             2*ka3*ka7*kb1*kb4*kb7*LpA - DF*ka4*ka7*kb3*kb7*kcat1*LpA - 
             2*ka3*ka7*kb4*kb7*kcat1*LpA - DF*ka4*ka7*kb1*kb3*kcat7*LpA - 
             2*ka3*ka7*kb1*kb4*kcat7*LpA - DF*ka4*ka7*kb3*kcat1*kcat7*LpA - 
             2*ka3*ka7*kb4*kcat1*kcat7*LpA - DF*ka1*ka4*ka7*kb3*kb7*L*LpA - 
-            DF*ka1*ka4*ka7*kb3*kcat7*L*LpA - 2*DF*ka3*ka4*ka7*kb1*kb7*LpA^2 - 
-            2*DF*ka3*ka4*ka7*kb7*kcat1*LpA^2 - 2*DF*ka3*ka4*ka7*kb1*kcat7*LpA^2 - 
-		    2*DF*ka3*ka4*ka7*kcat1*kcat7*LpA^2))
+            DF*ka1*ka4*ka7*kb3*kcat7*L*LpA - 2*DF*ka34*ka7*kb1*kb7*LpAsqred - 
+            2*DF*ka34*ka7*kb7*kcat1*LpAsqred - 2*DF*ka34*ka7*kb1*kcat7*LpAsqred - 
+		    2*DF*ka34*ka7*kcat1*kcat7*LpAsqred))
 end
 
 """Given the unknowns, calculate the dependent variables"""
@@ -530,3 +533,4 @@ plot(p1, p2, layout=(2,1), size=(800,800))
 
 
 eval_fitness(newp, tots, prob, 1)
+eval_fitness(newp, tots, prob2, 1)
