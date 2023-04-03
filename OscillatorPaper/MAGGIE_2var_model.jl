@@ -381,6 +381,7 @@ tspan = (0., 100.);
 #solve the reduced ODEs
 prob = ODEProblem(reduced_oscillator_odes!, u0[1:2:3], tspan, vcat(p, tots))
 sol = solve(prob)
+# output = [sol(t) for t in range(0, stop=100, length=1000)]
 # sol = solve(remake(prob, p=vcat(p, tots)))
 
 
@@ -427,9 +428,9 @@ end
 
 
 function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProblem, idxs)
-    Y = nothing
+    Ysol = nothing
     try 
-        Y = solve(remake(prob, p=vcat(p,tots)), save_idxs=idxs, saveat=0.01)
+        Ysol = solve(remake(prob, p=vcat(p,tots)), save_idxs=idxs)
     catch e
         if isa(e, DomainError)
             return 0.0
@@ -438,12 +439,16 @@ function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProbl
         end
     end
 
-    if any(isnan.(Y.u)) || any(isless.(Y.u, 0.0))
+    if any(isnan.(Ysol.u)) || any(isless.(Ysol.u, 0.0))
         return 0.0
     end
 
-    fftData = getFrequencies(Y.u)
-    indexes = findmaxima(fftData)[1]
+    #interpolate evenly spaced time steps for the solution
+    Y = [Ysol(t) for t in range(0, stop=100, length=1000)]
+
+    #get the fft of the solution
+    fftData = getFrequencies(Y)
+    indexes = findmaxima(fftData,1)[1]
     if isempty(indexes)
         return 0.0
     end
@@ -451,18 +456,6 @@ function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProbl
     diff = getDif(indexes, fftData)
     return -std - diff
 end
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 function make_fitness_function(prob::ODEProblem, tots; idxs = 1) # Create a fitness function that includes your ODE problem as a constant
@@ -512,7 +505,7 @@ opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iter
 
 common_range = 0.5
 valrange = fill(common_range, 13)
-mthd = GA(populationSize = 500, selection = tournament(50),
+mthd = GA(populationSize = 5000, selection = tournament(500),
           crossover = TPX, crossoverRate = 0.5,
           mutation  = BGA(valrange, 2), mutationRate = 0.9)
 
