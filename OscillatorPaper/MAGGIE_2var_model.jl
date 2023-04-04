@@ -351,11 +351,8 @@ end
     
 #parameter list
 """ka1, kb1, kcat1, ka2, kb2, ka3, kb3, ka4, kb4, ka7, kb7, kcat7, DF"""
-p = [0.05485309578515125, 19.774627209108715, 240.99536193310848, 
-    1.0, 0.9504699043910143, 
-    41.04322510426121, 192.86642772763489,
-    0.19184180144850807, 0.12960624157489123, 
-    0.6179131289475834, 3.3890271820244195, 4.622923709012232,750]
+p = [0.125, 411.43070022437774, 42.44753785470635, 57.56861328754449, 1.0, 0.75, 0.001, 0.126, 
+    102.45983604574394, 123.39827909372974, 25.805378439197266, 470.69414436040074, 3718.0197650684563]
 
 #initial condition list
 # L, Lp, K, P, A, LpA, LK, LpAK, LpAKL, LpP, LpAP, LpAPLp = u0
@@ -380,7 +377,12 @@ tspan = (0., 100.);
 
 #solve the reduced ODEs
 prob = ODEProblem(reduced_oscillator_odes!, u0[1:2:3], tspan, vcat(p, tots))
-sol = solve(prob)
+sol = solve(prob) #solve adaptively
+sol_fixed = solve(prob, Tsit5(), saveat=0.1) #solve with fixed time steps
+sol_fixed2 = solve(prob, Tsit5(), saveat=0.01) #solve with smaller fixed time steps
+sol_stiff = solve(prob, AutoTsit5(Rosenbrock23()), saveat=0.01) #solve with stiff solver
+sol_interp = [sol(t) for t in range(0, stop=100, length=1000)] #interpolate solution to a finer grid
+
 # output = [sol(t) for t in range(0, stop=100, length=1000)]
 # sol = solve(remake(prob, p=vcat(p, tots)))
 
