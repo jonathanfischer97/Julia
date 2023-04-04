@@ -5,21 +5,6 @@ using Peaks
 using Statistics
 using BenchmarkTools
 
-# %So we eliminated A, LpAKL, LpAPLp and K using mass conservation--this is
-# %exact.
-# %We eliminated LK and LpAK and P and LpP by 4 steady-state approxes. 
-# %%set dLK=0 and dLpAKL=0, solve for LK and LpAK. 
-# %set dLpP=0 and dK=0, solve for P and LpP
-
-# %eliminate LpAP using dLpAP=0
-
-# %try eliminating Lp using dLpAPLp/dt=0
-
-# %L+K is reaction 1: ka1, kb1, kcat1
-# %Lp+A is reaction 2: ka2, kb2
-# %A+K is reaction 3: ka3, kb3
-# %A+P is reaction 4: ka4, kb4
-# %Lp+P is reaction 7: ka7, kb7, kcat7
 
 function getLp(L, LpA, p, tots)
     # L, LpA = y
@@ -318,6 +303,8 @@ function calc_other_vars(y, p, tots)
     return Lp, LpAP, P, LpP, LK, LpAK, LpAPLp, LpAKL, A, K
 end
 
+
+
 """ODE function for the reduced 2nd order oscillator model"""
 function reduced_oscillator_odes!(dy, y, p, t)
     L, LpA = y #variables in the model
@@ -333,20 +320,7 @@ end
 
 
 
-"""Full oscillator model for comparison"""
-osc_rn = @reaction_network osc_rn begin
-    (ka1,kb1), L + K <--> LK
-    kcat1, LK --> Lp + K 
-    (ka2,kb2), Lp + A <--> LpA 
-    (ka3,kb3), LpA + K <--> LpAK  
-    (ka1*y,kb1), LpAK + L <--> LpAKL
-    kcat1, LpAKL --> Lp + LpAK  
-    (ka7,kb7), Lp + P <--> LpP 
-    kcat7, LpP --> L + P
-    (ka4,kb4), LpA + P <--> LpAP 
-    (ka7*y,kb7), Lp + LpAP <--> LpAPLp
-    kcat7, LpAPLp --> L + LpAP
-end
+
 
     
 #parameter list
@@ -358,7 +332,7 @@ p = [0.125, 411.43070022437774, 42.44753785470635, 57.56861328754449, 1.0, 0.75,
 # L, Lp, K, P, A, LpA, LK, LpAK, LpAKL, LpP, LpAP, LpAPLp = u0
 
 # u0 = [0., 3.0, 0.2, 0.3, 0.2, 0.0, 0., 0., 0., 0., 0., 0.] #working 
-u0 = [.01, 3.0, .01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 1.6, 0.3, 0.2]
+u0 = [1.01, 3.0, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 1.6, 0.3, 0.2]
 L, Lp, LpA, LpAP, LK, LpAK, LpAKL, LpP, LpAPLp, A, K, P = u0
 
 umap = [:L => L, :Lp => Lp, :LpA => LpA, :LpAP => LpAP, :LK => LK, :LpAK => LpAK, :LpAKL => LpAKL, :LpP => LpP, :LpAPLp => LpAPLp, :A => A, :K => K, :P => P]
@@ -373,33 +347,13 @@ liptot=ltot+lptot;
 tots = [ktot, ptot, atot, liptot]
 
 #timespan for integration
-tspan = (0., 100.);
+tspan = (0., 20.);
 
 #solve the reduced ODEs
 prob = ODEProblem(reduced_oscillator_odes!, u0[1:2:3], tspan, vcat(p, tots))
 sol = solve(prob) #solve adaptively
-sol_fixed = solve(prob, saveat=0.1) #solve with fixed time steps
-sol_fixed2 = solve(prob, Tsit5(), saveat=0.01) #solve with smaller fixed time steps
-sol_stiff = solve(prob, AutoTsit5(Rosenbrock23()), saveat=0.1) #solve with stiff solver
-sol_interp = [sol(t) for t in range(0, stop=100, length=1000)] #interpolate solution to a finer grid
-
-#plot comparison of solutions
-plot(sol, label = ["L" "LpA"] ,  lw=2, title="Reduced Oscillator Model", xlabel="Time (s)", ylabel="Concentration")
-plot!(sol_fixed, lw=2, linestyle=:dash)
 
 
-# output = [sol(t) for t in range(0, stop=100, length=1000)]
-# sol = solve(remake(prob, p=vcat(p, tots)))
-
-
-#solve the full model
-prob2 = ODEProblem(osc_rn, umap, tspan, p)
-sol2 = solve(prob2, save_idxs=[1,6])
-
-#plot the results
-p1 = plot(sol, label = ["L" "LpA"] ,  lw=2, title="Reduced Oscillator Model", xlabel="Time (s)", ylabel="Concentration");
-p2 = plot(sol2, label = ["L" "LpA"], lw=2, title="Full Oscillator Model", xlabel="Time (s)", ylabel="Concentration");
-plot(p1, p2, layout=(2,1), size=(800,800))
 
 
 
@@ -435,30 +389,32 @@ end
 
 
 function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProblem, idxs)
-    Y = nothing
+    Ysol = nothing
     try 
-        Y = solve(remake(prob, p=vcat(p,tots)), save_idxs=idxs, saveat=0.01)
+        Ysol = solve(remake(prob, p=vcat(p,tots)), save_idxs=idxs)
     catch e
-        if isa(e, DomainError) || isa(e, DiffEqBase.IterLimit) #catch domain errors
+        if isa(e, DomainError)
             return 0.0
         else
-            rethrow(e) #rethrow other errors
+            rethrow(e)
         end
     end
 
-    if any(isnan.(Y.u)) || any(isless.(Y.u, 0.0)) #catch NaNs and negative values
+    if any(isnan.(Ysol.u)) || any(isless.(Ysol.u, 0.0))
         return 0.0
     end
 
+    #interpolate evenly spaced time steps for the solution
+    Y = [Ysol(t) for t in range(0, stop=100, length=1000)]
 
     #get the fft of the solution
-    fftData = getFrequencies(Y.u)
-    indexes = findmaxima(fftData,1)[1] #get the indexes of the peaks in the fft
-    if isempty(indexes) #if there are no peaks, return 0
+    fftData = getFrequencies(Y)
+    indexes = findmaxima(fftData,1)[1]
+    if isempty(indexes)
         return 0.0
     end
-    std = getSTD(indexes, fftData, 0.1) #get the standard deviation of the peaks
-    diff = getDif(indexes, fftData) #get the difference between the peaks
+    std = getSTD(indexes, fftData, 0.1)
+    diff = getDif(indexes, fftData)
     return -std - diff
 end
 
@@ -496,13 +452,7 @@ param_values = Dict(
     "y" => Dict("min" => 100., "max" => 5000.)
 );
 
-random_p = [rand(param_values[p]["min"]:0.01:param_values[p]["max"]) for p in keys(param_values)]
-eval_fitness(random_p, tots, prob, 1)
-# eval_fitness(random_p, tots, prob2, 1)
-testprob = ODEProblem(reduced_oscillator_odes!, u0[1:2:3], tspan, vcat(random_p, tots))
-testsol = solve(testprob,Tsit5(), p=vcat(p, tots))
-findmaxima(testsol[1,:], 10)
-plot(testsol)
+
 
 #Optimization parameters
 constraints = BoxConstraints([param_values[p]["min"] for p in keys(param_values)], [param_values[p]["max"] for p in keys(param_values)])
@@ -510,25 +460,19 @@ opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iter
 
 common_range = 0.5
 valrange = fill(common_range, 13)
-mthd = GA(populationSize = 500, selection = tournament(50),
+mthd = GA(populationSize = 5000, selection = tournament(500),
           crossover = TPX, crossoverRate = 0.5,
           mutation  = BGA(valrange, 2), mutationRate = 0.9)
 
 
-# function callback(trace)
+
 
 #Optimization
 result = Evolutionary.optimize(fitness_function, constraints, mthd, opts)
 
 newp = result.minimizer
 newsol = solve(remake(prob, p=vcat(newp, tots)))
-newsol2 = solve(remake(prob2, p = vcat(newp,tots)), save_idxs=[1,6])
 
-#plot the results
-p1 = plot(newsol, label = ["L" "LpA"] ,  lw=2, title="Reduced Oscillator Model", xlabel="Time (s)", ylabel="Concentration");
-p2 = plot(newsol2, label = ["L" "LpA"], lw=2, title="Full Oscillator Model", xlabel="Time (s)", ylabel="Concentration");
-plot(p1, p2, layout=(2,1), size=(800,800))
 
 
 eval_fitness(newp, tots, prob, 1)
-eval_fitness(newp, tots, prob2, 1)
