@@ -3,7 +3,9 @@ using Catalyst
 using DifferentialEquations
 using Peaks
 using Statistics
-using BenchmarkTools
+using Iterators
+# using BenchmarkTools
+# using Logging
 
 # %So we eliminated A, LpAKL, LpAPLp and K using mass conservation--this is
 # %exact.
@@ -22,7 +24,6 @@ using BenchmarkTools
 # %Lp+P is reaction 7: ka7, kb7, kcat7
 
 function getLp(L, LpA, p, tots)
-    # L, LpA = y
     ka1, kb1, kcat1, _, _, ka3, kb3, ka4, kb4, ka7, kb7, kcat7, DF = p
     ktot, ptot, _, liptot = tots
     ka34 = ka3*ka4
@@ -373,7 +374,7 @@ liptot=ltot+lptot;
 tots = [ktot, ptot, atot, liptot]
 
 #timespan for integration
-tspan = (0., 100.);
+tspan = (0., 20.);
 
 #solve the reduced ODEs
 prob = ODEProblem(reduced_oscillator_odes!, u0[1:2:3], tspan, vcat(p, tots))
@@ -381,7 +382,7 @@ sol = solve(prob) #solve adaptively
 sol_fixed = solve(prob, saveat=0.1) #solve with fixed time steps
 sol_fixed2 = solve(prob, Tsit5(), saveat=0.01) #solve with smaller fixed time steps
 sol_stiff = solve(prob, AutoTsit5(Rosenbrock23()), saveat=0.1) #solve with stiff solver
-sol_interp = [sol(t) for t in range(0, stop=100, length=1000)] #interpolate solution to a finer grid
+
 
 #plot comparison of solutions
 plot(sol, label = ["L" "LpA"] ,  lw=2, title="Reduced Oscillator Model", xlabel="Time (s)", ylabel="Concentration")
@@ -415,8 +416,7 @@ function getDif(indexes::Vector{Int}, arrayData::Vector{Float64}) #get summed di
     if arrLen < 2
         return 0.0
     end
-    sum_diff = @inbounds sum(arrayData[indexes[i]] - arrayData[indexes[i+1]] for i in 1:(arrLen-1))
-    sum_diff += arrayData[indexes[end]] #add the last element
+    sum_diff = sum(diff(arrayData[indexes])) + arrayData[indexes[end]] #add the last element
     return sum_diff
 end
 
@@ -434,27 +434,31 @@ end
 
 
 
-function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProblem, idxs)
+function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProblem)
     Y = nothing
     try 
-        Y = solve(remake(prob, p=vcat(p,tots)), save_idxs=idxs, saveat=0.01)
-    catch e
-        if isa(e, DomainError) || isa(e, DiffEqBase.IterLimit) #catch domain errors
-            return 0.0
+        Y = solve(remake(prob, p=vcat(p,tots)), saveat=0.01, maxiters=10000)
+        if Y.retcode in (ReturnCode.Unstable, ReturnCode.MaxIters)
+            return 1.0
+        end
+    catch e 
+        if isa(e, DomainError) #catch domain errors
+            return 1.0
         else
             rethrow(e) #rethrow other errors
         end
     end
 
     if any(isnan.(Y.u)) || any(isless.(Y.u, 0.0)) #catch NaNs and negative values
-        return 0.0
+        return 1.0
     end
 
 
     #get the fft of the solution
-    fftData = getFrequencies(Y.u)
+    fftData = getFrequencies(Y[1,:])
     indexes = findmaxima(fftData,1)[1] #get the indexes of the peaks in the fft
-    if isempty(indexes) #if there are no peaks, return 0
+    timepeaks = length(findmaxima(fftData,1)[1]) #get the times of the peaks in the fft
+    if isempty(indexes) || timepeaks < 2 #if there are no peaks, return 0
         return 0.0
     end
     std = getSTD(indexes, fftData, 0.1) #get the standard deviation of the peaks
@@ -463,9 +467,50 @@ function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProbl
 end
 
 
-function make_fitness_function(prob::ODEProblem, tots; idxs = 1) # Create a fitness function that includes your ODE problem as a constant
+# ChatGPT defined replacement function
+function oscillatory_strength(solution)
+    # Remove the mean of the signal to eliminate the DC component
+    signal = solution .- mean(solution)
+
+    # Compute the FFT of the signal
+    fft_result = rfft(signal)
+
+    # Calculate the power spectrum
+    power_spectrum = abs.(fft_result).^2
+
+    # Find the dominant frequency and its power
+    max_power_index = argmax(power_spectrum[2:div(end, 2)]) + 1
+    max_power = power_spectrum[max_power_index]
+
+    # Calculate the total power (excluding the DC component)
+    total_power = sum(power_spectrum) - power_spectrum[1]
+
+    # Return the ratio of the dominant frequency's power to the total power
+    return max_power / total_power
+end
+
+function eval_fitness2(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProblem)
+    Y = nothing
+    try 
+        Y = solve(remake(prob, p=vcat(p,tots)), saveat=0.01, maxiters=10000, verbose=false)
+        if Y.retcode in (ReturnCode.Unstable, ReturnCode.MaxIters) || any(isnan.(Y)) || any(isless.(Y, 0.0))
+            return 1.0
+        end
+    catch e 
+        if isa(e, DomainError) #catch domain errors
+            return 1.0
+        else
+            rethrow(e) #rethrow other errors
+        end
+    end
+    return -oscillatory_strength(Y[1,:])
+end
+
+
+
+function make_fitness_function(prob::ODEProblem, tots) # Create a fitness function that includes your ODE problem as a constant
     function fitness_function(p::Vector{Float64})
-        return eval_fitness(p, tots, prob, idxs)  
+        return eval_fitness2(p, tots, prob)  
     end
     return fitness_function
 end
@@ -493,24 +538,24 @@ param_values = Dict(
     "ka7" => Dict("min" => ka_min, "max" => ka_max),
     "kb7" => Dict("min" => kb_min, "max" => kb_max),
     "kcat7" => Dict("min" => kcat_min, "max" => kcat_max),
-    "y" => Dict("min" => 100., "max" => 5000.)
+    "y" => Dict("min" => 100., "max" => 2000.)
 );
 
 random_p = [rand(param_values[p]["min"]:0.01:param_values[p]["max"]) for p in keys(param_values)]
 eval_fitness(random_p, tots, prob, 1)
 # eval_fitness(random_p, tots, prob2, 1)
 testprob = ODEProblem(reduced_oscillator_odes!, u0[1:2:3], tspan, vcat(random_p, tots))
-testsol = solve(testprob,Tsit5(), p=vcat(p, tots))
+testsol = solve(testprob, p=vcat(p, tots))
 findmaxima(testsol[1,:], 10)
 plot(testsol)
 
 #Optimization parameters
 constraints = BoxConstraints([param_values[p]["min"] for p in keys(param_values)], [param_values[p]["max"] for p in keys(param_values)])
-opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=10, parallelization=:thread, abstol=1e-6, reltol=1e-6)
+opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=10, parallelization=:thread, abstol=1e-2, reltol=1e-2)
 
 common_range = 0.5
 valrange = fill(common_range, 13)
-mthd = GA(populationSize = 500, selection = tournament(50),
+mthd = GA(populationSize = 1000, selection = tournament(100),
           crossover = TPX, crossoverRate = 0.5,
           mutation  = BGA(valrange, 2), mutationRate = 0.9)
 
@@ -531,4 +576,12 @@ plot(p1, p2, layout=(2,1), size=(800,800))
 
 
 eval_fitness(newp, tots, prob, 1)
+eval_fitness2(newp, tots, prob)
 eval_fitness(newp, tots, prob2, 1)
+
+
+any(isless.(newsol[1,:], 0.0))
+
+
+newsolfft = abs.(rfft(newsol[1,:]))
+plot(newsolfft[4:end])
