@@ -3,7 +3,6 @@ using Catalyst
 using DifferentialEquations
 using Peaks
 using Statistics
-using Iterators
 # using BenchmarkTools
 # using Logging
 
@@ -378,10 +377,13 @@ tspan = (0., 20.);
 
 #solve the reduced ODEs
 prob = ODEProblem(reduced_oscillator_odes!, u0[1:2:3], tspan, vcat(p, tots))
-sol = solve(prob) #solve adaptively
+
+sol = solve(prob, maxiters = 10) #solve adaptively
+
 sol_fixed = solve(prob, saveat=0.1) #solve with fixed time steps
 sol_fixed2 = solve(prob, Tsit5(), saveat=0.01) #solve with smaller fixed time steps
 sol_stiff = solve(prob, AutoTsit5(Rosenbrock23()), saveat=0.1) #solve with stiff solver
+
 
 
 #plot comparison of solutions
