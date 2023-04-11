@@ -88,8 +88,6 @@ plot!(ogsol, ls = :dash, legend = false)
 
 
 ## COST FUNCTIONS and dependencies 
-
-
 function getDif(indexes::Vector{Int}, arrayData::Vector{Float64}) #get summed difference between fft peak indexes
     arrLen = length(indexes)
     if arrLen < 2
@@ -111,7 +109,6 @@ function getFrequencies(y::Vector{Float64})
 end
 
 function eval_fitness(p::Vector{Float64},  prob::ODEProblem)
-
     Y = solve(remake(prob, p=p, saveat=0.01))
     #get the fft of the solution
     fftData = getFrequencies(Y[1,:])
@@ -125,6 +122,7 @@ function eval_fitness(p::Vector{Float64},  prob::ODEProblem)
     return -std - diff
 end
 
+"""Eval fitness function for testing"""
 function eval_fitness(t, sol::Vector, target::Float64, bias::Float64)
     #get the fft of the solution
     fftData = getFrequencies(sol)
@@ -134,7 +132,9 @@ function eval_fitness(t, sol::Vector, target::Float64, bias::Float64)
         return 0.0
     end
     std = getSTD(indexes, fftData, 0.1) #get the standard deviation of the peaks
+    @info "std: $std"
     diff = getDif(indexes, fftData) #get the difference between the peaks
+    @info "diff: $diff"
     return std + diff
 end
 
@@ -173,8 +173,8 @@ function oscillatory_strength(t, sol::Vector; min_freq=0.02, max_freq=0.5)
     return max_power / total_power
 end
 
-# Raised cosine weight function
-function oscillatory_strength_biased(t, sol::Vector, target_freq::Float64, half_width::Float64=0.1)
+"""Amplitude spectrum analysis, biased to target frequency, exponential decay"""
+function oscillatory_strength_biased(t, sol::Vector, target_frequency::Float64, bias_strength::Float64=0.1)
     solution = sol
     time_points = t
     
@@ -187,31 +187,64 @@ function oscillatory_strength_biased(t, sol::Vector, target_freq::Float64, half_
     # Compute the FFT of the signal
     fft_result = rfft(signal)
 
-    # Calculate the power spectrum
-    power_spectrum = abs.(fft_result).^2
+    # Calculate the amplitude spectrum
+    amplitude_spectrum = abs.(fft_result)
 
-    # Convert the target frequency to an index
-    target_freq_index = max(2, round(Int, target_freq * length(signal) / sampling_rate) + 1)
+    # Calculate frequency resolution
+    frequency_resolution = sampling_rate / length(solution)
 
-    # Create a raised cosine weight function centered at the target frequency index
-    freq_indices = 2:length(power_spectrum)
-    cosine_weights = [(abs(i - target_freq_index) <= half_width) ? (1 + cos(pi * (i - target_freq_index) / half_width)) / 2 : 0 for i in freq_indices]
+    # Calculate the index of the target frequency
+    target_index = round(Int, target_frequency / frequency_resolution) + 1
 
-    # Calculate the weighted total power (excluding the DC component)
-    weighted_total_power = sum(cosine_weights .* power_spectrum[freq_indices])
+    # Compute a weight function that biases the cost towards the target frequency
+    weight_function = [exp(-bias_strength * abs(i - target_index)) for i in 1:length(fft_result)]
 
-    # Make sure the weighted total power is not zero to avoid division by zero
-    if weighted_total_power == 0.0
-        return 0.0
-    end
+    # Calculate the weighted amplitude
+    weighted_amplitude_spectrum = weight_function .* amplitude_spectrum
 
-    # Calculate the power at the target frequency index
-    target_power = power_spectrum[target_freq_index]
+    # Find the dominant frequency and its weighted amplitude
+    max_weighted_amplitude_index = argmax(weighted_amplitude_spectrum[2:end]) + 1
+    max_weighted_amplitude = weighted_amplitude_spectrum[max_weighted_amplitude_index]
 
-    # Return the ratio of the target frequency's power to the weighted total power
-    return target_power / weighted_total_power
+    # Calculate the total weighted amplitude (excluding the DC component)
+    total_weighted_amplitude = sum(weighted_amplitude_spectrum) - weighted_amplitude_spectrum[1]
+
+    # Return the ratio of the dominant frequency's weighted amplitude to the total weighted amplitude
+    return max_weighted_amplitude / total_weighted_amplitude
 end
 
+"""Unbiased amplitude spectrum analysis, exponential decay"""
+function oscillatory_strength_unbiased(t, sol::Vector, target_frequency::Float64, bias_strength::Float64=0.1)
+    solution = sol
+    time_points = t
+    
+    # Calculate the sampling rate
+    sampling_rate = 1 / mean(diff(time_points))
+
+    # Remove the mean of the signal to eliminate the DC component
+    signal = solution .- mean(solution)
+
+    # Compute the FFT of the signal
+    fft_result = rfft(signal)
+
+    # Calculate the amplitude spectrum
+    amplitude_spectrum = abs.(fft_result)
+
+    # Calculate frequency resolution
+    frequency_resolution = sampling_rate / length(solution)
+
+    # Find the dominant frequency and its amplitude
+    max_amplitude_index = argmax(amplitude_spectrum[2:end]) + 1
+    max_amplitude = amplitude_spectrum[max_amplitude_index]
+
+    # Calculate the total amplitude (excluding the DC component)
+    total_amplitude = sum(amplitude_spectrum) - amplitude_spectrum[1]
+
+    # Return the ratio of the dominant frequency's amplitude to the total amplitude
+    return max_amplitude / total_amplitude
+end
+
+"""Calculates the target power over the weighted total power"""
 function oscillatory_strength_sigmoid(t, sol::Vector, target_freq::Float64, bias_sigma::Float64=0.1)
     solution = sol
     time_points = t
@@ -267,7 +300,7 @@ function get_sincosts(target, bias, costfunc)
     scores = zeros(100)
     for i in 1:100
         sine_wave = sin.(2π * freqs[i] * t)
-        scores[i] = costfunc(t, sine_wave, target, bias)[1]
+        scores[i] = costfunc(t, sine_wave, target, bias)
     end
     return freqs, scores
 end
@@ -277,7 +310,7 @@ function get_randcosts(target, bias, costfunc)
     scores = zeros(100)
     for i in 1:100
         random_signal = rand(10001)
-        scores[i] = costfunc(t, random_signal, target, bias)[1]
+        scores[i] = costfunc(t, random_signal, target, bias)
     end
     return freqs, scores
 end
@@ -287,7 +320,7 @@ function get_flatcosts(target, bias, costfunc)
     scores = zeros(100)
     for i in 1:100
         flat_signal = ones(10001)
-        scores[i] = costfunc(t, flat_signal, target, bias)[1]
+        scores[i] = costfunc(t, flat_signal, target, bias)
     end
     return freqs, scores
 end
@@ -295,49 +328,58 @@ end
 function plotcosts(costfunc, target = 0.7)
     minbias = get_sincosts(target, 0.1, costfunc)
     midbias = get_sincosts(target, 0.5, costfunc)
-    maxbias = get_sincosts(target, 0.9, costfunc)
-    randminbias = get_randcosts(target, 0.9, costfunc)
-    flatminbias = get_flatcosts(target, 0.9, costfunc)
+    maxbias = get_sincosts(target, 1.9, costfunc)
+    randminbias = get_randcosts(target, 0.1, costfunc)
+    flatminbias = get_flatcosts(target, 0.1, costfunc)
 
     costplot = plot(minbias, title="Target: $target", label="Bias: 0.1", xlabel="Frequency", ylabel="Score")
     plot!(costplot, midbias, label="Bias: 0.5")
     plot!(costplot, maxbias, label="Bias: 0.9")
     plot!(costplot, randminbias, label="Random signal, bias: 0.1")
     plot!(costplot, flatminbias, label="Flat signal, bias: 0.1")
-    scatter!(costplot, [target], [1], label="Target frequency")
+    # scatter!(costplot, [target], [1], label="Target frequency")
     display(costplot)
 end
 
-plotcosts(eval_fitness, 0.5)
+plotcosts(oscillatory_strength_unbiased, 0.5)
 
 #double barplot of score of fullsol and ogsol for different cost functions
 bar([eval_fitness(t, fullsol, 0.5, 0.1), eval_fitness(t, ogsol, 0.5, 0.1)], label=["Full" "OG"], title="Score of fullsol and ogsol for different cost functions", ylabel="Score", xticks=(1:2, ["Oscillatory" "Random"]), yticks=0:0.1:1, ylims=(0,1), legend=:topleft)
 
 
-let pmapcopy = copy(pmap)
-    fullcosts = []
-    ogcosts = []
-    for y in 500.:50.:1000.
-        println("y: $y")
-        # update parm map with new y
-        pmapcopy[end] = :y => y
-        @info "pmapcopy:" pmapcopy[end]
-        
-        # solve both full and original model with new y
-        fullprob
-        fullsol = solve(fullprob, p=pmapcopy, saveat=0.01)
-        ogsol = solve(ogprob, p=pmapcopy, saveat=0.01)
+pmapcopy = deepcopy(pmap)
+pcopy = [x[2] for x in pmapcopy]
+fullcosts = []
+ogcosts = []
+prange = 100.:100.:5000
+for y in prange
+    # update parm map with new y
+    pmapcopy[end] = :y => y
+    # println("pmapcopy: $pmapcopy")
+    fullprob = ODEProblem(fullrn, umap, tspan, pmapcopy)
+    ogprob = ODEProblem(ogrn, umap[1:end-4], tspan, pmapcopy)
 
-        # evaluate fitness of both solutions
-        fullcost = eval_fitness(t, fullsol.u, 0.5, 0.1)
-        ogcost = eval_fitness(t, ogsol.u, 0.5, 0.1)
+    
+    # solve both full and original model with new y
+    fullsol = solve(fullprob, saveat=0.01)
+    ogsol = solve(ogprob, saveat=0.01)
 
-        # push to array
-        push!(fullcosts, fullcost)
-        push!(ogcosts, ogcost)
-    end
-    # plot
-    p1 = plot(500.:50.:1000., fullcosts, label="Full", title="Score of fullsol and ogsol for different y", ylabel="Score", xlabel="y", legend=:topleft)
-    plot!(p1, 500.:50.:1000., ogcosts, label="OG")
-    display(p1)
+    # evaluate fitness of both solutions
+    fullcost = oscillatory_strength_unbiased(t, fullsol[1,:], 0.5, 0.1)
+    ogcost = oscillatory_strength_unbiased(t, ogsol[1,:], 0.5, 0.1)
+
+    # push to array
+    push!(fullcosts, fullcost)
+    push!(ogcosts, ogcost)
 end
+# plot
+p1 = plot(prange, fullcosts, label="Full", title="Score of fullsol and ogsol for different y", ylabel="Score", xlabel="y", legend=:topleft)
+plot!(p1, prange, ogcosts, label="OG")
+display(p1)
+
+
+pmapcopy[end] = :y => 5000.
+ogprob = ODEProblem(ogrn, umap[1:end-4], tspan, pmapcopy)
+testsol = solve(ogprob, saveat=0.01)
+plot(testsol, title="Full model", xlabel="Time", ylabel="x, y", legend=:topleft)
+eval_fitness(t, testsol[1,:], 0.5, 0.1)

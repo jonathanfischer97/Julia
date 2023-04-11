@@ -1,13 +1,13 @@
 using Plots 
 using Catalyst
 using DifferentialEquations
-# using Peaks
 using Statistics
-# using BenchmarkTools
-# using Logging
+default(lw = 2, size = (1200, 800))
 
 """Full oscillator model"""
 fullrn = @reaction_network fullrn begin
+    @parameters ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka7 kb7 kcat7 y
+    @species L(t) Lp(t) K(t) P(t) A(t) LpA(t) LK(t) LpP(t) LpAK(t) LpAP(t) LpAKL(t) LpAPLp(t) AK(t) AP(t) AKL(t) APLp(t)
     (ka1,kb1), L + K <--> LK
     kcat1, LK --> Lp + K 
     (ka2,kb2), Lp + A <--> LpA 
@@ -40,35 +40,26 @@ end
     
 #parameter list
 """ka1, kb1, kcat1, ka2, kb2, ka3, kb3, ka4, kb4, ka7, kb7, kcat7, y"""
-p = [0.125, 411.43070022437774, 42.44753785470635, 57.56861328754449, 1.0, 0.75, 0.001, 0.126, 
-    102.45983604574394, 123.39827909372974, 25.805378439197266, 470.69414436040074, 3718.0197650684563]
+pmap = [:ka1 => 0.05485309578515125, :kb1 => 19.774627209108715, :kcat1 => 240.99536193310848,
+    :ka2 => 1.0, :kb2 => 0.9504699043910143,
+    :ka3 => 41.04322510426121, :kb3 => 192.86642772763489,
+    :ka4 => 0.19184180144850807, :kb4 => 0.12960624157489123,
+    :ka7 => 0.6179131289475834, :kb7 => 3.3890271820244195, :kcat7 => 4.622923709012232, :y => 2000.]
+p = [x[2] for x in pmap]
     
-umap = [:L => 0.0, :Lp => 3.0, :LpA => 0.0, :LpAP => 0.0, :LK => 0.0, :LpAK => 0.0, :LpAKL => 0.0, :LpP => 0.0, :LpAPLp => 0.0, :A => 0.9, :K => 0.2, :P => 0.3, :AK => 0.0, :AP => 0.0, :AKL => 0.0, :APLp => 0.0]
 #initial condition list
-u0 = [.01, 3.0, .01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 1.6, 0.3, 0.2]
-L, Lp, LpA, LpAP, LK, LpAK, LpAKL, LpP, LpAPLp, A, K, P = u0
-
-
-#conserved quantities
-# ktot=K+LK+LpAK+LpAKL;
-# ptot=P+LpP+LpAP+LpAPLp;
-# atot=A+LpA+LpAK+LpAKL+LpAP+LpAPLp;
-# ltot=L+LK+LpAKL;
-# lptot=Lp+LpA+LpAK+LpAKL+LpP+LpAP+2*LpAPLp;
-# liptot=ltot+lptot;
-# tots = [ktot, ptot, atot, liptot]
+umap = [:L => 0.0, :Lp => 3.0, :K => 0.2, :P => 0.3, :A => 0.9, :LpA => 0.0, :LK => 0.0, :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, :AKL => 0.0, :APLp => 0.0]
+u0 = [x[2] for x in umap]
 
 #timespan for integration
-tspan = (0., 50.)
+tspan = (0., 100.)
 
 #solve the reduced ODEs
 prob = ODEProblem(fullrn, umap, tspan, p)
 
 sol = solve(prob) #solve adaptively
 
-
 #plot the results
-default(lw = 2, size = (1200, 800))
 plot(sol)
 
 
@@ -80,8 +71,6 @@ using Evolutionary
 using FFTW
 
 ## COST FUNCTIONS and dependencies 
-
-
 # ChatGPT defined replacement function
 function oscillatory_strength(solution::Vector)
     # Remove the mean of the signal to eliminate the DC component
@@ -104,9 +93,10 @@ function oscillatory_strength(solution::Vector)
     return max_power / total_power
 end
 
-"""Biased cost function"""
-function oscillatory_strength(sol::ODESolution, target_freq::Float64, bias_sigma::Float64=0.1)
-    solution = sol[1, :]
+
+"""Unbiased amplitude spectrum analysis, exponential decay"""
+function oscillatory_strength_unbiased(sol::ODESolution)
+    solution = sol[1,:]
     time_points = sol.t
     
     # Calculate the sampling rate
@@ -118,45 +108,21 @@ function oscillatory_strength(sol::ODESolution, target_freq::Float64, bias_sigma
     # Compute the FFT of the signal
     fft_result = rfft(signal)
 
-    # Calculate the power spectrum
-    power_spectrum = abs.(fft_result).^2
+    # Calculate the amplitude spectrum
+    amplitude_spectrum = abs.(fft_result)
 
-    # Convert the target frequency to an index
-    target_freq_index = max(2, round(Int, target_freq * length(signal) / sampling_rate) + 1)
+    # Calculate frequency resolution
+    # frequency_resolution = sampling_rate / length(solution)
 
-    # Create a Gaussian weight function centered at the target frequency index
-    freq_indices = 2:length(power_spectrum)
-    gaussian_weights = exp.(-((freq_indices .- target_freq_index) .^ 2) / (2 * bias_sigma^2))
+    # Find the dominant frequency and its amplitude
+    max_amplitude_index = argmax(amplitude_spectrum[2:end]) + 1
+    max_amplitude = amplitude_spectrum[max_amplitude_index]
 
-    # Normalize the Gaussian weight function
-    gaussian_weights = gaussian_weights / sum(gaussian_weights)
+    # Calculate the total amplitude (excluding the DC component)
+    total_amplitude = sum(amplitude_spectrum) - amplitude_spectrum[1]
 
-    # Calculate the weighted total power (excluding the DC component)
-    weighted_total_power = sum(gaussian_weights .* power_spectrum[freq_indices])
-
-    # Make sure the weighted total power is not zero to avoid division by zero
-    if weighted_total_power == 0.0
-        return 0.0
-    end
-
-    # Calculate the power at the target frequency index
-    target_power = power_spectrum[target_freq_index]
-
-    # Return the ratio of the target frequency's power to the weighted total power
-    return target_power / weighted_total_power
-end
-
-function oscillatory_strength_modified(solution, target_frequency)
-    signal = solution .- mean(solution)
-    power_spectrum = abs2.(fft(signal))
-    total_power = sum(power_spectrum) - power_spectrum[1]
-
-    distance = abs.(1 .- (1:length(power_spectrum) ./ length(power_spectrum)) ./ target_frequency)
-    bias = exp.(-distance * 50)
-    
-    oscillation_power = sum(power_spectrum .* bias)
-
-    return oscillation_power / total_power
+    # Return the ratio of the dominant frequency's amplitude to the total amplitude
+    return max_amplitude / total_amplitude
 end
 
 
@@ -165,11 +131,13 @@ end
 
 
 
-
-function eval_fitness2(p::Vector{Float64},  prob::ODEProblem)
+"""Cost function that catches errors and returns 1.0 if there is an error"""
+function eval_fitness_catcherrors(p::Vector{Float64},  prob::ODEProblem)
     Y = nothing
+    pvals = p[1:13]
+    uvals = p[14:end]
     try 
-        Y = solve(remake(prob, p=p, saveat=0.01, maxiters=10000, verbose=false))
+        Y = solve(remake(prob, p=pvals, u0=vcat(uvals, fill(0.0,11))), saveat=0.01, maxiters=10000, verbose=false)
         if Y.retcode in (ReturnCode.Unstable, ReturnCode.MaxIters) || any(x==1 for array in isnan.(Y) for x in array) || any(x==1 for array in isless.(Y, 0.0) for x in array)
             return 1.0
         end
@@ -180,7 +148,14 @@ function eval_fitness2(p::Vector{Float64},  prob::ODEProblem)
             rethrow(e) #rethrow other errors
         end
     end
-    return -oscillatory_strength(Y,0.09, 0.6)
+    return -oscillatory_strength_unbiased(Y)
+end
+
+
+"""Regular cost function"""
+function eval_fitness(p::Vector{Float64},  prob::ODEProblem)
+    Y = solve(remake(prob, p=p), saveat=0.01, save_idxs=1)
+    return -oscillatory_strength_unbiased(Y)
 end
 
 
@@ -193,12 +168,12 @@ function make_fitness_function(func::Function, prob::ODEProblem) # Create a fitn
     return fitness_function
 end
 
-fitness_function = make_fitness_function(eval_fitness2, prob) # Create a fitness function that includes your ODE problem as a constant
+fitness_function = make_fitness_function(eval_fitness_catcherrors, prob) # Create a fitness function that includes your ODE problem as a constant
 
 
 
 ## parameter constraint ranges ##
-ka_min, ka_max = 0.001, 1.
+ka_min, ka_max = 0.001, 10.
 kb_min, kb_max = 0.001, 500.0
 kcat_min, kcat_max = 0.001, 500.0
 
@@ -216,16 +191,22 @@ param_values = Dict(
     "ka7" => Dict("min" => ka_min, "max" => ka_max),
     "kb7" => Dict("min" => kb_min, "max" => kb_max),
     "kcat7" => Dict("min" => kcat_min, "max" => kcat_max),
-    "y" => Dict("min" => 100., "max" => 4000.)
+    "y" => Dict("min" => 100., "max" => 5000.),
+
+    "L" => Dict("min" => 0.0, "max" => 3.0),
+    "Lp" => Dict("min" => 0.0, "max" => 3.0),
+    "K" => Dict("min" => 0.0, "max" => 1.0),
+    "P" => Dict("min" => 0.0, "max" => 1.0),
+    "A" => Dict("min" => 0.0, "max" => 3.0),
 );
 
 #Optimization parameters
 constraints = BoxConstraints([param_values[p]["min"] for p in keys(param_values)], [param_values[p]["max"] for p in keys(param_values)])
-opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=10, parallelization=:thread, abstol=1e-2, reltol=1e-2)
+opts = Evolutionary.Options(show_trace=true,show_every=1, store_trace=true, iterations=15, parallelization=:thread, abstol=1e-2, reltol=1e-2)
 
 common_range = 0.5
-valrange = fill(common_range, 13)
-mthd = GA(populationSize = 1000, selection = tournament(100),
+valrange = fill(common_range, 18)
+mthd = GA(populationSize = 5000, selection = tournament(500),
           crossover = TPX, crossoverRate = 0.5,
           mutation  = BGA(valrange, 2), mutationRate = 0.9)
 
@@ -238,19 +219,3 @@ newsol = solve(remake(prob, p=newp))
 
 #plot the results
 plot(newsol, xlabel="Time (s)", ylabel="Concentration (mM)", title="Optimized Model")
-
-eval_fitness2(newp, prob)
-
-eval_fitness(newp, tots, prob, 1)
-eval_fitness(newp, tots, prob2, 1)
-
-
-any(isless.(newsol[1,:], 0.0))
-
-
-newsolfft = abs.(rfft(newsol[1,:]))
-plot(newsolfft[4:end])
-
-
-
-oscillatory_strength(newsol[1,:])
