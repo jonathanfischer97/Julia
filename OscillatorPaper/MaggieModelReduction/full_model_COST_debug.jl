@@ -3,6 +3,7 @@ using Catalyst
 using DifferentialEquations
 using Statistics
 using FFTW
+using Peaks
 
 
 """Full oscillator model"""
@@ -109,7 +110,7 @@ function getFrequencies(y::Vector{Float64})
     return res ./ cld(length(y), 2) #normalize amplitudes
 end
 
-function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProblem)
+function eval_fitness(p::Vector{Float64},  prob::ODEProblem)
 
     Y = solve(remake(prob, p=p, saveat=0.01))
     #get the fft of the solution
@@ -122,6 +123,19 @@ function eval_fitness(p::Vector{Float64}, tots::Vector{Float64},  prob::ODEProbl
     std = getSTD(indexes, fftData, 0.1) #get the standard deviation of the peaks
     diff = getDif(indexes, fftData) #get the difference between the peaks
     return -std - diff
+end
+
+function eval_fitness(t, sol::Vector, target::Float64, bias::Float64)
+    #get the fft of the solution
+    fftData = getFrequencies(sol)
+    indexes = findmaxima(fftData,1)[1] #get the indexes of the peaks in the fft
+    #timepeaks = length(findmaxima(fftData,1)[1]) #get the times of the peaks in the fft
+    if isempty(indexes) #|| timepeaks < 2 #if there are no peaks, return 0
+        return 0.0
+    end
+    std = getSTD(indexes, fftData, 0.1) #get the standard deviation of the peaks
+    diff = getDif(indexes, fftData) #get the difference between the peaks
+    return std + diff
 end
 
 
@@ -290,7 +304,40 @@ function plotcosts(costfunc, target = 0.7)
     plot!(costplot, maxbias, label="Bias: 0.9")
     plot!(costplot, randminbias, label="Random signal, bias: 0.1")
     plot!(costplot, flatminbias, label="Flat signal, bias: 0.1")
+    scatter!(costplot, [target], [1], label="Target frequency")
     display(costplot)
 end
 
-plotcosts(oscillatory_strength_sigmoid, 0.5)
+plotcosts(eval_fitness, 0.5)
+
+#double barplot of score of fullsol and ogsol for different cost functions
+bar([eval_fitness(t, fullsol, 0.5, 0.1), eval_fitness(t, ogsol, 0.5, 0.1)], label=["Full" "OG"], title="Score of fullsol and ogsol for different cost functions", ylabel="Score", xticks=(1:2, ["Oscillatory" "Random"]), yticks=0:0.1:1, ylims=(0,1), legend=:topleft)
+
+
+let pmapcopy = copy(pmap)
+    fullcosts = []
+    ogcosts = []
+    for y in 500.:50.:1000.
+        println("y: $y")
+        # update parm map with new y
+        pmapcopy[end] = :y => y
+        @info "pmapcopy:" pmapcopy[end]
+        
+        # solve both full and original model with new y
+        fullprob
+        fullsol = solve(fullprob, p=pmapcopy, saveat=0.01)
+        ogsol = solve(ogprob, p=pmapcopy, saveat=0.01)
+
+        # evaluate fitness of both solutions
+        fullcost = eval_fitness(t, fullsol.u, 0.5, 0.1)
+        ogcost = eval_fitness(t, ogsol.u, 0.5, 0.1)
+
+        # push to array
+        push!(fullcosts, fullcost)
+        push!(ogcosts, ogcost)
+    end
+    # plot
+    p1 = plot(500.:50.:1000., fullcosts, label="Full", title="Score of fullsol and ogsol for different y", ylabel="Score", xlabel="y", legend=:topleft)
+    plot!(p1, 500.:50.:1000., ogcosts, label="OG")
+    display(p1)
+end
