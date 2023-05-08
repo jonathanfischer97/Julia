@@ -10,13 +10,14 @@ begin
     using DataFrames
     using Unitful: µM, nm, s
     using BenchmarkTools, Profile, ProgressMeter
-    using MultivariateStats, UMAP, TSne, StatsPlots
+    # using MultivariateStats, UMAP, TSne, StatsPlots
     using GlobalSensitivity, QuasiMonteCarlo
-    using BifurcationKit, Setfield, LinearAlgebra, ForwardDiff, Parameters; const BK = BifurcationKit
+    using LinearAlgebra
+    using BifurcationKit, Setfield, ForwardDiff, Parameters; const BK = BifurcationKit
     using ColorSchemes, Plots.PlotMeasures
     using OrderedCollections
     using Combinatorics
-    using LazySets, Polyhedra
+    # using LazySets, Polyhedra
     default(lw = 2, size = (1000, 600))
 end
 
@@ -55,90 +56,98 @@ fullrn = @reaction_network fullrn begin
     kcat7, APLp --> L + AP #dephosphorylation of lipid
 end  
 
+#! Solve model for arbitrary oscillatory parameters and initial conditions
+begin
 #parameter list
-const param_names = ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "V/A"]
+    const param_names = ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "V/A"]
 
-psym = [:ka1 => 0.009433439939827041, :kb1 => 2.3550169939427845, :kcat1 => 832.7213093872278, :ka2 => 12.993995997539924, :kb2 => 6.150972501791291,
-        :ka3 => 1.3481451097940793, :kb3 => 0.006201726090609513, :ka4 => 0.006277294665474662, :kb4 => 0.9250191811994848, :ka7 => 57.36471615394549, 
-        :kb7 => 0.04411989797898752, :kcat7 => 42.288085868394326, :y => 3631.050539219606]
-p = [x[2] for x in psym]
-    
-#initial condition list
-usym = [:L => 0.0, :Lp => 3.0, :K => 0.5, :P => 0.3, :A => 2.0, :LpA => 0.0, :LK => 0.0, 
-        :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, 
-        :AKL => 0.0, :APLp => 0.0]
-u0 = [x[2] for x in usym]
+    psym = [:ka1 => 0.009433439939827041, :kb1 => 2.3550169939427845, :kcat1 => 832.7213093872278, :ka2 => 12.993995997539924, :kb2 => 6.150972501791291,
+            :ka3 => 1.3481451097940793, :kb3 => 0.006201726090609513, :ka4 => 0.006277294665474662, :kb4 => 0.9250191811994848, :ka7 => 57.36471615394549, 
+            :kb7 => 0.04411989797898752, :kcat7 => 42.288085868394326, :y => 3631.050539219606]
+    p = [x[2] for x in psym]
+        
+    #initial condition list
+    usym = [:L => 0.0, :Lp => 3.0, :K => 0.5, :P => 0.3, :A => 2.0, :LpA => 0.0, :LK => 0.0, 
+            :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, 
+            :AKL => 0.0, :APLp => 0.0]
+    u0 = [x[2] for x in usym]
 
-#timespan for integration
-tspan = (0., 100.)
-#solve the reduced ODEs
-prob = ODEProblem(fullrn, u0, tspan, p)
-# sol = solve(prob, saveat=0.1, save_idxs=1) #solve adaptively
-# #plot the results
-# plot(sol)
+    #timespan for integration
+    tspan = (0., 100.)
+    #solve the reduced ODEs
+    prob = ODEProblem(fullrn, u0, tspan, p)
+    sol = solve(prob, saveat=0.1) #solve adaptively
+    #* plot the results save
+    plot(sol)
+end
 
 
-## Genetic algorithm to find the best parameters for the reduced model ## 
-function getDif(indexes::Vector{Int}, arrayData::Vector{Float64}) #get difference between fft peak indexes
-    idxarrLen = length(indexes)
-    if idxarrLen < 2
-        return 0.0
+#! Helper functions for cost function ## 
+begin
+    """Get summed difference of peaks in the frequency domain"""
+    function getDif(indexes::Vector{Int}, arrayData::Vector{Float64}) 
+        idxarrLen = length(indexes)
+        if idxarrLen < 2
+            return 0.0
+        end
+        sum_diff = @inbounds sum(arrayData[indexes[i]] - arrayData[indexes[i+1]] for i in 1:(idxarrLen-1))
+        sum_diff += arrayData[indexes[end]]
+        return sum_diff
     end
-    sum_diff = @inbounds sum(arrayData[indexes[i]] - arrayData[indexes[i+1]] for i in 1:(idxarrLen-1))
-    sum_diff += arrayData[indexes[end]]
-    return sum_diff
-end
 
-function getSTD(peakindxs::Vector{Int}, arrayData::Vector{Float64}, window_ratio::Float64) #get average standard deviation of fft peak indexes
-    arrLen = length(arrayData)
-    window = max(1, round(Int, window_ratio * arrLen))
-    sum_std = @inbounds sum(std(arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in peakindxs)
-    return sum_std / length(peakindxs)
-end
-
-function getFrequencies(y::Vector{Float64})
-    res = abs.(rfft(y))
-    return res ./ cld(length(y), 2) #normalize amplitudes
-end
-
-"""Calculates the period and amplitude of each individual in the population"""
-function getPerAmp(sol::ODESolution)
-    # Find peaks and calculate amplitudes and periods
-    indx_max, vals_max = findmaxima(sol.u, 1)
-    indx_min, vals_min = findminima(sol.u, 1)
-
-    if length(indx_max) < 2 || length(indx_min) < 2
-        return 0., 0.
-    else
-        # Calculate amplitudes and periods
-        @inbounds amps = [(vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min))]
-        @inbounds pers = [sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1)]
-
-        # Calculate means of amplitudes and periods
-        amp = mean(amps)
-        per = mean(pers)
-
-        return per, amp
+    """Get summed average standard deviation of peaks in the frequency domain"""
+    function getSTD(peakindxs::Vector{Int}, arrayData::Vector{Float64}, window_ratio::Float64) #get average standard deviation of fft peak indexes
+        arrLen = length(arrayData)
+        window = max(1, round(Int, window_ratio * arrLen))
+        sum_std = @inbounds sum(std(arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in peakindxs)
+        return sum_std / length(peakindxs)
     end
-end
 
-"""Cost function to be plugged into eval_fitness wrapper"""
-function CostFunction(Y::ODESolution)
-    #get the fft of the solution
-    fftData = getFrequencies(Y.u)
-    fftindexes = findmaxima(fftData,1)[1] #get the indexes of the peaks in the fft
-    timeindexes = findmaxima(Y.u,10)[1] #get the times of the peaks in the fft
-    if isempty(fftindexes) || length(timeindexes) < 2 #if there are no peaks, return 0
-        return 0.0, 0.0, 0.0
+    """Return normalized FFT of solution vector"""
+    function getFrequencies(y::Vector{Float64})
+        res = abs.(rfft(y))
+        return res ./ cld(length(y), 2) #normalize amplitudes
     end
-    std = getSTD(fftindexes, fftData, 0.0001) #get the standard deviation of the peaks
-    diff = getDif(fftindexes, fftData) #get the difference between the peaks
 
-    # Compute the period and amplitude
-    period, amplitude = getPerAmp(Y)
+    """Calculates the period and amplitude of each individual in the population"""
+    function getPerAmp(sol::ODESolution)
+        # Find peaks and calculate amplitudes and periods
+        indx_max, vals_max = findmaxima(sol.u, 1)
+        indx_min, vals_min = findminima(sol.u, 1)
 
-    # Return cost, period, and amplitude as a tuple
-    return -std + diff, period, amplitude
+        if length(indx_max) < 2 || length(indx_min) < 2
+            return 0., 0.
+        else
+            # Calculate amplitudes and periods
+            @inbounds amps = [(vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min))]
+            @inbounds pers = [sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1)]
+
+            # Calculate means of amplitudes and periods
+            amp = mean(amps)
+            per = mean(pers)
+
+            return per, amp
+        end
+    end
+
+    """Cost function to be plugged into eval_fitness wrapper"""
+    function CostFunction(Y::ODESolution)
+        #get the fft of the solution
+        fftData = getFrequencies(Y.u)
+        fftindexes = findmaxima(fftData,1)[1] #get the indexes of the peaks in the fft
+        timeindexes = findmaxima(Y.u,10)[1] #get the times of the peaks in the fft
+        if isempty(fftindexes) || length(timeindexes) < 2 #if there are no peaks, return 0
+            return 0.0, 0.0, 0.0
+        end
+        std = getSTD(fftindexes, fftData, 0.0001) #get the standard deviation of the peaks
+        diff = getDif(fftindexes, fftData) #get the difference between the peaks
+
+        # Compute the period and amplitude
+        period, amplitude = getPerAmp(Y)
+
+        # Return cost, period, and amplitude as a tuple
+        return -std + diff, period, amplitude
+    end
 end
 
 begin
@@ -150,9 +159,7 @@ begin
     end    
 
     function update_peramp!(tracker::PeriodAmplitudes, parameters::Vector{Float64}, values::Tuple{Float64, Float64})
-        # key = join(parameters, ",")
-        key = parameters
-        tracker.peramps[key] = values
+        tracker.peramps[parameters] = values
     end
 end
 
@@ -179,22 +186,6 @@ function eval_fitness_catcherrors(tracker::PeriodAmplitudes, p::Vector{Float64},
 
     return -fitness
 end
-
-"""Wrapper function to create a fitness function that includes your ODE problem as a constant"""
-function make_fitness_function(func::Function, prob::ODEProblem)
-    function fitness_function(tracker::PeriodAmplitudes, p::Vector{Float64})
-        return func(tracker, p, prob)
-    end
-    return fitness_function
-end
-
-# Create a PeriodAmplitudes instance
-tracker = PeriodAmplitudes()
-
-fitness_function = make_fitness_function(eval_fitness_catcherrors, prob) # Create a fitness function that includes your ODE problem as a constant
-
-# Wrap the fitness_function call to work with the Evolutionary.jl optimize function
-wrapped_fitness(params) = fitness_function(tracker, params)
 
 begin
     ## parameter constraint ranges ##
@@ -240,22 +231,10 @@ function generate_population(param_values::OrderedDict, n::Int)
 end
 
 
-# struct CustomGA
-#     ga::GA
-# end
-
 #! OVERRIDES FOR Evolutionary.jl ##
 """Trace override function"""
 function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population, method::GA, options)
     record["populationmap"] = [(ind=population[i], fit=state.fitpop[i]) for i in eachindex(population)]
-    # record["per_amp_results"] = state.per_amp_results 
-
-    # try
-    #     global progress  #? Look for the 'progress' variable in the global scope
-    #     ProgressMeter.update!(progress, Evolutionary.diff(method.metrics[1]))
-    # catch e
-    #     # do nothing
-    # end
 end
 
 """Show override function to prevent printing large arrays"""
@@ -270,6 +249,26 @@ function Evolutionary.show(io::IO, t::Evolutionary.OptimizationTraceRecord)
     end
     return
 end
+
+
+
+#! SINGLE RUN GENETIC ALGORITHM ##
+"""Wrapper function to create a fitness function that includes your ODE problem as a constant"""
+function make_fitness_function(func::Function, prob::ODEProblem)
+    function fitness_function(tracker::PeriodAmplitudes, p::Vector{Float64})
+        return func(tracker, p, prob)
+    end
+    return fitness_function
+end
+
+# Create a PeriodAmplitudes instance
+tracker = PeriodAmplitudes()
+
+fitness_function = make_fitness_function(eval_fitness_catcherrors, prob) # Create a fitness function that includes your ODE problem as a constant
+
+# Wrap the fitness_function call to work with the Evolutionary.jl optimize function
+wrapped_fitness(params) = fitness_function(tracker, params)
+
 
 #! Optimization block
 begin
@@ -289,6 +288,12 @@ begin
     # Optimization
     result = Evolutionary.optimize(wrapped_fitness, constraints, mthd, pop, opts)
 
+    # Get the population map
+    fitpops = [gen.metadata["populationmap"] for gen in result.trace]
+    fitpops = reduce(vcat, fitpops)
+    # Filter out individuals with fitness values less than 0.4
+    filtered_fitpops = filter(x -> x.fit < -0.4, fitpops)
+
     # Get the best solution
     newp = result.minimizer
     newsol = solve(remake(prob; p=newp))
@@ -300,17 +305,23 @@ begin
     plot(newsol, xlabel="Time (s)", ylabel="Concentration (mM)", title="Optimized Model")
 end
 
-
+fitpops = [gen.metadata["populationmap"] for gen in result.trace]
+fitpops = reduce(vcat, fitpops)
+# Filter out individuals with fitness values less than 0.4
+filtered_fitpops = filter(x -> x.fit < -0.4, fitpops)
+fitinds = [x.ind for x in filtered_fitpops]
 
 
 """Iterate through the dataset, simulate the system, and calculate the amplitude and period"""
 function analyze_population(result::Evolutionary.OptimizationResults)
     fitpops = [gen.metadata["populationmap"] for gen in result.trace]
-    dataset = reduce(vcat, fitpops)
+    fitpops = reduce(vcat, fitpops)
+    # Filter out individuals with fitness values less than 0.4
+    filtered_fitpops = filter(x -> x.fit < -0.4, fitpops)
 
     extended_dataset = []
 
-    for individual in dataset
+    for individual in filtered_fitpops
         ind = individual.ind
         fitness = individual.fit
         sol = solve(remake(prob; p=ind); saveat=0.1, save_idxs=1)
@@ -318,20 +329,15 @@ function analyze_population(result::Evolutionary.OptimizationResults)
 
         push!(extended_dataset, (ind=ind, fit=fitness, per=period, amp=amplitude))
     end
-    return extended_dataset
+    extended_dataset_df = DataFrame(extended_dataset)
+    extended_dataset_df = df[df.per .!= 0.0, :] # remove individuals with period of 0
+    extended_dataset_df.freq = 100 ./ df.per # convert period column to frequency
+    return extended_dataset_df
 end
 
-# Filter out positive fitness values
-filtered_fitpops = filter(x -> x.fit < 0, fitpops)
-# Filter out individuals with fitness values less than 0.5
-filtered_fitpops = filter(x -> x.fit < -0.6, fitpops)
-extended_dataset = analyze_population(filtered_fitpops)
+df = analyze_population(filtered_fitpops)
 
-# Convert the extended dataset to a DataFrame
-df = DataFrame(extended_dataset)
-df = df[df.per .!= 0.0, :] # remove individuals with period of 0
-df.freq = 100 ./ df.per # convert period column to frequency
-df
+
 
 #! SCATTER PLOTS
 begin
@@ -640,10 +646,6 @@ scene = plot(brpo_fold)
 
 
 
-
-
-
-
 # * trying parallel standard shooting
 record_sh = recordFromSolution = (x, p) -> begin
 		xtt = BK.getPeriodicOrbit(p.prob, x, set(par_pop, p.prob.lens, p.p))
@@ -681,7 +683,7 @@ plot(bf; xlabel = string(bif_par), ylabel = string(plot_var))
 
 
 
-#! Plot oscillatory regions of 2D parameter space
+#! Plot oscillatory regions of 2D parameter space with contour or heatplot 
 param_ranges = ("ka7" => range(start = 0.01, stop = 100.0; length = 300), "V/A" => range(start = 100., stop = 10000.0, length = 300))
 
 #* Helper function to assign units based on string
@@ -828,6 +830,54 @@ function make_new_fitness_function(func::Function, prob::ODEProblem, fixed_param
     end
     return new_fitness_function
 end
+
+"""Monte carlo sampling to estimate bounding volume"""
+function monte_carlo_volume(points::Vector{Vector{T}}, param_values::OrderedDict, n_samples::Int) where {T<:Real}
+    n_points, dim = length(points), length(points[1])
+
+    # Calculate the total volume using the parameter constraint ranges
+    total_volume = prod([param_values[key]["max"] - param_values[key]["min"] for key in keys(param_values)])
+    @info "Total parameter volume: $total_volume"
+
+    # Generate random points within the bounds specified by param_values
+    random_points = [rand() * (param_values[key]["max"] - param_values[key]["min"]) + param_values[key]["min"] for key in keys(param_values) for _ in 1:n_samples]
+
+    # Reshape the random_points into an array of vectors
+    random_points = reshape(random_points, (dim, n_samples))
+
+    # Calculate distances between random points and input points
+    distances = [norm(points[j] .- random_points[:, i]) for i in 1:n_samples, j in 1:n_points]
+
+    # Find the minimum distance from each random point to any of the input points
+    min_distances = minimum(distances, dims=2)
+
+    # Check if each random point is within the maximum distance between the input points
+    in_hull = sum(min_distances .<= maximum([norm(points[i] .- points[j]) for i in 1:n_points for j in 1:n_points]) * 2)
+
+    estimated_volume = total_volume * (in_hull / n_samples)
+
+    return estimated_volume
+end
+
+
+monte_carlo_volume(fitinds, param_values, 10000)
+
+function generate_random_points(param_values, n_samples)
+    random_points = Vector{Vector{Float64}}(undef, 0)
+    for _ in 1:n_samples
+        point = []
+        for key in keys(param_values)
+            min_val = param_values[key]["min"]
+            max_val = param_values[key]["max"]
+            element = rand(min_val:0.001:max_val)
+            push!(point, element)
+        end
+        push!(random_points, point)
+    end
+    return random_points
+end
+
+random_points = generate_random_points(param_values, 1000)
 
 
 function reachability_analysis(param_values::OrderedDict{String, Dict{String, Float64}}, fixed_param_pairs::Base.Generator, prob::ODEProblem)
