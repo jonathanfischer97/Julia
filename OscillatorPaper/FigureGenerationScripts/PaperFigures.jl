@@ -79,7 +79,10 @@ begin
     tspan = (0., 100.)
     #solve the reduced ODEs
     prob = ODEProblem(fullrn, u0, tspan, p)
-    sol = solve(prob, saveat=0.1) #solve adaptively
-    #* plot the results save
-    plot(sol)
+    sol = solve(prob, save_idxs=(1:6)) #solve adaptively
 end
+
+
+#* plot the results and save
+legendlabels = ["PIP" "PIP2" "Kinase" "Phosphatase" "AP2" "PIP2-AP2"]
+plot(sol, xlabel= "Time (s)", ylabel = "Concentration (µM)", label=legendlabels, grid= false)
