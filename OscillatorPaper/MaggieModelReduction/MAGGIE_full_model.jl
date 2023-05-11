@@ -187,6 +187,16 @@ function eval_fitness_catcherrors(tracker::PeriodAmplitudes, p::Vector{Float64},
     return -fitness
 end
 
+# function double_eval(eval_function, sol)
+#     firstscore = eval_function()
+#     secondscore = eval_function(sol[length(sol),:])
+
+#     if firstscore = 0.0 || secondscore = 0.0
+#         return 0.0
+#     else
+#         return firstscore + secondscore
+#     end
+
 begin
     ## parameter constraint ranges ##
     ka_min, ka_max = 0.001, 10. #uM^-1s^-1

@@ -85,4 +85,9 @@ end
 
 #* plot the results and save
 legendlabels = ["PIP" "PIP2" "Kinase" "Phosphatase" "AP2" "PIP2-AP2"]
-plot(sol, xlabel= "Time (s)", ylabel = "Concentration (µM)", label=legendlabels, grid= false)
+plot(sol, xlabel= "Time (s)", ylabel = "Concentration (µM)", label=legendlabels, grid= false, guidefontsize=16, tickfontsize=12, legendfontsize=12, thickness_scaling=2.5)
+savefig("OscillatorPaper/FigureGenerationScripts/Figures/Figure1-timeseries.png")
+
+
+
+plotattr()
