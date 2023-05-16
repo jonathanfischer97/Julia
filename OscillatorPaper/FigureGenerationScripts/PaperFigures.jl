@@ -91,3 +91,26 @@ savefig("OscillatorPaper/FigureGenerationScripts/Figures/Figure1-timeseries.png"
 
 
 plotattr()
+
+
+
+# Sample data for demonstration purposes
+oscillators = ["Membrane-localization oscillator", "Autocatalytic protein oscillator", "Repressilator"]
+max_frequencies = [10.0, 8.0, 3.5]  # Example maximum frequencies for the oscillators
+tunability_indices = [0.8, 0.3, 0.1]  # Example tunability indices for the oscillators
+
+function plot_max_frequencies(oscillators, max_frequencies)
+    p1 = bar(oscillators, max_frequencies, ylabel="Max Frequency (Hz)",fillcolor=[:red,:green,:blue], rotation=15,  legend=false)
+    return p1
+end
+
+function plot_tunability_indices(oscillators, tunability_indices)
+    p2 = bar(oscillators, tunability_indices, ylabel="Tunability Index",fillcolor=[:red,:green,:blue], rotation=15,legend=false)
+    return p2
+end
+
+p1 = plot_max_frequencies(oscillators, max_frequencies)
+p2 = plot_tunability_indices(oscillators, tunability_indices)
+
+plot(p1, p2, layout=(1, 2), size=(1000, 600), title=["Max Frequencies" "Tunability Indices"],bottom_margin = 16px, left_margin = 18px)
+savefig("OscillatorPaper/FigureGenerationScripts/Figures/Figure9-compare-oscillators.png")

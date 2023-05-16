@@ -694,13 +694,15 @@ plot(bf; xlabel = string(bif_par), ylabel = string(plot_var))
 
 
 #! Plot oscillatory regions of 2D parameter space with contour or heatplot 
-param_ranges = ("ka7" => range(start = 0.01, stop = 100.0; length = 300), "V/A" => range(start = 100., stop = 10000.0, length = 300))
+param_ranges = ("kb7" => range(start = 0.01, stop = 100.0; length = 300), "V/A" => range(start = 100., stop = 10000.0, length = 300))
 
 #* Helper function to assign units based on string
 function assign_units(param_name::String)
     if occursin("ka",param_name)
         return u"1/(µM*s)"
     elseif occursin("kb",param_name)
+        return u"1/s"
+    elseif occursin("kcat",param_name)
         return u"1/s"
     elseif param_name == "V/A"
         return u"nm"

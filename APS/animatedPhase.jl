@@ -1,18 +1,20 @@
-using Random 
-using Plots 
-using Catalyst
-using DifferentialEquations
-# using Combinatorics
-using Colors
-using ColorSchemes
-# using ColorTypes
-# using LinearAlgebra
-using SpecialFunctions
-using ProgressMeter
-using Plots.PlotMeasures
-# using Latexify
+begin    
+    using Random 
+    using Plots 
+    using Catalyst
+    using DifferentialEquations
+    # using Combinatorics
+    using Colors
+    using ColorSchemes
+    # using ColorTypes
+    # using LinearAlgebra
+    using SpecialFunctions
+    using ProgressMeter
+    using Plots.PlotMeasures
+end# using Latexify
 
 trimer_rn = @reaction_network trirn begin
+    @parameters ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka7 kb7 kcat7 y
     (ka1,kb1), L + K <--> LK
     kcat1, LK --> Lp + K 
     (ka2,kb2), Lp + A <--> LpA 
@@ -24,11 +26,7 @@ trimer_rn = @reaction_network trirn begin
     (ka4,kb4), LpA + P <--> LpAP 
     (ka7*y,kb7), Lp + LpAP <--> LpAPLp
     kcat7, LpAPLp --> L + LpAP 
-
-    #previously hidden NERDSS reactions
-    # (ka2,kb2), Lp + AK <--> LpAK
-    # (ka2,kb2), Lp + AP <--> LpAP
-end ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka7 kb7 kcat7 y 
+end 
 
 function parse_input(input::AbstractString)::Vector{Float64}
     output = Float64[]
@@ -55,7 +53,7 @@ umap = symmap_to_varmap(trimer_rn, umap)
 
 tspan = (0.0, 100.0)
 
-oprob = ODEProblem(trimer_rn, umap, tspan, p)
+oprob = ODEProblem(trimer_rn, umap, tspan, pmap)
 osol = solve(oprob, saveat = 0.001)#, Tsit5(), reltol=1e-8, abstol=1e-12)
 plot(osol,size=(1000,600),lw=3,legend=:topleft)
 
@@ -193,32 +191,34 @@ for x in species(trimer_rn)
     println(x)
 end
 
-function make_2dphaseplot()
-    p1 = plot(osol[2,:],osol[end,:], label = "V/A")
+function make_2dphaseplot(osol)
+    p1 = plot(osol[4,:],osol[5,:], label = "V/A", legend = :topright)
 
     pcopy = copy(p)
-    idx = find_idx(pmap, "y")
+    idx = find_idx("y", false)
+    @info idx
 
     color_gradient = cgrad(:plasma, 5, categorical = true)
 
     for (i,c) in enumerate(color_gradient)
-        pcopy[idx] = pcopy[idx]*1.1
+        pcopy[idx] = pcopy[idx]*0.8
         println(pcopy[idx])
-        newpmap = [x => y for (x,y) in zip(parameters(trimer_rn),pcopy)]
-        newpmap = symmap_to_varmap(trimer_rn, newpmap)
-        newprob = ODEProblem(trimer_rn, umap, tspan, newpmap)
-        newsol = solve(newprob, Tsit5())
-        plot!(p1,newsol[2,:],newsol[end,:],c = c, label = "V/A * $(round(1.1^i;digits=1))")
+        # newpmap = [x => y for (x,y) in zip(parameters(trimer_rn),pcopy)]
+        # newpmap = symmap_to_varmap(trimer_rn, newpmap)
+        newprob = ODEProblem(trimer_rn, umap, tspan, pcopy)
+        newsol = solve(newprob)
+        plot!(p1,newsol[4,:],newsol[5,:],c = c, label = "V/A * $(round(1.1^i;digits=1))")
     end
 
-    scatter!((osol[2,1],osol[end,1]), label = "Start", markersize = 5, color = :green)
-    scatter!((osol[2,end],osol[end,end]), label = "End", markersize = 5, color = :red)
-    xlabel!("PIP5K Kinase (uM)")
-    ylabel!("XXXBCD Trimer (uM)")
-    display(p1)
+    # scatter!((osol[2,1],osol[end,1]), label = "Start", markersize = 5, color = :green)
+    # scatter!((osol[2,end],osol[end,end]), label = "End", markersize = 5, color = :red)
+    xlabel!("PIP2 (uM)")
+    ylabel!("AP2 (uM)")
+    return p1
 end
 
-make_2dphaseplot()
+fig3 = make_2dphaseplot(osol)
+savefig("2dphaseplot.png")
 
 
 
