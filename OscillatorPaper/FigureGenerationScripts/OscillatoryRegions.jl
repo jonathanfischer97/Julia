@@ -11,6 +11,7 @@ begin
     using Unitful
     using Unitful: µM, nm, s
     using ProgressMeter
+    using StaticArrays
     # using BenchmarkTools, Profile, ProgressMeter
     # using MultivariateStats, UMAP, TSne, StatsPlots
     # using GlobalSensitivity, QuasiMonteCarlo
@@ -156,22 +157,10 @@ begin
 end
 
 
-begin
-    """Custom data structure to store the period and amplitude of each individual"""
-    struct PerAmpStore
-        peramps::Dict{Vector{Float64}, @NamedTuple{per::Float64, amp::Float64}}
-    
-        PerAmpStore() = new(Dict{Vector{Float64}, @NamedTuple{per::Float64, amp::Float64}}())
-    end    
-
-    function update_peramp!(store::PerAmpStore, parameters::Vector{Float64}, values::Tuple{Float64, Float64})
-        store.peramps[parameters] = (per=values[1], amp=values[2])
-    end
-end
 
 
 """Cost function that catches errors and returns 1.0 if there is an error"""
-function eval_fitness_catcherrors(p::Vector{Float64},  prob::ODEProblem)
+function eval_fitness_catcherrors(p,  prob::ODEProblem)
     Y = nothing
     try 
         Y = solve(remake(prob, p=p), saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
@@ -192,55 +181,68 @@ function eval_fitness_catcherrors(p::Vector{Float64},  prob::ODEProblem)
 end
 
 
-begin
-    ## parameter constraint ranges ##
-    ka_min, ka_max = 0.001, 10.0 #uM^-1s^-1
-    kb_min, kb_max = 0.001, 1000.0 #s^-1
-    kcat_min, kcat_max = 0.001, 1000.0 #s^-1
+function define_parameter_constraints()
+    # Define parameter constraint ranges
+    ka_min, ka_max = 0.001, 10.0   # uM^-1s^-1
+    kb_min, kb_max = 0.001, 1000.0 # s^-1
+    kcat_min, kcat_max = 0.001, 1000.0 # s^-1
 
     param_values = OrderedDict(
-        "ka1" => Dict("min" => ka_min, "max" => ka_max),
-        "kb1" => Dict("min" => kb_min, "max" => kb_max),
-        "kcat1" => Dict("min" => kcat_min, "max" => kcat_max),
-        "ka2" => Dict("min" => ka_min, "max" => ka_max),
-        "kb2" => Dict("min" => kb_min, "max" => kb_max),
-        "ka3" => Dict("min" => ka_min, "max" => ka_max),
-        "kb3" => Dict("min" => kb_min, "max" => kb_max),
-        "ka4" => Dict("min" => ka_min, "max" => ka_max),
-        "kb4" => Dict("min" => kb_min, "max" => kb_max),
-        "ka7" => Dict("min" => ka_min, "max" => ka_max),
-        "kb7" => Dict("min" => kb_min, "max" => kb_max),
-        "kcat7" => Dict("min" => kcat_min, "max" => kcat_max),
-        "V/A" => Dict("min" => 10.0, "max" => 20000.0)
+        "ka1" => (min = ka_min, max = ka_max),
+        "kb1" => (min = kb_min, max = kb_max),
+        "kcat1" => (min = kcat_min, max = kcat_max),
+        "ka2" => (min = ka_min, max = ka_max),
+        "kb2" => (min = kb_min, max = kb_max),
+        "ka3" => (min = ka_min, max = ka_max),
+        "kb3" => (min = kb_min, max = kb_max),
+        "ka4" => (min = ka_min, max = ka_max),
+        "kb4" => (min = kb_min, max = kb_max),
+        "ka7" => (min = ka_min, max = ka_max),
+        "kb7" => (min = kb_min, max = kb_max),
+        "kcat7" => (min = kcat_min, max = kcat_max),
+        "V/A" => (min = 10.0, max = 10000.0)
     )
+    return param_values
+end
+
+function find_param_indices(param_combination::Tuple{String, String})
+    p1idx = findfirst(isequal(param_combination[1]), PARAM_NAMES)
+    p2idx = findfirst(isequal(param_combination[2]), PARAM_NAMES)
+    
+    return p1idx, p2idx
 end
 
 
+function update_params!(newvals, newparams, p1idx, p2idx)
+    newparams[p1idx] = newvals[1]
+    newparams[p2idx] = newvals[2]
+end
+
+function update_params(newvals, newparams::Vector{Float64}, p1idx, p2idx)
+    newparams_copy = copy(newparams)
+    newparams_copy[p1idx] = newvals[1]
+    newparams_copy[p2idx] = newvals[2]
+    return SVector{13}(newparams_copy)
+end
+
 #! Plot oscillatory regions of 2D parameter space with contour or heatplot 
 #* Define the function to evaluate the 2D parameter space for oscillations
-function evaluate_2D_parameter_space(paramrange_pair::Tuple, prob::ODEProblem)
-    # paramrange_pair is a tuple of dictionary values from param_values, each of which are a dictionary with keys "min" and "max
+function evaluate_2D_parameter_space(paramrange_pair::Tuple{String, String}, prob::ODEProblem, paramrange_dict::OrderedDict=define_parameter_constraints(); steps=1000)
 
     #? Get indices of parameters
-    p1idx = findfirst(x -> x == "ka1", PARAM_NAMES)
-    p2idx = findfirst(x -> x == "kb1", PARAM_NAMES)
+    p1idx, p2idx = find_param_indices(paramrange_pair)
+    @info "$(paramrange_pair[1]) index: $p1idx. $(paramrange_pair[2]) index: $p2idx"
     
     #? Get evaluation function
     evalfunc(newparams) = eval_fitness_catcherrors(newparams, prob)
     
     #? Create a copy of the parameter vector
     newparams = copy(prob.p)
-
-    #? Function to modify copied parameter vector with the new values
-    function make_new_params!(newvals, newparams)
-        newparams[p1idx] = newvals[1]
-        newparams[p2idx] = newvals[2]
-    end
     
 
     #? Get ranges of parameters
-    p1_range = range(paramrange_pair[1]["min"], paramrange_pair[1]["max"], length=1000)
-    p2_range = range(paramrange_pair[2]["min"], paramrange_pair[2]["max"], length=1000)
+    p1_range = range(paramrange_dict[paramrange_pair[1]]["min"], paramrange_dict[paramrange_pair[1]]["max"], length=steps)
+    p2_range = range(paramrange_dict[paramrange_pair[2]]["min"], paramrange_dict[paramrange_pair[2]]["max"], length=steps)
 
     #? Get dimensions of parameter space
     p1_length = length(p1_range)
@@ -255,76 +257,135 @@ function evaluate_2D_parameter_space(paramrange_pair::Tuple, prob::ODEProblem)
 
 
     #? Evaluate parameter space
-    for (p1idx, p1val) in enumerate(p1_range)
-        for (p2idx, p2val) in enumerate(p2_range)
-            make_new_params!((p1val, p2val), newparams)
+    for (i, p1val) in enumerate(p1_range)
+        for (j, p2val) in enumerate(p2_range)
+            update_params!((p1val,p2val), newparams, p1idx, p2idx)
             results = evalfunc(newparams)
-            oscillation_scores[p1idx, p2idx] = results.fit
-            periods[p1idx, p2idx] = results.fit > 0.5 ? results.per : 0.0
+            oscillation_scores[i,j] = results.fit
+            periods[i,j] = results.fit > 0.5 ? results.per : 0.0
             next!(innerprogress)
         end
     end
 
-    return (fit = -oscillation_scores, per = periods, ranges = (p1_range, p2_range))
+    return (fit = -oscillation_scores, per = periods, ranges = (p1_range, p2_range), names = paramrange_pair)
 end
 
 
-function evaluate_parameter_combinations(param_values, prob)
-    param_names = collect(keys(param_values))
-    results = Dict()
+
+# function evaluate_parameter_combinations(param_values, prob)
+#     param_names = collect(keys(param_values))
+#     results = Dict()
 
 
-    param_combinations = combinations(param_names, 2)
-    outerprogress = Progress(length(param_combinations), dt=1., desc="Evaluating combinations... ")
+#     param_combinations = combinations(param_names, 2)
+#     outerprogress = Progress(length(param_combinations), dt=1., desc="Evaluating combinations... ")
 
 
-    for combination in combinations(param_names, 2)
-        paramrange_pair = (param_values[combination[1]], param_values[combination[2]])
-        p1idx = findfirst(isequal(combination[1]), param_names)
-        p2idx = findfirst(isequal(combination[2]), param_names)
-        @info "Evaluating parameter space for $(combination[1]) vs. $(combination[2])"
-        result = evaluate_2D_parameter_space(paramrange_pair, prob)
-        results[combination] = result
-        next!(outerprogress)
-    end
+#     for combination in combinations(param_names, 2)
+#         paramrange_pair = (param_values[combination[1]], param_values[combination[2]])
+#         p1idx = findfirst(isequal(combination[1]), param_names)
+#         p2idx = findfirst(isequal(combination[2]), param_names)
+#         @info "Evaluating parameter space for $(combination[1]) vs. $(combination[2])"
+#         result = evaluate_2D_parameter_space(paramrange_pair, prob)
+#         results[combination] = result
+#         next!(outerprogress)
+#     end
 
-    return results
-end
+#     return results
+# end
 
 
-function plot_results(results, combination)
-    result = results[(combination)]
+function plot_oscillation_contour(result)
     p1_range = result.ranges[1]
     p2_range = result.ranges[2]
     # contour(p1_range, p2_range, result.fit, title="Oscillation Scores", xlabel=combination[1], ylabel=combination[2])
-    contour(p1_range, p2_range, result.fit, title="Periods", xlabel=combination[1], ylabel=combination[2], color=:vik, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
+    contour(p1_range, p2_range, result.fit, title="Periods", xlabel=result.names[1], ylabel=result.names[2], color=:vik, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
 end
 
 
-all_results = evaluate_parameter_combinations(param_values, prob)
-
-#? Plot results
-plot_results(results, ["ka2", "V/A"])
+testresult = evaluate_2D_parameter_space(("ka2", "V/A"), prob)
 
 
 
-function plot_oscillatory_regions(p1_points, p2_points, oscillatory_points, param_ranges)
-    p1name, p2name = param_ranges[1].first, param_ranges[2].first
-    p = contour(p1_points, p2_points, oscillatory_points', xlabel=p1name, ylabel=p2name, 
-                title="Oscillatory Regions of Parameter Space", color=:vik, legend=:none, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
-    display(p)
-    if any(i -> i == "V/A", (p1name,p2name))
-        p1name == "V/A" ? p1name = "VA" : p2name = "VA"
+
+
+
+using Base.Threads
+
+struct ParamRange
+    min::Float64
+    max::Float64
+end
+
+function define_parameter_constraints()
+    # Define parameter constraint ranges
+    ka_min, ka_max = 0.001, 100.0   # uM^-1s^-1
+    kb_min, kb_max = 0.001, 1000.0 # s^-1
+    kcat_min, kcat_max = 0.001, 1000.0 # s^-1
+
+    param_values = OrderedDict(
+        "ka1" => ParamRange(ka_min, ka_max),
+        "kb1" => ParamRange(kb_min, kb_max),
+        "kcat1" => ParamRange(kcat_min, kcat_max),
+        "ka2" => ParamRange(ka_min, ka_max),
+        "kb2" => ParamRange(kb_min, kb_max),
+        "ka3" => ParamRange(ka_min, ka_max),
+        "kb3" => ParamRange(kb_min, kb_max),
+        "ka4" => ParamRange(ka_min, ka_max),
+        "kb4" => ParamRange(kb_min, kb_max),
+        "ka7" => ParamRange(ka_min, ka_max),
+        "kb7" => ParamRange(kb_min, kb_max),
+        "kcat7" => ParamRange(kcat_min, kcat_max),
+        "V/A" => ParamRange(10.0, 10000.0)
+    )
+
+    return param_values
+end
+
+function evaluate_2D_parameter_space(paramrange_pair::Tuple{String, String}, prob::ODEProblem, paramrange_dict::OrderedDict=define_parameter_constraints(); steps=300)
+
+    # Get indices of parameters
+    p1idx, p2idx = find_param_indices(paramrange_pair)
+    
+    # Get evaluation function
+    evalfunc(newparams) = eval_fitness_catcherrors(newparams, prob)
+    
+    # Create a copy of the parameter vector
+    # newparams = copy(prob.p)
+    
+    # Get ranges of parameters
+    p1_range = range(paramrange_dict[paramrange_pair[1]].min, paramrange_dict[paramrange_pair[1]].max, length=steps)
+    p2_range = range(paramrange_dict[paramrange_pair[2]].min, paramrange_dict[paramrange_pair[2]].max, length=steps)
+
+    # Get dimensions of parameter space
+    p1_length = length(p1_range)
+    p2_length = length(p2_range)
+
+    # Create arrays to store results, oscillatory and non-oscillatory points
+    oscillation_scores = Array{Float64}(undef, p1_length, p2_length)
+    periods = Array{Float64}(undef, p1_length, p2_length)
+
+    innerprogress = Progress(p1_length*p2_length, dt = 0.1, desc="Evaluating $paramrange_pair parameter space... ", color=:red)
+
+    # Evaluate parameter space
+    @threads for i in 1:p1_length
+        newparams = copy(prob.p)
+        for j in 1:p2_length
+            update_params!((p1_range[i], p2_range[j]), newparams, p1idx, p2idx)
+            results = evalfunc(newparams)
+            oscillation_scores[j, i] = results.fit
+            periods[j, i] = results.fit > 0.5 ? results.per : 0.0
+            next!(innerprogress)
+        end
     end
-    savefig(p, "OscillatorPaper/MaggieModelReduction/FIGURES/ParameterSpace/OscillatoryRegions_$(p1name)_$(p2name).png")
+
+    return (fit = -oscillation_scores, per = periods, ranges = (p1_range, p2_range), names = paramrange_pair)
 end
 
-# Usage example
-p1_points, p2_points, oscillatory_points = evaluate_2D_parameter_space(param_ranges, prob)
-plot_oscillatory_regions(p1_points, p2_points, oscillatory_points, param_ranges)
+@time testresult = evaluate_2D_parameter_space(("ka2", "V/A"), prob; steps =100)
 
-testp = copy(prob.p)
-testp[6] = 5.0
-testp[end] = 3000.0
-testsol = solve(remake(prob, p = testp))
-plot(testsol)
+
+
+plot_oscillation_contour(testresult)
+
+
