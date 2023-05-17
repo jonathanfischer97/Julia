@@ -10,6 +10,7 @@ begin
     using DataFrames
     using Unitful
     using Unitful: µM, nm, s
+    using ProgressMeter
     # using BenchmarkTools, Profile, ProgressMeter
     # using MultivariateStats, UMAP, TSne, StatsPlots
     # using GlobalSensitivity, QuasiMonteCarlo
@@ -170,7 +171,7 @@ end
 
 
 """Cost function that catches errors and returns 1.0 if there is an error"""
-function eval_fitness_catcherrors(perampstore::PerAmpStore, p::Vector{Float64},  prob::ODEProblem)
+function eval_fitness_catcherrors(p::Vector{Float64},  prob::ODEProblem)
     Y = nothing
     try 
         Y = solve(remake(prob, p=p), saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
@@ -186,18 +187,16 @@ function eval_fitness_catcherrors(perampstore::PerAmpStore, p::Vector{Float64}, 
     end
     fitness, period, amplitude = CostFunction(Y)
 
-    # Update the additional values stored in the tracker
-    update_peramp!(perampstore, p, (period, amplitude))
 
-    return -fitness
+    return (fit = -fitness, per = period, amp = amplitude)
 end
 
 
 begin
     ## parameter constraint ranges ##
-    ka_min, ka_max = 0.001u"1/(µM*s)", 10.0u"1/(µM*s)" #uM^-1s^-1
-    kb_min, kb_max = 0.001u"1/s", 1000.0u"1/s" #s^-1
-    kcat_min, kcat_max = 0.001u"1/s", 1000.0u"1/s" #s^-1
+    ka_min, ka_max = 0.001, 10.0 #uM^-1s^-1
+    kb_min, kb_max = 0.001, 1000.0 #s^-1
+    kcat_min, kcat_max = 0.001, 1000.0 #s^-1
 
     param_values = OrderedDict(
         "ka1" => Dict("min" => ka_min, "max" => ka_max),
@@ -212,7 +211,7 @@ begin
         "ka7" => Dict("min" => ka_min, "max" => ka_max),
         "kb7" => Dict("min" => kb_min, "max" => kb_max),
         "kcat7" => Dict("min" => kcat_min, "max" => kcat_max),
-        "V/A" => Dict("min" => 10.0u"nm", "max" => 20000.0u"nm")
+        "V/A" => Dict("min" => 10.0, "max" => 20000.0)
     )
 end
 
@@ -220,54 +219,93 @@ end
 #! Plot oscillatory regions of 2D parameter space with contour or heatplot 
 #* Define the function to evaluate the 2D parameter space for oscillations
 function evaluate_2D_parameter_space(paramrange_pair::Tuple, prob::ODEProblem)
+    # paramrange_pair is a tuple of dictionary values from param_values, each of which are a dictionary with keys "min" and "max
 
-
-
-    #? Make PerAmp store
-    perampstore = PerAmpStore()
+    #? Get indices of parameters
+    p1idx = findfirst(x -> x == "ka1", PARAM_NAMES)
+    p2idx = findfirst(x -> x == "kb1", PARAM_NAMES)
     
     #? Get evaluation function
-    evalfunc = eval_fitness_catcherrors(perampstore, newparams, prob)
+    evalfunc(newparams) = eval_fitness_catcherrors(newparams, prob)
     
     #? Create a copy of the parameter vector
     newparams = copy(prob.p)
-    
-    #? Define a function to pass modified parameters to the evaluation function
-    function is_oscillatory(newvals)
+
+    #? Function to modify copied parameter vector with the new values
+    function make_new_params!(newvals, newparams)
         newparams[p1idx] = newvals[1]
         newparams[p2idx] = newvals[2]
-    
-        evalfunc(newparams) #< -0.5 ? true : false
     end
+    
 
     #? Get ranges of parameters
-    p1_range = param_ranges[1].second
-    p2_range = param_ranges[2].second
+    p1_range = range(paramrange_pair[1]["min"], paramrange_pair[1]["max"], length=1000)
+    p2_range = range(paramrange_pair[2]["min"], paramrange_pair[2]["max"], length=1000)
 
     #? Get dimensions of parameter space
-    n_p1 = length(p1_range)
-    n_p2 = length(p2_range)
+    p1_length = length(p1_range)
+    p2_length = length(p2_range)
 
-    #? Create arrays to store results
-    oscillatory_points = Array{Float64}(undef, n_p1, n_p2)
-    p1_points = Vector{Float64}(undef, n_p1)
-    p2_points = Vector{Float64}(undef, n_p2)
+    #? Create arrays to store results, oscillatory and non-oscillatory points
+    oscillation_scores = Array{Float64}(undef, p1_length, p2_length)
+    periods = Array{Float64}(undef, p1_length, p2_length)
 
     #? Progress bar
-    progress = Progress(n_p1*n_p2, dt = 0.1)
+    innerprogress = Progress(p1_length*p2_length, dt = 0.1, desc="Evaluating parameter space... ", color=:red)
+
 
     #? Evaluate parameter space
-    for (i, p1_val) in enumerate(p1_range)
-        p1_points[i] = p1_val
-        for (j, p2_val) in enumerate(p2_range)
-            p2_points[j] = p2_val
-            oscillatory_points[i, j] = is_oscillatory((p1_val, p2_val))
-            next!(progress)
+    for (p1idx, p1val) in enumerate(p1_range)
+        for (p2idx, p2val) in enumerate(p2_range)
+            make_new_params!((p1val, p2val), newparams)
+            results = evalfunc(newparams)
+            oscillation_scores[p1idx, p2idx] = results.fit
+            periods[p1idx, p2idx] = results.fit > 0.5 ? results.per : 0.0
+            next!(innerprogress)
         end
     end
 
-    return p1_points, p2_points, -oscillatory_points
+    return (fit = -oscillation_scores, per = periods, ranges = (p1_range, p2_range))
 end
+
+
+function evaluate_parameter_combinations(param_values, prob)
+    param_names = collect(keys(param_values))
+    results = Dict()
+
+
+    param_combinations = combinations(param_names, 2)
+    outerprogress = Progress(length(param_combinations), dt=1., desc="Evaluating combinations... ")
+
+
+    for combination in combinations(param_names, 2)
+        paramrange_pair = (param_values[combination[1]], param_values[combination[2]])
+        p1idx = findfirst(isequal(combination[1]), param_names)
+        p2idx = findfirst(isequal(combination[2]), param_names)
+        @info "Evaluating parameter space for $(combination[1]) vs. $(combination[2])"
+        result = evaluate_2D_parameter_space(paramrange_pair, prob)
+        results[combination] = result
+        next!(outerprogress)
+    end
+
+    return results
+end
+
+
+function plot_results(results, combination)
+    result = results[(combination)]
+    p1_range = result.ranges[1]
+    p2_range = result.ranges[2]
+    # contour(p1_range, p2_range, result.fit, title="Oscillation Scores", xlabel=combination[1], ylabel=combination[2])
+    contour(p1_range, p2_range, result.fit, title="Periods", xlabel=combination[1], ylabel=combination[2], color=:vik, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
+end
+
+
+all_results = evaluate_parameter_combinations(param_values, prob)
+
+#? Plot results
+plot_results(results, ["ka2", "V/A"])
+
 
 
 function plot_oscillatory_regions(p1_points, p2_points, oscillatory_points, param_ranges)
