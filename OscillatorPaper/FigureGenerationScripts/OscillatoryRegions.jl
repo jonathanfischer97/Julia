@@ -226,7 +226,7 @@ function define_parameter_constraints()
         "ka7" => ParamRange(ka_min, ka_max),
         "kb7" => ParamRange(kb_min, kb_max),
         "kcat7" => ParamRange(kcat_min, kcat_max),
-        "V/A" => ParamRange(10.0, 10000.0)
+        "DF" => ParamRange(10.0, 10000.0)
     )
     return param_values
 end
@@ -277,18 +277,18 @@ function plot_oscillation_contour(result)
     p2_range = result.ranges[2]
     oscplot = contour(p1_range, p2_range, result.fit, title="Oscillation Scores", xlabel=result.names[1], ylabel=result.names[2], color=:vik, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
 
-    frequencies = ifelse.(result.per .== 0, 0, 1 ./ result.per)
-    freqplot = contour(p1_range, p2_range, frequencies, title="Frequency", xlabel=result.names[1], ylabel=result.names[2], color=:plasma, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
+    # frequencies = ifelse.(result.per .== 0, 0, 1 ./ result.per)
+    freqplot = contour(p1_range, p2_range, result.per, title="Period", xlabel=result.names[1], ylabel=result.names[2], color=:plasma, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
     plot(oscplot, freqplot, layout=(2,1), size=(1000, 800))
 end
 
 
-testresult = evaluate_2D_parameter_space(("ka2", "V/A"), prob; steps =300)
+testresult = evaluate_2D_parameter_space(("ka2", "V/A"), prob; steps =1000)
 
 
 #* Plot oscillatory regions of 2D parameter space with contour or heatplot
 testplot = plot_oscillation_contour(testresult)
-savefig(testplot, joinpath(@__DIR__, "testplot.png"))
+savefig(testplot, joinpath(@__DIR__, "testplot_ka2_DF.png"))
 
 gr()
 
@@ -320,4 +320,13 @@ function evaluate_and_plot_all_2D_combinations(prob::ODEProblem, paramrange_dict
     return result_dict
 end
 
-result_dict = evaluate_and_plot_all_2D_combinations(prob)
+result_dict = evaluate_and_plot_all_2D_combinations(prob; steps=1000)
+
+
+function testfunc(x)
+    x * "teehee"
+    x^2
+    return x
+end
+
+testfunc(1)
