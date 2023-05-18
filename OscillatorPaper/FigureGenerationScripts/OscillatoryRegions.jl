@@ -8,11 +8,11 @@ begin
     using Random
     using Distributions
     using DataFrames
-    using Unitful
-    using Unitful: µM, nm, s
+    # using Unitful
+    # using Unitful: µM, nm, s
     using ProgressMeter
     using StaticArrays
-    # using BenchmarkTools, Profile, ProgressMeter
+    using BenchmarkTools#, Profile, ProgressMeter
     # using MultivariateStats, UMAP, TSne, StatsPlots
     # using GlobalSensitivity, QuasiMonteCarlo
     using LinearAlgebra
@@ -23,6 +23,7 @@ begin
     # using LazySets, Polyhedra
     default(lw = 2, size = (1000, 600))
     plotlyjs()
+    using Base.Threads
 end
 
 const PARAM_NAMES = ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "V/A"]
@@ -157,8 +158,6 @@ begin
 end
 
 
-
-
 """Cost function that catches errors and returns 1.0 if there is an error"""
 function eval_fitness_catcherrors(p,  prob::ODEProblem)
     Y = nothing
@@ -181,142 +180,33 @@ function eval_fitness_catcherrors(p,  prob::ODEProblem)
 end
 
 
-function define_parameter_constraints()
-    # Define parameter constraint ranges
-    ka_min, ka_max = 0.001, 10.0   # uM^-1s^-1
-    kb_min, kb_max = 0.001, 1000.0 # s^-1
-    kcat_min, kcat_max = 0.001, 1000.0 # s^-1
 
-    param_values = OrderedDict(
-        "ka1" => (min = ka_min, max = ka_max),
-        "kb1" => (min = kb_min, max = kb_max),
-        "kcat1" => (min = kcat_min, max = kcat_max),
-        "ka2" => (min = ka_min, max = ka_max),
-        "kb2" => (min = kb_min, max = kb_max),
-        "ka3" => (min = ka_min, max = ka_max),
-        "kb3" => (min = kb_min, max = kb_max),
-        "ka4" => (min = ka_min, max = ka_max),
-        "kb4" => (min = kb_min, max = kb_max),
-        "ka7" => (min = ka_min, max = ka_max),
-        "kb7" => (min = kb_min, max = kb_max),
-        "kcat7" => (min = kcat_min, max = kcat_max),
-        "V/A" => (min = 10.0, max = 10000.0)
-    )
-    return param_values
-end
 
-function find_param_indices(param_combination::Tuple{String, String})
+
+#! Helper functions for evaluating the contour of 2D parameter space ##
+
+function find_param_indices(param_combination)
     p1idx = findfirst(isequal(param_combination[1]), PARAM_NAMES)
     p2idx = findfirst(isequal(param_combination[2]), PARAM_NAMES)
-    
     return p1idx, p2idx
 end
-
 
 function update_params!(newvals, newparams, p1idx, p2idx)
     newparams[p1idx] = newvals[1]
     newparams[p2idx] = newvals[2]
 end
 
-function update_params(newvals, newparams::Vector{Float64}, p1idx, p2idx)
-    newparams_copy = copy(newparams)
-    newparams_copy[p1idx] = newvals[1]
-    newparams_copy[p2idx] = newvals[2]
-    return SVector{13}(newparams_copy)
-end
-
-#! Plot oscillatory regions of 2D parameter space with contour or heatplot 
-#* Define the function to evaluate the 2D parameter space for oscillations
-function evaluate_2D_parameter_space(paramrange_pair::Tuple{String, String}, prob::ODEProblem, paramrange_dict::OrderedDict=define_parameter_constraints(); steps=1000)
-
-    #? Get indices of parameters
-    p1idx, p2idx = find_param_indices(paramrange_pair)
-    @info "$(paramrange_pair[1]) index: $p1idx. $(paramrange_pair[2]) index: $p2idx"
-    
-    #? Get evaluation function
-    evalfunc(newparams) = eval_fitness_catcherrors(newparams, prob)
-    
-    #? Create a copy of the parameter vector
-    newparams = copy(prob.p)
-    
-
-    #? Get ranges of parameters
-    p1_range = range(paramrange_dict[paramrange_pair[1]]["min"], paramrange_dict[paramrange_pair[1]]["max"], length=steps)
-    p2_range = range(paramrange_dict[paramrange_pair[2]]["min"], paramrange_dict[paramrange_pair[2]]["max"], length=steps)
-
-    #? Get dimensions of parameter space
-    p1_length = length(p1_range)
-    p2_length = length(p2_range)
-
-    #? Create arrays to store results, oscillatory and non-oscillatory points
-    oscillation_scores = Array{Float64}(undef, p1_length, p2_length)
-    periods = Array{Float64}(undef, p1_length, p2_length)
-
-    #? Progress bar
-    innerprogress = Progress(p1_length*p2_length, dt = 0.1, desc="Evaluating parameter space... ", color=:red)
-
-
-    #? Evaluate parameter space
-    for (i, p1val) in enumerate(p1_range)
-        for (j, p2val) in enumerate(p2_range)
-            update_params!((p1val,p2val), newparams, p1idx, p2idx)
-            results = evalfunc(newparams)
-            oscillation_scores[i,j] = results.fit
-            periods[i,j] = results.fit > 0.5 ? results.per : 0.0
-            next!(innerprogress)
-        end
-    end
-
-    return (fit = -oscillation_scores, per = periods, ranges = (p1_range, p2_range), names = paramrange_pair)
-end
-
-
-
-# function evaluate_parameter_combinations(param_values, prob)
-#     param_names = collect(keys(param_values))
-#     results = Dict()
-
-
-#     param_combinations = combinations(param_names, 2)
-#     outerprogress = Progress(length(param_combinations), dt=1., desc="Evaluating combinations... ")
-
-
-#     for combination in combinations(param_names, 2)
-#         paramrange_pair = (param_values[combination[1]], param_values[combination[2]])
-#         p1idx = findfirst(isequal(combination[1]), param_names)
-#         p2idx = findfirst(isequal(combination[2]), param_names)
-#         @info "Evaluating parameter space for $(combination[1]) vs. $(combination[2])"
-#         result = evaluate_2D_parameter_space(paramrange_pair, prob)
-#         results[combination] = result
-#         next!(outerprogress)
-#     end
-
-#     return results
-# end
-
-
-function plot_oscillation_contour(result)
-    p1_range = result.ranges[1]
-    p2_range = result.ranges[2]
-    # contour(p1_range, p2_range, result.fit, title="Oscillation Scores", xlabel=combination[1], ylabel=combination[2])
-    contour(p1_range, p2_range, result.fit, title="Periods", xlabel=result.names[1], ylabel=result.names[2], color=:vik, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
-end
-
-
-testresult = evaluate_2D_parameter_space(("ka2", "V/A"), prob)
 
 
 
 
-
-
-using Base.Threads
-
+"""ParamRange struct for defining parameter ranges"""
 struct ParamRange
     min::Float64
     max::Float64
 end
 
+"""Parameter constraint function, returns a dictionary of parameter names and their ranges"""
 function define_parameter_constraints()
     # Define parameter constraint ranges
     ka_min, ka_max = 0.001, 100.0   # uM^-1s^-1
@@ -338,20 +228,18 @@ function define_parameter_constraints()
         "kcat7" => ParamRange(kcat_min, kcat_max),
         "V/A" => ParamRange(10.0, 10000.0)
     )
-
     return param_values
 end
 
-function evaluate_2D_parameter_space(paramrange_pair::Tuple{String, String}, prob::ODEProblem, paramrange_dict::OrderedDict=define_parameter_constraints(); steps=300)
+
+#* Define the function to evaluate the 2D parameter space for oscillations
+function evaluate_2D_parameter_space(paramrange_pair, prob::ODEProblem, paramrange_dict::OrderedDict=define_parameter_constraints(); steps=300)
 
     # Get indices of parameters
     p1idx, p2idx = find_param_indices(paramrange_pair)
     
     # Get evaluation function
     evalfunc(newparams) = eval_fitness_catcherrors(newparams, prob)
-    
-    # Create a copy of the parameter vector
-    # newparams = copy(prob.p)
     
     # Get ranges of parameters
     p1_range = range(paramrange_dict[paramrange_pair[1]].min, paramrange_dict[paramrange_pair[1]].max, length=steps)
@@ -365,6 +253,7 @@ function evaluate_2D_parameter_space(paramrange_pair::Tuple{String, String}, pro
     oscillation_scores = Array{Float64}(undef, p1_length, p2_length)
     periods = Array{Float64}(undef, p1_length, p2_length)
 
+    # Create progress bar
     innerprogress = Progress(p1_length*p2_length, dt = 0.1, desc="Evaluating $paramrange_pair parameter space... ", color=:red)
 
     # Evaluate parameter space
@@ -374,7 +263,7 @@ function evaluate_2D_parameter_space(paramrange_pair::Tuple{String, String}, pro
             update_params!((p1_range[i], p2_range[j]), newparams, p1idx, p2idx)
             results = evalfunc(newparams)
             oscillation_scores[j, i] = results.fit
-            periods[j, i] = results.fit > 0.5 ? results.per : 0.0
+            periods[j, i] = results.fit #< -0.5 ? results.per : 0.0
             next!(innerprogress)
         end
     end
@@ -382,10 +271,53 @@ function evaluate_2D_parameter_space(paramrange_pair::Tuple{String, String}, pro
     return (fit = -oscillation_scores, per = periods, ranges = (p1_range, p2_range), names = paramrange_pair)
 end
 
-@time testresult = evaluate_2D_parameter_space(("ka2", "V/A"), prob; steps =100)
+
+function plot_oscillation_contour(result)
+    p1_range = result.ranges[1]
+    p2_range = result.ranges[2]
+    oscplot = contour(p1_range, p2_range, result.fit, title="Oscillation Scores", xlabel=result.names[1], ylabel=result.names[2], color=:vik, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
+
+    frequencies = ifelse.(result.per .== 0, 0, 1 ./ result.per)
+    freqplot = contour(p1_range, p2_range, frequencies, title="Frequency", xlabel=result.names[1], ylabel=result.names[2], color=:plasma, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
+    plot(oscplot, freqplot, layout=(2,1), size=(1000, 800))
+end
 
 
+testresult = evaluate_2D_parameter_space(("ka2", "V/A"), prob; steps =300)
 
-plot_oscillation_contour(testresult)
+
+#* Plot oscillatory regions of 2D parameter space with contour or heatplot
+testplot = plot_oscillation_contour(testresult)
+savefig(testplot, joinpath(@__DIR__, "testplot.png"))
+
+gr()
 
 
+function evaluate_and_plot_all_2D_combinations(prob::ODEProblem, paramrange_dict::OrderedDict=define_parameter_constraints(); steps=300, savepath="./Figures/ContourPlots")
+    # Get all combinations of parameters
+    param_keys = collect(keys(paramrange_dict))
+    param_combinations = combinations(param_keys, 2)
+    
+    # Create a dictionary to store all results
+    result_dict = Dict()
+
+    # Loop through each combination
+    for combination in param_combinations
+        # Evaluate the parameter space
+        result = evaluate_2D_parameter_space(combination, prob, paramrange_dict; steps)
+
+        # Store the result in the dictionary
+        result_dict[combination[1]*"_"*combination[2]] = result
+
+        # Plot the result
+        comboplot = plot_oscillation_contour(result)
+
+        #Save to a file
+        savefig(comboplot, joinpath(savepath, "$(combination[1])_$(combination[2]).png"))
+    end
+
+    # Return the dictionary with all results
+    return result_dict
+end
+
+result_dict = evaluate_and_plot_all_2D_combinations(prob)
