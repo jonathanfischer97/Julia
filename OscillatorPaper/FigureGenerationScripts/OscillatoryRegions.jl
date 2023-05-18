@@ -293,7 +293,7 @@ savefig(testplot, joinpath(@__DIR__, "testplot.png"))
 gr()
 
 
-function evaluate_and_plot_all_2D_combinations(prob::ODEProblem, paramrange_dict::OrderedDict=define_parameter_constraints(); steps=300, savepath="./Figures/ContourPlots")
+function evaluate_and_plot_all_2D_combinations(prob::ODEProblem, paramrange_dict::OrderedDict=define_parameter_constraints(); steps=300, savepath="./OscillatorPaper/FigureGenerationScripts/Figures/ContourPlots")
     # Get all combinations of parameters
     param_keys = collect(keys(paramrange_dict))
     param_combinations = combinations(param_keys, 2)
