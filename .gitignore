@@ -1,7 +1,0 @@
-.DS_Store
-*.pdf
-*.png
-.vscode
-**/.DS_Store
-*.ipynb_checkpoints
-*.gif
