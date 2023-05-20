@@ -10,9 +10,8 @@ begin
     using DataFrames
     # using Unitful
     # using Unitful: µM, nm, s
-    using ProgressMeter
     using StaticArrays
-    using BenchmarkTools#, Profile, ProgressMeter
+    using BenchmarkTools, Profile, ProgressMeter
     # using MultivariateStats, UMAP, TSne, StatsPlots
     # using GlobalSensitivity, QuasiMonteCarlo
     using LinearAlgebra
@@ -22,15 +21,16 @@ begin
     using Combinatorics
     # using LazySets, Polyhedra
     default(lw = 2, size = (1000, 600))
-    plotlyjs()
+    # plotlyjs()
+    gr()
     using Base.Threads
 end
 
-const PARAM_NAMES = ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "V/A"]
+const PARAM_NAMES = ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "DF"]
 
 """Full oscillator model"""
 fullrn = @reaction_network fullrn begin
-    @parameters ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka7 kb7 kcat7 y
+    @parameters ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka7 kb7 kcat7 DF
     @species L(t) Lp(t) K(t) P(t) A(t) LpA(t) LK(t) LpP(t) LpAK(t) LpAP(t) LpAKL(t) LpAPLp(t) AK(t) AP(t) AKL(t) APLp(t)
     # ALIASES: L = PIP, Lp = PIP2, K = Kinase, P = Phosphatase, A = AP2 
     # reactions between the same binding interfaces will have the same rate constant no matter the dimensionality or complex
@@ -38,25 +38,25 @@ fullrn = @reaction_network fullrn begin
     kcat1, LK --> Lp + K # L phosphorylation by kinase into Lp
     (ka2,kb2), Lp + A <--> LpA # Lp binding to AP2 adaptor
     (ka3,kb3), LpA + K <--> LpAK # Membrane-bound adaptor binding to kinase
-    (ka1*y,kb1), LpAK + L <--> LpAKL # 2D reaction: Membrane-bound kinase binds to L with greater affinity as determined by y (V/A)
+    (ka1*DF,kb1), LpAK + L <--> LpAKL # 2D reaction: Membrane-bound kinase binds to L with greater affinity as determined by y (V/A)
     kcat1, LpAKL --> Lp + LpAK # L phosphorylation by kinase into Lp, same as 3D: first order reactions aren't dependent on dimensionality 
     (ka7,kb7), Lp + P <--> LpP # Lp binding to phosphatase
     kcat7, LpP --> L + P # L dephosphorylation by phosphatase
     (ka4,kb4), LpA + P <--> LpAP # Membrane-bound adaptor binding to phosphatase 
-    (ka7*y,kb7), Lp + LpAP <--> LpAPLp # 2D reaction: Membrane-bound phosphatase binds to Lp with greater affinity as determined by y (V/A)
+    (ka7*DF,kb7), Lp + LpAP <--> LpAPLp # 2D reaction: Membrane-bound phosphatase binds to Lp with greater affinity as determined by y (V/A)
     kcat7, LpAPLp --> L + LpAP # L dephosphorylation by phosphatase, same as 3D: first order reactions aren't dependent on dimensionality
 
     #previously excluded reactions, all possible combinations possible in vitro
     (ka2,kb2), Lp + AK <--> LpAK
-    (ka2*y,kb2), Lp + AKL <--> LpAKL
+    (ka2*DF,kb2), Lp + AKL <--> LpAKL
     (ka2,kb2), Lp + AP <--> LpAP
-    (ka2*y,kb2), Lp + APLp <--> LpAPLp
+    (ka2*DF,kb2), Lp + APLp <--> LpAPLp
     (ka3,kb3), A + K <--> AK
     (ka4,kb4), A + P <--> AP
     (ka3,kb3), A + LK <--> AKL
     (ka4,kb4), A + LpP <--> APLp
-    (ka3*y,kb3), LpA + LK <--> LpAKL
-    (ka4*y,kb4), LpA + LpP <--> LpAPLp
+    (ka3*DF,kb3), LpA + LK <--> LpAKL
+    (ka4*DF,kb4), LpA + LpP <--> LpAPLp
     (ka1,kb1), AK + L <--> AKL #binding of kinase to lipid
     kcat1, AKL --> Lp + AK #phosphorylation of lipid
     (ka7,kb7), AP + Lp <--> APLp #binding of phosphatase to lipid
@@ -65,25 +65,27 @@ end
 
 #! Solve model for arbitrary oscillatory parameters and initial conditions
 begin
-#parameter list
+    #? Parameter list
     psym = [:ka1 => 0.009433439939827041, :kb1 => 2.3550169939427845, :kcat1 => 832.7213093872278, :ka2 => 12.993995997539924, :kb2 => 6.150972501791291,
             :ka3 => 1.3481451097940793, :kb3 => 0.006201726090609513, :ka4 => 0.006277294665474662, :kb4 => 0.9250191811994848, :ka7 => 57.36471615394549, 
-            :kb7 => 0.04411989797898752, :kcat7 => 42.288085868394326, :y => 3631.050539219606]
+            :kb7 => 0.04411989797898752, :kcat7 => 42.288085868394326, :DF => 3631.050539219606]
     p = [x[2] for x in psym]
         
-    #initial condition list
+    #? Initial condition list
     usym = [:L => 0.0, :Lp => 3.0, :K => 0.5, :P => 0.3, :A => 2.0, :LpA => 0.0, :LK => 0.0, 
             :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, 
             :AKL => 0.0, :APLp => 0.0]
     u0 = [x[2] for x in usym]
 
-    #timespan for integration
+    #? Timespan for integration
     tspan = (0., 100.)
-    #solve the reduced ODEs
+
+    #? Create ODE problem and solve
     prob = ODEProblem(fullrn, u0, tspan, p)
-    sol = solve(prob, saveat=0.1) #solve adaptively
-    #* plot the results
-    plot(sol)
+    sol = solve(prob, saveat=0.1, save_idxs=1)
+
+    #? Plot the results
+    # plot(sol)
 end
 
 
@@ -94,18 +96,15 @@ begin
     """Get summed difference of peaks in the frequency domain"""
     function getDif(indexes::Vector{Int}, arrayData::Vector{Float64}) 
         idxarrLen = length(indexes)
-        if idxarrLen < 2
-            return 0.0
-        end
         sum_diff = @inbounds sum(arrayData[indexes[i]] - arrayData[indexes[i+1]] for i in 1:(idxarrLen-1))
         sum_diff += arrayData[indexes[end]]
         return sum_diff
     end
 
     """Get summed average standard deviation of peaks in the frequency domain"""
-    function getSTD(peakindxs::Vector{Int}, arrayData::Vector{Float64}, window_ratio::Float64) #get average standard deviation of fft peak indexes
+    function getSTD(peakindxs::Vector{Int}, arrayData::Vector{Float64})#, window_ratio::Float64) #get average standard deviation of fft peak indexes
         arrLen = length(arrayData)
-        window = max(1, round(Int, window_ratio * arrLen))
+        window = 1 #max(1, round(Int, window_ratio * arrLen))
         sum_std = @inbounds sum(std(arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in peakindxs)
         return sum_std / length(peakindxs)
     end
@@ -143,10 +142,10 @@ begin
         fftData = getFrequencies(Y.u)
         fftindexes = findmaxima(fftData,1)[1] #get the indexes of the peaks in the fft
         timeindexes = findmaxima(Y.u,10)[1] #get the times of the peaks in the fft
-        if isempty(fftindexes) || length(timeindexes) < 2 #if there are no peaks, return 0
+        if length(fftindexes) < 2 || length(timeindexes) < 2 #if there are no peaks, return 0
             return 0.0, 0.0, 0.0
         end
-        std = getSTD(fftindexes, fftData, 0.0001) #get the standard deviation of the peaks
+        std = getSTD(fftindexes, fftData) #get the standard deviation of the peaks
         diff = getDif(fftindexes, fftData) #get the difference between the peaks
 
         # Compute the period and amplitude
@@ -180,23 +179,25 @@ function eval_fitness_catcherrors(p,  prob::ODEProblem)
 end
 
 
+@bprofile eval_fitness_catcherrors(p, prob)
+
+
 
 
 
 #! Helper functions for evaluating the contour of 2D parameter space ##
-
+"""Find the indices of the parameters in the PARAM_NAMES array"""
 function find_param_indices(param_combination)
     p1idx = findfirst(isequal(param_combination[1]), PARAM_NAMES)
     p2idx = findfirst(isequal(param_combination[2]), PARAM_NAMES)
     return p1idx, p2idx
 end
 
+"""Update the parameters inplace in the newparams array"""
 function update_params!(newvals, newparams, p1idx, p2idx)
     newparams[p1idx] = newvals[1]
     newparams[p2idx] = newvals[2]
 end
-
-
 
 
 
@@ -209,9 +210,10 @@ end
 """Parameter constraint function, returns a dictionary of parameter names and their ranges"""
 function define_parameter_constraints()
     # Define parameter constraint ranges
-    ka_min, ka_max = 0.001, 100.0   # uM^-1s^-1
-    kb_min, kb_max = 0.001, 1000.0 # s^-1
-    kcat_min, kcat_max = 0.001, 1000.0 # s^-1
+    ka_min, ka_max = -3.0, 1.0  # uM^-1s^-1, log scale
+    kb_min, kb_max = -3.0, 3.0  # s^-1, log scale
+    kcat_min, kcat_max = -3.0, 3.0 # s^-1, log scale
+    df_min, df_max = 1.0, 5.0 # for DF, log scale
 
     param_values = OrderedDict(
         "ka1" => ParamRange(ka_min, ka_max),
@@ -226,7 +228,7 @@ function define_parameter_constraints()
         "ka7" => ParamRange(ka_min, ka_max),
         "kb7" => ParamRange(kb_min, kb_max),
         "kcat7" => ParamRange(kcat_min, kcat_max),
-        "DF" => ParamRange(10.0, 10000.0)
+        "DF" => ParamRange(df_min, df_max)
     )
     return param_values
 end
@@ -242,8 +244,8 @@ function evaluate_2D_parameter_space(paramrange_pair, prob::ODEProblem, paramran
     evalfunc(newparams) = eval_fitness_catcherrors(newparams, prob)
     
     # Get ranges of parameters
-    p1_range = range(paramrange_dict[paramrange_pair[1]].min, paramrange_dict[paramrange_pair[1]].max, length=steps)
-    p2_range = range(paramrange_dict[paramrange_pair[2]].min, paramrange_dict[paramrange_pair[2]].max, length=steps)
+    p1_range = exp10.(range(paramrange_dict[paramrange_pair[1]].min, paramrange_dict[paramrange_pair[1]].max, length=steps))
+    p2_range = exp10.(range(paramrange_dict[paramrange_pair[2]].min, paramrange_dict[paramrange_pair[2]].max, length=steps))
 
     # Get dimensions of parameter space
     p1_length = length(p1_range)
@@ -263,7 +265,7 @@ function evaluate_2D_parameter_space(paramrange_pair, prob::ODEProblem, paramran
             update_params!((p1_range[i], p2_range[j]), newparams, p1idx, p2idx)
             results = evalfunc(newparams)
             oscillation_scores[j, i] = results.fit
-            periods[j, i] = results.fit #< -0.5 ? results.per : 0.0
+            periods[j, i] = results.per #< -0.5 ? results.per : 0.0
             next!(innerprogress)
         end
     end
@@ -271,26 +273,41 @@ function evaluate_2D_parameter_space(paramrange_pair, prob::ODEProblem, paramran
     return (fit = -oscillation_scores, per = periods, ranges = (p1_range, p2_range), names = paramrange_pair)
 end
 
+function unit_labeler(parameter_name)
+    if parameter_name in ["ka1", "ka2", "ka3", "ka4", "ka7"]
+        return "$parameter_name (uM⁻¹ s⁻¹)"
+    elseif parameter_name in ["kb1", "kb2", "kb3", "kb4", "kb7", "kcat1", "kcat7"]
+        return "$parameter_name (s⁻¹)"
+    elseif parameter_name in ["DF"]
+        return "V/A (nm)"
+    else
+        return "unitless"
+    end
+end
+
 
 function plot_oscillation_contour(result)
     p1_range = result.ranges[1]
     p2_range = result.ranges[2]
-    oscplot = contour(p1_range, p2_range, result.fit, title="Oscillation Scores", xlabel=result.names[1], ylabel=result.names[2], color=:vik, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
 
-    # frequencies = ifelse.(result.per .== 0, 0, 1 ./ result.per)
-    freqplot = contour(p1_range, p2_range, result.per, title="Period", xlabel=result.names[1], ylabel=result.names[2], color=:plasma, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
+    oscplot = contour(p1_range, p2_range, result.fit, xscale=:log10, yscale=:log10, 
+                        title="Oscillation Scores", xlabel=unit_labeler(result.names[1]), ylabel=unit_labeler(result.names[2]), colorbar_title="Oscillation Index", color=:vik, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
+
+    frequencies = ifelse.(result.per .== 0, 0, 1 ./ result.per)
+    freqplot = contour(p1_range, p2_range, frequencies, xscale=:log10, yscale=:log10, 
+                        title="Frequencies", xlabel=unit_labeler(result.names[1]), ylabel=unit_labeler(result.names[2]), colorbar_title="Frequency (Hz)", color=:plasma, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
     plot(oscplot, freqplot, layout=(2,1), size=(1000, 800))
 end
 
 
-testresult = evaluate_2D_parameter_space(("ka2", "V/A"), prob; steps =1000)
-
+testresult = evaluate_2D_parameter_space(("ka1", "DF"), prob; steps =300)
+testpers = testresult.per
 
 #* Plot oscillatory regions of 2D parameter space with contour or heatplot
 testplot = plot_oscillation_contour(testresult)
 savefig(testplot, joinpath(@__DIR__, "testplot_ka2_DF.png"))
 
-gr()
+
 
 
 function evaluate_and_plot_all_2D_combinations(prob::ODEProblem, paramrange_dict::OrderedDict=define_parameter_constraints(); steps=300, savepath="./OscillatorPaper/FigureGenerationScripts/Figures/ContourPlots")
@@ -315,18 +332,10 @@ function evaluate_and_plot_all_2D_combinations(prob::ODEProblem, paramrange_dict
         #Save to a file
         savefig(comboplot, joinpath(savepath, "$(combination[1])_$(combination[2]).png"))
     end
-
     # Return the dictionary with all results
     return result_dict
 end
 
-result_dict = evaluate_and_plot_all_2D_combinations(prob; steps=1000)
+result_dict = evaluate_and_plot_all_2D_combinations(prob; steps=300)
 
 
-function testfunc(x)
-    x * "teehee"
-    x^2
-    return x
-end
-
-testfunc(1)

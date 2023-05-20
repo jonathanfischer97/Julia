@@ -1,7 +1,12 @@
 {
     "[julia]": {
         "editor.quickSuggestions": {
-            "other": "off"
+            "other": "on"
         }
-    }
+    },
+    "window.zoomLevel": 0,
+    "julia.environmentPath": "/home/local/WIN/jfisch27/.julia/environments/v1.9",
+    "julia.additionalArgs": [
+
+    ]
 }
