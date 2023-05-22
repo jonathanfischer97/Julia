@@ -125,12 +125,12 @@ begin
             return 0., 0.
         else
             # Calculate amplitudes and periods
-            @inbounds amps = [(vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min))]
             @inbounds pers = [sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1)]
+            @inbounds amps = [(vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min))]
 
             # Calculate means of amplitudes and periods
-            amp = mean(amps)
             per = mean(pers)
+            amp = mean(amps)
 
             return per, amp
         end
@@ -173,8 +173,6 @@ function eval_fitness_catcherrors(p,  prob::ODEProblem)
         end
     end
     fitness, period, amplitude = CostFunction(Y)
-
-
     return (fit = -fitness, per = period, amp = amplitude)
 end
 

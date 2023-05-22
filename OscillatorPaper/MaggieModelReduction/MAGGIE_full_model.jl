@@ -7,13 +7,13 @@ begin
     using Evolutionary, FFTW
     using Random
     using Distributions
-    using DataFrames
-    using Unitful: µM, nm, s
+    # using DataFrames
+    # using Unitful: µM, nm, s
     using BenchmarkTools, Profile, ProgressMeter
     # using MultivariateStats, UMAP, TSne, StatsPlots
-    using GlobalSensitivity, QuasiMonteCarlo
+    # using GlobalSensitivity, QuasiMonteCarlo
     using LinearAlgebra
-    using BifurcationKit, Setfield, ForwardDiff, Parameters; const BK = BifurcationKit
+    # using BifurcationKit, Setfield, ForwardDiff, Parameters; const BK = BifurcationKit
     using ColorSchemes, Plots.PlotMeasures
     using OrderedCollections
     using Combinatorics
