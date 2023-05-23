@@ -64,11 +64,26 @@ end
 
 
 
-"""Cost function that catches errors and returns 1.0 if there is an error"""
-function eval_fitness_catcherrors(p,  prob::ODEProblem)
+"""Evaluate the fitness of an individual with new parameters"""
+function eval_param_fitness(params::Vector{Float64},  prob::ODEProblem)
+    # remake with new parameters
+    new_prob = remake(prob, p=params)
+    return eval_fitness_catcherrors(new_prob)
+end
+
+"""Evaluate the fitness of an individual with new initial conditions"""
+function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem)
+    # remake with new initial conditions
+    new_prob = remake(prob, u0=initial_conditions)
+    return eval_fitness_catcherrors(new_prob)
+end
+
+"""Function called by wrappers that actually solves the ODE and catches errors, returns named tuple of fitness, period, and amplitude \n
+    DON'T USE WITH GA, RETURNS MORE THAN ONE VALUE"""
+function eval_fitness_catcherrors(prob::ODEProblem)
     Y = nothing
     try 
-        Y = solve(remake(prob, p=p), saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
+        Y = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
         if Y.retcode in (ReturnCode.Unstable, ReturnCode.MaxIters) || any(x==1 for array in isnan.(Y) for x in array) || any(x==1 for array in isless.(Y, 0.0) for x in array)
             return 1.0
         end
@@ -83,11 +98,43 @@ function eval_fitness_catcherrors(p,  prob::ODEProblem)
     return (fit = -fitness, per = period, amp = amplitude)
 end
 
+
+
+
+
+
+"""Custom data structure to store the period and amplitude of each individual"""
+struct PeriodAmplitudes
+    peramps::Dict{Vector{Float64}, Tuple{Float64, Float64}}
+
+    PeriodAmplitudes() = new(Dict{Vector{Float64}, Tuple{Float64, Float64}}())
+end    
+
+"""Helper function to update the period and amplitude of an individual, using in place in CostFunction"""
+function update_peramp!(tracker::PeriodAmplitudes, parameters::Vector{Float64}, values::Tuple{Float64, Float64})
+    tracker.peramps[parameters] = values
+end
+
+
+"""Evaluate the fitness of an individual with new parameters and track periods and amplitudes"""
+function eval_param_fitness(params::Vector{Float64},  prob::ODEProblem, tracker::PeriodAmplitudes)
+    # remake with new parameters
+    new_prob = remake(prob, p=params)
+    return eval_fitness_catcherrors!(new_prob, tracker)
+end
+
+"""Evaluate the fitness of an individual with new initial conditions and track periods and amplitudes"""
+function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem, tracker::PeriodAmplitudes)
+    # remake with new initial conditions
+    new_prob = remake(prob, u0=initial_conditions)
+    return eval_fitness_catcherrors!(new_prob, tracker)
+end
+
 """Cost function that also updates the period and amplitude in the tracker"""
-function eval_fitness_catcherrors!(tracker::PeriodAmplitudes, p::Vector{Float64},  prob::ODEProblem)
+function eval_fitness_catcherrors!(prob::ODEProblem, peramp_tracker::PeriodAmplitudes)
     Y = nothing
     try 
-        Y = solve(remake(prob, p=p), saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
+        Y = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
         if Y.retcode in (ReturnCode.Unstable, ReturnCode.MaxIters) || any(x==1 for array in isnan.(Y) for x in array) || any(x==1 for array in isless.(Y, 0.0) for x in array)
             return 1.0
         end
@@ -101,22 +148,10 @@ function eval_fitness_catcherrors!(tracker::PeriodAmplitudes, p::Vector{Float64}
     fitness, period, amplitude = CostFunction(Y)
 
     # Update the additional values stored in the tracker
-    update_peramp!(tracker, p, (period, amplitude))
+    update_peramp!(peramp_tracker, p, (period, amplitude))
 
     return -fitness
 end
 
 
 
-"""Custom data structure to store the period and amplitude of each individual"""
-struct PeriodAmplitudes
-    peramps::Dict{Vector{Float64}, Tuple{Float64, Float64}}
-
-    PeriodAmplitudes() = new(Dict{Vector{Float64}, Tuple{Float64, Float64}}())
-end    
-
-
-"""Helper function to update the period and amplitude of an individual, using in place in CostFunction"""
-function update_peramp!(tracker::PeriodAmplitudes, parameters::Vector{Float64}, values::Tuple{Float64, Float64})
-    tracker.peramps[parameters] = values
-end
