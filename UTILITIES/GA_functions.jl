@@ -9,12 +9,12 @@ abstract type ConstraintType end
 
 """Wrapper around NamedTuple for parameter constraints"""
 struct ParameterConstraints <: ConstraintType
-    constraints::NamedTuple
+    data::NamedTuple
 end
 
 """Wrapper around NamedTuple for initial condition constraints"""
 struct InitialConditionConstraints <: ConstraintType
-    constraints::NamedTuple
+    data::NamedTuple
 end
 
 
@@ -169,9 +169,17 @@ end
 
 #! MISCALAENOUS FUNCTIONS ##
 """Find the indices of the inputs in a NAME array"""
-function find_indices(combination, NAMES::Vector{String})
+function find_indices(combination::Vector{String}, NAMES::Vector{String})
     p1idx = findfirst(isequal(combination[1]), NAMES)
     p2idx = findfirst(isequal(combination[2]), NAMES)
+    return p1idx, p2idx
+end
+
+function find_indices(combination::Vector{Symbol}, NAMES::Vector{String})
+    str1 = string(combination[1])
+    str2 = string(combination[2])
+    p1idx = findfirst(isequal(str1), NAMES)
+    p2idx = findfirst(isequal(str2), NAMES)
     return p1idx, p2idx
 end
 

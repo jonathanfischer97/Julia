@@ -89,7 +89,7 @@ end
 
 """Returns the function factory for the cost function, referencing the ODE problem, tracker, and fixed inputs with closure"""
 function make_fitness_function_with_fixed_inputs(evalfunc!::Function, prob::ODEProblem, peramp_tracker::PeriodAmplitudes, fixed_input_pair::Vector{NamedTuple}, input_names::Vector{String})
-    fixed_input_idxs = find_indices((fixed_input_pair[1].name, fixed_input_pair[2].name), input_names) # Get the indices of the fixed inputs.
+    fixed_input_idxs = find_indices([fixed_input_pair[1].name, fixed_input_pair[2].name], input_names) # Get the indices of the fixed inputs.
     function fitness_function_factory(input::Vector{Float64})
         # Create a new input vector that includes the fixed inputs.
         new_input = Vector{Float64}(undef, length(input) + length(fixed_inputs))
@@ -173,7 +173,7 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
     avg_periods = []
     avg_amplitudes = []
 
-    input_names::Vector{String} = [constraintrange.name for constraintrange in constraints.constraints] # Get the names of the inputs.
+    input_names::Vector{String} = [constraintrange.name for constraintrange in constraints.data] # Get the names of the inputs.
 
     constraints isa ParameterConstraints ? nominal_values = prob.p : nominal_values = vcat(prob.u0[1],prob.u0[3:5]) # Get the nominal values of the inputs depending on whether they are parameters or initial conditions. 
     
@@ -190,12 +190,12 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
         variable_constraints = deepcopy(constraints)
 
         # Remove the fixed parameters from the constraints
-        filter!(x -> x.name != combo[1].name && x.name != combo[2].name, variable_constraints.constraints)
+        filter!(x -> x.name != combo[1].name && x.name != combo[2].name, variable_constraints.data)
 
         # Create a new instance of PeriodAmplitudes for each param_pair loop
         peramp_tracker = PeriodAmplitudes()
 
-        fixed_fitness_function_factory = () -> make_fitness_function_with_fixed_inputs(eval_ic_fitness, variable_constraints, peramp_tracker, combo, input_names)
+        fixed_fitness_function_factory = () -> make_fitness_function_with_fixed_inputs(eval_ic_fitness, prob, peramp_tracker, combo, input_names)
 
         # Run the optimization function to get the oscillatory points
         _, oscillatory_points, _ = run_GA(constraints, fixed_fitness_function_factory; population_size = 8000, iterations = 8) #? Vector of oscillatory points
