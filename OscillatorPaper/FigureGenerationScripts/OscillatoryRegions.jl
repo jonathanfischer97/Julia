@@ -184,7 +184,7 @@ function evaluate_and_plot_all_2D_combinations(prob::ODEProblem, constraints::Co
         result = evaluate_2D_solution_space(combination, prob, constraints; steps)
 
         # Get string names from pair
-        name1, name2 = constraints_data[combination[1]].name, constraints_data[combination[2]].name
+        name1, name2 = constraints.data[combination[1]].name, constraints.data[combination[2]].name
 
         # Store the result in the dictionary
         result_dict[name1*"_"*name2] = result
