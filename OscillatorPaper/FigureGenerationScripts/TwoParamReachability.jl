@@ -22,8 +22,8 @@ begin
     # using LazySets, Polyhedra
     default(lw = 2, size = (1000, 600))
     # plotlyjs()
-    gr()
-    using Base.Threads
+    # gr()
+    # using Base.Threads
 end
 
 # import the Catalyst model "fullrn"
@@ -62,31 +62,6 @@ begin
 end
 
 
-#! Get NamedTuple of constraints of initial conditions
-initialcondition_constraints = define_initialcondition_constraints()
-
-
-
-"""Make new fitness function that splices fixed parameters/ICs into the GA individual vector"""
-function make_new_fitness_function(evalfunc!::Function, prob::ODEProblem, peramp_tracker::PeriodAmplitudes, fixed_inputs::NamedTuple)
-    function new_fitness_function(input::Vector{Float64})
-        combined_input = Vector{Float64}(undef, length(input) + length(fixed_inputs))
-        i_fixed, i_var = 1, 1
-
-        for (i, key) in enumerate(keys(param_values))
-            if key in keys(fixed_inputs)
-                combined_inputs[i] = fixed_inputs[key]
-                i_fixed += 1
-            else
-                combined_inputs[i] = input[i_var]
-                i_var += 1
-            end
-        end
-        return evalfunc!(combined_input::Vector{Float64}, prob::ODEProblem, peramp_tracker::PeriodAmplitudes)
-    end
-    return new_fitness_function
-end
-
 """Returns the function factory for the cost function, referencing the ODE problem, tracker, and fixed inputs with closure"""
 function make_fitness_function_with_fixed_inputs(evalfunc!::Function, prob::ODEProblem, peramp_tracker::PeriodAmplitudes, fixed_input_pair::Vector{NamedTuple}, input_names::Vector{String})
     fixed_input_idxs = find_indices([fixed_input_pair[1].name, fixed_input_pair[2].name], input_names) # Get the indices of the fixed inputs.
@@ -115,16 +90,74 @@ end
 
 
 
+# function generate_random_points(param_values, n_samples)
+#     random_points = Vector{Vector{Float64}}(undef, 0)
+#     for _ in 1:n_samples
+#         point = []
+#         for key in keys(param_values)
+#             min_val = param_values[key]["min"]
+#             max_val = param_values[key]["max"]
+#             element = rand(min_val:0.001:max_val)
+#             push!(point, element)
+#         end
+#         push!(random_points, point)
+#     end
+#     return random_points
+# end
+
+
+#! TESTING MONTE CARLO WITH SINGLE GA RUN 
+myconstraints = define_parameter_constraints()
+testresult = run_GA(constraints, fullprob; population_size = 1000, parallelization=:thread) #? Vector of oscillatory points
+
+
+population_size = 1000
+
+# Generate the initial population.
+pop = generate_population(myconstraints, population_size)
+
+# Create constraints using the min and max values from param_values.
+boxconstraints = BoxConstraints([constraintrange.min for constraintrange in myconstraints.data], [constraintrange.max for constraintrange in myconstraints.data])
+
+# Define options for the GA.
+opts = Evolutionary.Options(abstol=1e-12, reltol=1e-10, iterations=10, 
+                    store_trace = true, show_trace=true, show_every=1, parallelization=:thread)
+
+# Define the range of possible values for each parameter.
+mutation_scalar = 0.5; mutation_range = fill(mutation_scalar, length(myconstraints.data))
+
+# Define the GA method.
+mthd = GA(populationSize = population_size, selection = tournament(Int(population_size/10)),
+crossover = TPX, crossoverRate = 0.5,
+mutation  = BGA(mutation_range, 2), mutationRate = 0.7)
+
+# Create a tracker to store the period and amplitude of each individual.
+peramp_tracker = PeriodAmplitudes()
+
+# Define the fitness function by calling the closure (holds prob, tracker, etc.).
+fitness_function = make_fitness_function(eval_param_fitness, fullprob, peramp_tracker)
+
+# Run the optimization.
+result = Evolutionary.optimize(fitness_function, boxconstraints, mthd, pop, opts)
+
+
+
+
+
+
 """Monte carlo sampling to estimate bounding volume"""
-function monte_carlo_volume(points::Vector{Vector{T}}, param_values::OrderedDict, n_samples::Int) where {T<:Real}
+function monte_carlo_volume(points::Vector{Vector{Float64}}, constraints::ConstraintType, n_samples::Int = 10000)
     n_points, dim = length(points), length(points[1])
 
+    # Extract data from constraints
+    constraint_tuple = constraints.data
+
     # Calculate the total volume using the parameter constraint ranges
-    total_volume = prod([param_values[key]["max"] - param_values[key]["min"] for key in keys(param_values)])
-    @info "Total parameter volume: $total_volume"
+    total_volume = prod([constraint_tuple[key].max - constraint_tuple[key].min for key in keys(constraints_)])
+    @info "Total solution volume: $total_volume"
 
     # Generate random points within the bounds specified by param_values
-    random_points = [rand() * (param_values[key]["max"] - param_values[key]["min"]) + param_values[key]["min"] for key in keys(param_values) for _ in 1:n_samples]
+    random_points = [rand() * (constraint_tuple[key].max - constraint_tuple[key].min) + constraint_tuple[key].min for key in keys(constraint_tuple) for _ in 1:n_samples]
 
     # Reshape the random_points into an array of vectors
     random_points = reshape(random_points, (dim, n_samples))
@@ -142,26 +175,6 @@ function monte_carlo_volume(points::Vector{Vector{T}}, param_values::OrderedDict
 
     return estimated_volume
 end
-
-monte_carlo_volume(fitinds, param_values, 10000)
-
-function generate_random_points(param_values, n_samples)
-    random_points = Vector{Vector{Float64}}(undef, 0)
-    for _ in 1:n_samples
-        point = []
-        for key in keys(param_values)
-            min_val = param_values[key]["min"]
-            max_val = param_values[key]["max"]
-            element = rand(min_val:0.001:max_val)
-            push!(point, element)
-        end
-        push!(random_points, point)
-    end
-    return random_points
-end
-
-random_points = generate_random_points(param_values, 1000)
-
 
 
 """Compare the allowed solution space for when each pair of inputs is fixed"""
@@ -202,7 +215,7 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
 
         #! START HERE ##
         # Compute convex hull volume of the oscillatory region in parameter space
-        volume = monte_carlo_volume(oscillatory_points)
+        volume = monte_carlo_volume(oscillatory_points, constraints)
  
 
         # Compute the volume of the oscillatory region in parameter space

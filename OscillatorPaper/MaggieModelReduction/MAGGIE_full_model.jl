@@ -284,7 +284,7 @@ wrapped_fitness(params) = fitness_function(tracker, params)
 begin
     population_size = 10000
     pop = generate_population(param_values, population_size)
-    constraints = BoxConstraints([param_values[p]["min"] for p in keys(param_values)], [param_values[p]["max"] for p in keys(param_values)])
+    myconstraints = BoxConstraints([param_values[p]["min"] for p in keys(param_values)], [param_values[p]["max"] for p in keys(param_values)])
     opts = Evolutionary.Options(abstol=1e-2, reltol=1.00, successive_f_tol = 5, iterations=10, store_trace = true, 
             show_trace=true, show_every=1, parallelization=:thread)
     common_range = 0.5; valrange = fill(common_range, length(param_values))
@@ -296,7 +296,7 @@ begin
     progress = ProgressThresh(opts.abstol, "Converging: ")
 
     # Optimization
-    result = Evolutionary.optimize(wrapped_fitness, constraints, mthd, pop, opts)
+    result = Evolutionary.optimize(wrapped_fitness, myconstraints, mthd, pop, opts)
 
     # Get the population map
     fitpops = [gen.metadata["populationmap"] for gen in result.trace]

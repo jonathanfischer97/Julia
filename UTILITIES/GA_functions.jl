@@ -64,25 +64,10 @@ end
 
 
 #! GENERATE POPULATION FUNCTIONS ##
-# """Function that generates population of log-uniform sampled random parameter values"""
-# function generate_population_loguniform(param_constraints::NamedTuple, n::Int)
-#     params = keys(param_constraints)
-#     n_params = length(params)
-#     population = Matrix{Float64}(undef, n_params, n)
-#     for i in 1:n
-#         for (ind, param) in enumerate(params)
-#             constraint_range = param_constraints[param]
-#             min_val = constraint_range.min
-#             max_val = constraint_range.max
-#             min_val < max_val ? population[ind, i] = exp10(rand(Uniform(min_val, max_val))) : population[ind, i] = exp10(min_val)
-#         end
-#     end
-#     return [collect(population[:, i]) for i in 1:n]
-# end
 
 """Function that generates population of log-uniform sampled random parameter values"""
 function generate_population(param_constraints::ParameterConstraints, n::Int)
-    population = [exp10.(rand(Uniform(param.min, param.max), n)) for param in param_constraints.constraints]
+    population = [exp10.(rand(Uniform(param.min, param.max), n)) for param in param_constraints.data]
     population = transpose(hcat(population...))
 
     return [population[:, i] for i in 1:n]
@@ -90,7 +75,7 @@ end
 
 """Function that generates population of uniform sampled random initial conditions"""
 function generate_population(initialcondition_constraints::InitialConditionConstraints, n::Int)
-    population = [rand(Uniform(param.min, param.max), n) for param in initialcondition_constraints.constraints]
+    population = [rand(Uniform(param.min, param.max), n) for param in initialcondition_constraints.data]
     population = transpose(hcat(population...))
 
     return [population[:, i] for i in 1:n]
@@ -120,44 +105,46 @@ end
 
 
 
-"""Returns the function factory for the cost function, referencing the ODE problem and tracker with closure"""
+#! MAIN FUNCTIONS ##
+"""Returns the fitness function for the cost function, referencing the ODE problem and tracker with closure"""
 function make_fitness_function(evalfunc!::Function, prob::ODEProblem, peramp_tracker::PeriodAmplitudes)
-    function fitness_function_factory(input::Vector{Float64})
+    function fitness_function(input::Vector{Float64})
         #? Returns a cost function method that takes in just a vector of parameters/ICs and references the ODE problem and tracker
-        return evalfunc!(input::Vector{Float64}, prob::ODEProblem, peramp_tracker::PeriodAmplitudes)
+        return evalfunc!(input, prob, peramp_tracker)
     end
-    return fitness_function_factory
+    return fitness_function
 end
 
-
-
 """Runs the genetic algorithm, returning the result, array of all evaluated point vectors with their fitness, and the tracker values"""
-function run_GA(constraints::ConstraintType, fitness_function_factory_closure::Function; population_size = 10000,
-                    abstol=1e-12, reltol=1e-10, successive_f_tol = 5, iterations=10)
+function run_GA(constraints::ConstraintType, prob::ODEProblem, fitness_function_factory::Function = make_fitness_function; population_size = 10000,
+                    abstol=1e-12, reltol=1e-10, successive_f_tol = 5, iterations=10, parallelization = :thread)
 
     # Generate the initial population.
     pop = generate_population(constraints, population_size)
 
     # Create constraints using the min and max values from param_values.
-    boxconstraints = BoxConstraints([constraintrange.min for constraintrange in constraints], [constraintrange.max for constraintrange in constraints])
+    boxconstraints = BoxConstraints([constraintrange.min for constraintrange in constraints.data], [constraintrange.max for constraintrange in constraints.data])
 
     # Define options for the GA.
     opts = Evolutionary.Options(abstol=abstol, reltol=reltol, successive_f_tol = successive_f_tol, iterations=iterations, 
-                        store_trace = true, show_trace=true, show_every=1, parallelization=:thread)
+                        store_trace = true, show_trace=true, show_every=1, parallelization=parallelization)
 
     # Define the range of possible values for each parameter.
-    mutation_scalar = 0.5; mutation_range = fill(mutation_scalar, length(constraints))
+    mutation_scalar = 0.5; mutation_range = fill(mutation_scalar, length(constraints.data))
 
     # Define the GA method.
     mthd = GA(populationSize = population_size, selection = tournament(Int(population_size/10)),
     crossover = TPX, crossoverRate = 0.5,
     mutation  = BGA(mutation_range, 2), mutationRate = 0.7)
 
+    # Create a tracker to store the period and amplitude of each individual.
+    peramp_tracker = PeriodAmplitudes()
+
     # Define the fitness function by calling the closure (holds prob, tracker, etc.).
-    fitness_function_factory = fitness_function_factory_closure()
+    fitness_function = fitness_function_factory(eval_param_fitness, prob, peramp_tracker)
 
     # Run the optimization.
-    result = Evolutionary.optimize(fitness_function_factory, boxconstraints, mthd, pop, opts)
+    result = Evolutionary.optimize(fitness_function, boxconstraints, mthd, pop, opts)
 
     # Extract all evaluated point vectors with their fitness values.
     allpoints = [gen.metadata["populationmap"] for gen in result.trace]
@@ -165,6 +152,7 @@ function run_GA(constraints::ConstraintType, fitness_function_factory_closure::F
 
     return result, allpoints, peramp_tracker.peramps
 end
+
 
 
 #! MISCALAENOUS FUNCTIONS ##
