@@ -165,11 +165,29 @@ end
 
 
 """Cost function that catches errors and returns 1.0 if there is an error"""
-function eval_fitness_catcherrors(tracker::PeriodAmplitudes, p::Vector{Float64},  prob::ODEProblem)
+function eval_fitness_catcherrors(p::Vector{Float64},  prob::ODEProblem)
     Y = nothing
     try 
-        Y = solve(remake(prob, p=p), saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
-        if Y.retcode in (ReturnCode.Unstable, ReturnCode.MaxIters) || any(x==1 for array in isnan.(Y) for x in array) || any(x==1 for array in isless.(Y, 0.0) for x in array)
+        Y = solve(remake(prob, p=p), Rosenbrock23(), saveat=0.1, save_idxs=1, maxiters=100000, verbose=false)
+        if Y.retcode in (ReturnCode.Unstable, ReturnCode.MaxIters) #|| any(x==1 for array in isnan.(Y) for x in array) || any(x==1 for array in isless.(Y, 0.0) for x in array)
+            return 1.0
+        end
+    catch e 
+        if e isa DomainError #catch domain errors
+            return 1.0
+        else
+            rethrow(e) #rethrow other errors
+        end
+    end
+    fitness, period, amplitude = CostFunction(Y)
+    return -fitness
+end
+
+function eval_fitness_catcherrors(p::Vector{Float64},  prob::ODEProblem, peramp_tracker::PeriodAmplitudes)
+    Y = nothing
+    try 
+        Y = solve(remake(prob, p=p), Rosenbrock23(), saveat=0.1, save_idxs=1, maxiters=100000, verbose=false)
+        if Y.retcode in (ReturnCode.Unstable, ReturnCode.MaxIters) #|| any(x==1 for array in isnan.(Y) for x in array) || any(x==1 for array in isless.(Y, 0.0) for x in array)
             return 1.0
         end
     catch e 
@@ -182,8 +200,7 @@ function eval_fitness_catcherrors(tracker::PeriodAmplitudes, p::Vector{Float64},
     fitness, period, amplitude = CostFunction(Y)
 
     # Update the additional values stored in the tracker
-    update_peramp!(tracker, p, (period, amplitude))
-
+    update_peramp!(peramp_tracker, p, (period, amplitude)) 
     return -fitness
 end
 
@@ -260,13 +277,22 @@ function Evolutionary.show(io::IO, t::Evolutionary.OptimizationTraceRecord)
     return
 end
 
+function value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}}, 
+                    F::AbstractVector, xs::AbstractVector{TX}) where {TC,TF<:Real,TX}
+    n = length(xs)
+    Threads.@threads for i in 1:n
+        F[i] = value(obj, xs[i])
+    end
+    F
+end
+
 
 
 #! SINGLE RUN GENETIC ALGORITHM ##
 """Wrapper function to create a fitness function that includes your ODE problem as a constant"""
 function make_fitness_function(func::Function, prob::ODEProblem)
-    function fitness_function(tracker::PeriodAmplitudes, p::Vector{Float64})
-        return func(tracker, p, prob)
+    function fitness_function(p::Vector{Float64})
+        return func(p, prob)
     end
     return fitness_function
 end
@@ -276,13 +302,10 @@ tracker = PeriodAmplitudes()
 
 fitness_function = make_fitness_function(eval_fitness_catcherrors, prob) # Create a fitness function that includes your ODE problem as a constant
 
-# Wrap the fitness_function call to work with the Evolutionary.jl optimize function
-wrapped_fitness(params) = fitness_function(tracker, params)
-
 
 #! Optimization block
 begin
-    population_size = 10000
+    population_size = 1000
     pop = generate_population(param_values, population_size)
     myconstraints = BoxConstraints([param_values[p]["min"] for p in keys(param_values)], [param_values[p]["max"] for p in keys(param_values)])
     opts = Evolutionary.Options(abstol=1e-2, reltol=1.00, successive_f_tol = 5, iterations=10, store_trace = true, 
@@ -296,7 +319,7 @@ begin
     progress = ProgressThresh(opts.abstol, "Converging: ")
 
     # Optimization
-    result = Evolutionary.optimize(wrapped_fitness, myconstraints, mthd, pop, opts)
+    result = Evolutionary.optimize(fitness_function, myconstraints, mthd, pop, opts)
 
     # Get the population map
     fitpops = [gen.metadata["populationmap"] for gen in result.trace]
