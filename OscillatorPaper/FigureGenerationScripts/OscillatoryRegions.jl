@@ -44,7 +44,7 @@ begin
     p = [x[2] for x in psym]
         
     #? Initial condition list
-    usym = [:L => 0.0, :Lp => 3.0, :K => 0.5, :P => 0.3, :A => 2.0, :LpA => 0.0, :LK => 0.0, 
+    usym = [:L => 3.0, :Lp => 0.0, :K => 0.5, :P => 0.3, :A => 2.0, :LpA => 0.0, :LK => 0.0, 
             :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, 
             :AKL => 0.0, :APLp => 0.0]
     u0 = [x[2] for x in usym]
@@ -54,10 +54,10 @@ begin
 
     #? Create ODE problem and solve
     fullprob = ODEProblem(fullrn, u0, tspan, p)
-    # sol = solve(prob, saveat=0.1, save_idxs=1)
+    sol = solve(fullprob, saveat=0.1, save_idxs=1)
 
     #? Plot the results
-    # plot(sol)
+    plot(sol)
 end
 
 
@@ -123,7 +123,7 @@ function evaluate_2D_solution_space(paramrange_pair::Vector{Symbol}, prob::ODEPr
             update_params!((p1_range[i], p2_range[j]), newparams, p1idx, p2idx)
             results = evalfunc_closed(newparams)
             oscillation_scores[j, i] = results.fit
-            periods[j, i] = results.per #< -0.5 ? results.per : 0.0
+            periods[j, i] = results.fit < -0.1 ? results.per : 0.0
             next!(innerprogress)
         end
     end
@@ -141,22 +141,22 @@ function unit_labeler(name)
     elseif name in ["DF"]
         return "V/A (nm)"
     else #is IC concentration
-        return "(μM)"
+        return "$name (μM)"
     end
 end
 
 
-function plot_oscillation_contour(result; axis_scaling=:log10)
+function plot_oscillation_contour(result; xscaling=:log10, yscaling=:log10)
     var1_range = result.ranges[1]
     var2_range = result.ranges[2]
 
-    oscplot = contour(var1_range, var2_range, result.fit, xscale=axis_scaling, yscale=axis_scaling, 
+    oscplot = contour(var1_range, var2_range, result.fit, xscale=xscaling, yscale=yscaling, 
                         title="Oscillation Scores", xlabel=unit_labeler(result.names[1]), ylabel=unit_labeler(result.names[2]), colorbar_title="Oscillation Index", color=:vik, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
 
     frequencies = ifelse.(result.per .== 0, 0, 1 ./ result.per)
-    freqplot = contour(var1_range, var2_range, frequencies, xscale=axis_scaling, yscale=axis_scaling, 
+    freqplot = contour(var1_range, var2_range, frequencies, xscale=xscaling, yscale=yscaling, 
                         title="Frequencies", xlabel=unit_labeler(result.names[1]), ylabel=unit_labeler(result.names[2]), colorbar_title="Frequency (Hz)", color=:plasma, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
-    plot(oscplot, freqplot, layout=(2,1), size=(1000, 800))
+    plot(oscplot, freqplot, layout=(2,1), size=(1000, 1000))
 end
 
 
@@ -164,7 +164,7 @@ testresult = evaluate_2D_solution_space([:L, :A], fullprob, define_initialcondit
 testpers = testresult.per
 
 #* Plot oscillatory regions of 2D parameter space with contour or heatplot
-testplot = plot_oscillation_contour(testresult)
+testplot = plot_oscillation_contour(testresult; xscaling=:identity, yscaling=:identity)
 savefig(testplot, joinpath(@__DIR__, "testplot_ka2_DF.png"))
 
 
@@ -190,14 +190,14 @@ function evaluate_and_plot_all_2D_combinations(prob::ODEProblem, constraints::Co
         result_dict[name1*"_"*name2] = result
 
         # Plot the result depending on the type of constraints
-        constraints isa ParameterConstraints ? comboplot = plot_oscillation_contour(result) : comboplot = plot_oscillation_contour(result, axis_scaling=:identity)
+        constraints isa ParameterConstraints ? comboplot = plot_oscillation_contour(result) : comboplot = plot_oscillation_contour(result; xscaling=:identity, yscaling=:identity)
 
         #Save to a file
-        savefig(comboplot, joinpath(savepath, "$name1_$name2.png"))
+        savefig(comboplot, joinpath(savepath, "$(name1)_$(name2).png"))
     end
     # Return the dictionary with all results
     return result_dict
 end
 
-IC_result_dict = evaluate_and_plot_all_2D_combinations(fullprob, define_initialcondition_constraints(); steps=300)
+IC_result_dict = evaluate_and_plot_all_2D_combinations(fullprob, define_initialcondition_constraints(); steps=500)
 

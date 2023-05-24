@@ -46,7 +46,7 @@ function define_parameter_constraints(; karange = (-3.0, 1.0), kbrange = (-3.0, 
 end
 
 """Initial condition constraint function, returns a named tuple of variable names (L, K, P, A) and their ranges"""
-function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinaserange = (0.1, 3.0), phosphataserange = (0.1, 3.0), ap2range = (0.1, 3.0))
+function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinaserange = (0.1, 10.0), phosphataserange = (0.1, 10.0), ap2range = (0.1, 10.0))
     # Define parameter constraint ranges
     lipid_min, lipid_max = lipidrange  # uM
     kinase_min, kinase_max = kinaserange  # uM
@@ -54,10 +54,10 @@ function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinasera
     ap2_min, ap2_max = ap2range # uM
 
     return InitialConditionConstraints((
-        L = ConstraintRange("L", lipid_min, lipid_max),
-        K = ConstraintRange("K", kinase_min, kinase_max),
-        P = ConstraintRange("P", phosphatase_min, phosphatase_max),
-        A = ConstraintRange("A", ap2_min, ap2_max)
+        L = ConstraintRange("PIP/PIP2", lipid_min, lipid_max),
+        K = ConstraintRange("Kinase", kinase_min, kinase_max),
+        P = ConstraintRange("Phosphatase", phosphatase_min, phosphatase_max),
+        A = ConstraintRange("AP2", ap2_min, ap2_max)
     ))
 end
 
