@@ -26,6 +26,8 @@ begin
     # using Base.Threads
 end
 
+include("../../UTILITIES/EvolutionaryOverloads.jl")
+
 # import the Catalyst model "fullrn"
 include("../../UTILITIES/ReactionNetwork.jl")
 
@@ -63,9 +65,9 @@ end
 
 
 """Returns the function factory for the cost function, referencing the ODE problem, tracker, and fixed inputs with closure"""
-function make_fitness_function_with_fixed_inputs(evalfunc!::Function, prob::ODEProblem, peramp_tracker::PeriodAmplitudes, fixed_input_pair::Vector{NamedTuple}, input_names::Vector{String})
+function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_pair::Vector{NamedTuple}, input_names::Vector{String})
     fixed_input_idxs = find_indices([fixed_input_pair[1].name, fixed_input_pair[2].name], input_names) # Get the indices of the fixed inputs.
-    function fitness_function_factory(input::Vector{Float64})
+    function fitness_function(input::Vector{Float64})
         # Create a new input vector that includes the fixed inputs.
         new_input = Vector{Float64}(undef, length(input) + length(fixed_inputs))
 
@@ -83,9 +85,9 @@ function make_fitness_function_with_fixed_inputs(evalfunc!::Function, prob::ODEP
             end
         end
 
-        return evalfunc!(new_input, prob, peramp_tracker)
+        return evalfunc(new_input, prob)
     end
-    return fitness_function_factory
+    return fitness_function
 end
 
 
@@ -108,7 +110,7 @@ end
 
 #! TESTING MONTE CARLO WITH SINGLE GA RUN 
 myconstraints = define_parameter_constraints()
-testresult = run_GA(constraints, fullprob; population_size = 1000, parallelization=:thread) #? Vector of oscillatory points
+testresult = run_GA(constraints, fullprob, make_fitness_function; population_size = 1000, parallelization=:thread) #? Vector of oscillatory points
 
 
 population_size = 1000

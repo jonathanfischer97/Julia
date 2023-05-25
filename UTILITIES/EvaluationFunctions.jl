@@ -95,7 +95,7 @@ function eval_fitness_catcherrors(prob::ODEProblem)
         end
     end
     fitness, period, amplitude = CostFunction(Y)
-    return (fit = -fitness, per = period, amp = amplitude)
+    return [-fitness, period, amplitude]
 end
 
 
@@ -103,55 +103,55 @@ end
 
 
 
-"""Custom data structure to store the period and amplitude of each individual"""
-struct PeriodAmplitudes
-    peramps::Dict{Vector{Float64}, Tuple{Float64, Float64}}
+# """Custom data structure to store the period and amplitude of each individual"""
+# struct PeriodAmplitudes
+#     peramps::Dict{Vector{Float64}, Tuple{Float64, Float64}}
 
-    PeriodAmplitudes() = new(Dict{Vector{Float64}, Tuple{Float64, Float64}}())
-end    
+#     PeriodAmplitudes() = new(Dict{Vector{Float64}, Tuple{Float64, Float64}}())
+# end    
 
-"""Helper function to update the period and amplitude of an individual, using in place in CostFunction"""
-function update_peramp!(tracker::PeriodAmplitudes, parameters::Vector{Float64}, values::Tuple{Float64, Float64})
-    tracker.peramps[parameters] = values
-end
+# """Helper function to update the period and amplitude of an individual, using in place in CostFunction"""
+# function update_peramp!(tracker::PeriodAmplitudes, parameters::Vector{Float64}, values::Tuple{Float64, Float64})
+#     tracker.peramps[parameters] = values
+# end
 
 
-"""Evaluate the fitness of an individual with new parameters and track periods and amplitudes"""
-function eval_param_fitness(params::Vector{Float64},  prob::ODEProblem, tracker::PeriodAmplitudes)
-    # remake with new parameters
-    new_prob = remake(prob, p=params)
-    return eval_fitness_catcherrors!(new_prob, tracker)
-end
+# """Evaluate the fitness of an individual with new parameters and track periods and amplitudes"""
+# function eval_param_fitness(params::Vector{Float64},  prob::ODEProblem, tracker::PeriodAmplitudes)
+#     # remake with new parameters
+#     new_prob = remake(prob, p=params)
+#     return eval_fitness_catcherrors!(new_prob, tracker)
+# end
 
-"""Evaluate the fitness of an individual with new initial conditions and track periods and amplitudes"""
-function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem, tracker::PeriodAmplitudes)
-    # remake with new initial conditions
-    new_prob = remake(prob, u0=initial_conditions)
-    return eval_fitness_catcherrors!(new_prob, tracker)
-end
+# """Evaluate the fitness of an individual with new initial conditions and track periods and amplitudes"""
+# function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem, tracker::PeriodAmplitudes)
+#     # remake with new initial conditions
+#     new_prob = remake(prob, u0=initial_conditions)
+#     return eval_fitness_catcherrors!(new_prob, tracker)
+# end
 
-"""Cost function that also updates the period and amplitude in the tracker"""
-function eval_fitness_catcherrors!(prob::ODEProblem, peramp_tracker::PeriodAmplitudes)
-    Y = nothing
-    try 
-        Y = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
-        if Y.retcode in (ReturnCode.Unstable, ReturnCode.MaxIters) || any(x==1 for array in isnan.(Y) for x in array) || any(x==1 for array in isless.(Y, 0.0) for x in array)
-            return 1.0
-        end
-    catch e 
-        if e isa DomainError #catch domain errors
-            return 1.0
-        else
-            rethrow(e) #rethrow other errors
-        end
-    end
-    fitness, period, amplitude = CostFunction(Y)
+# """Cost function that also updates the period and amplitude in the tracker"""
+# function eval_fitness_catcherrors!(prob::ODEProblem, peramp_tracker::PeriodAmplitudes)
+#     Y = nothing
+#     try 
+#         Y = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
+#         if Y.retcode in (ReturnCode.Unstable, ReturnCode.MaxIters) || any(x==1 for array in isnan.(Y) for x in array) || any(x==1 for array in isless.(Y, 0.0) for x in array)
+#             return 1.0
+#         end
+#     catch e 
+#         if e isa DomainError #catch domain errors
+#             return 1.0
+#         else
+#             rethrow(e) #rethrow other errors
+#         end
+#     end
+#     fitness, period, amplitude = CostFunction(Y)
 
-    # Update the additional values stored in the tracker
-    update_peramp!(peramp_tracker, p, (period, amplitude))
+#     # Update the additional values stored in the tracker
+#     update_peramp!(peramp_tracker, p, (period, amplitude))
 
-    return -fitness
-end
+#     return -fitness
+# end
 
 
 

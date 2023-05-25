@@ -82,29 +82,6 @@ function generate_population(initialcondition_constraints::InitialConditionConst
 end
 
 
-
-
-#! OVERRIDES FOR Evolutionary.jl ##
-"""Trace override function"""
-function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population, method::GA, options)
-    record["populationmap"] = [(ind=population[i], fit=state.fitpop[i]) for i in eachindex(population)]
-end
-
-"""Show override function to prevent printing large arrays"""
-function Evolutionary.show(io::IO, t::Evolutionary.OptimizationTraceRecord)
-    print(io, lpad("$(t.iteration)",6))
-    print(io, "   ")
-    print(io, lpad("$(t.value)",14))
-    for (key, value) in t.metadata
-        if !isa(value, AbstractArray)
-            print(io, "\n * $key: $value")
-        end
-    end
-    return
-end
-
-
-
 #! MAIN FUNCTIONS ##
 """Returns the fitness function for the cost function, referencing the ODE problem and tracker with closure"""
 function make_fitness_function(evalfunc!::Function, prob::ODEProblem, peramp_tracker::PeriodAmplitudes)
@@ -116,7 +93,7 @@ function make_fitness_function(evalfunc!::Function, prob::ODEProblem, peramp_tra
 end
 
 """Runs the genetic algorithm, returning the result, array of all evaluated point vectors with their fitness, and the tracker values"""
-function run_GA(constraints::ConstraintType, prob::ODEProblem, fitness_function_factory::Function = make_fitness_function; population_size = 10000,
+function run_GA(constraints::ConstraintType, prob::ODEProblem, fitness_function_factory::Function; population_size = 10000,
                     abstol=1e-12, reltol=1e-10, successive_f_tol = 5, iterations=10, parallelization = :thread)
 
     # Generate the initial population.
@@ -137,20 +114,17 @@ function run_GA(constraints::ConstraintType, prob::ODEProblem, fitness_function_
     crossover = TPX, crossoverRate = 0.5,
     mutation  = BGA(mutation_range, 2), mutationRate = 0.7)
 
-    # Create a tracker to store the period and amplitude of each individual.
-    peramp_tracker = PeriodAmplitudes()
 
     # Define the fitness function by calling the closure (holds prob, tracker, etc.).
-    fitness_function = fitness_function_factory(eval_param_fitness, prob, peramp_tracker)
+    fitness_function = fitness_function_factory(eval_param_fitness, prob)
 
     # Run the optimization.
     result = Evolutionary.optimize(fitness_function, boxconstraints, mthd, pop, opts)
 
-    # Extract all evaluated point vectors with their fitness values.
-    allpoints = [gen.metadata["populationmap"] for gen in result.trace]
-    allpoints = reduce(vcat, allpoints)
-
-    return result, allpoints, peramp_tracker.peramps
+    # Get the individual, fitness, and extradata of the population
+    record = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace])
+    
+    return result, record
 end
 
 

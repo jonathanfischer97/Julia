@@ -56,6 +56,13 @@ fullrn = @reaction_network fullrn begin
     kcat7, APLp --> L + AP #dephosphorylation of lipid
 end  
 
+using AppleAccelerate
+AppleAccelerate.@replaceBase ceil floor trunc round exp expm1 log log10 sin cos sqrt copysign abs
+
+@benchmark round(1.59897987)
+@benchmark AppleAccelerate.ceil(1.5)
+
+
 #! Solve model for arbitrary oscillatory parameters and initial conditions
 begin
 #parameter list
@@ -82,6 +89,21 @@ begin
 end
 
 
+@benchmark solve(prob, saveat=0.1)
+
+testarray = rand(Float64, (1000,1000))
+@benchmark ceil.(testarray)
+@benchmark AppleAccelerate.ceil(testarray)
+
+X = randn(1_000_000);
+@which exp.(1) # standard libm function
+@which AppleAccelerate.exp(X) # Accelerate array-oriented function
+
+
+Meta.parse("x=1")
+JuliaSyntax.parse("x=1")
+
+[x for x in p, y in u0]
 #! Helper functions for cost function ## 
 begin
     """Get summed difference of peaks in the frequency domain"""
@@ -306,9 +328,6 @@ function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}},
     F, E
 end
 
-
-
-
 """Initialization of my custom GA algorithm state that captures additional data from the objective function\n
     - `method` is the GA method\n
     - `options` is the options dictionary\n
@@ -357,7 +376,6 @@ function Evolutionary.update_state!(objfun, constraints, state::CustomGAState, p
         subs = offspringSize+i
         offspring[subs] = copy(parents[fitidxs[i]])
     end
-
     # perform mutation
     Evolutionary.mutate!(offspring, method, constraints, rng=rng)
 
