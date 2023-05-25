@@ -87,7 +87,8 @@ end
 #! Define the function to evaluate the 2D solution space for oscillations
 function evaluate_2D_solution_space(paramrange_pair::Vector{Symbol}, prob::ODEProblem, constraints::ConstraintType; steps=300)
     # Get string names from pair
-    p1name, p2name = (string(paramrange_pair[1]), string(paramrange_pair[2]))
+    p1name = getproperty(constraints.data, paramrange_pair[1]).name
+    p2name = getproperty(constraints.data, paramrange_pair[2]).name
 
     constraints isa ParameterConstraints ? NAMES = PARAM_NAMES : NAMES = VAR_NAMES #TODO Make this generic
 
@@ -150,6 +151,11 @@ function plot_oscillation_contour(result; xscaling=:log10, yscaling=:log10)
     var1_range = result.ranges[1]
     var2_range = result.ranges[2]
 
+    # xscaling = xscaling
+    # if "PIP/PIP2" in result.names
+    #     xscaling = :log10
+    # end
+
     oscplot = contour(var1_range, var2_range, result.fit, xscale=xscaling, yscale=yscaling, 
                         title="Oscillation Scores", xlabel=unit_labeler(result.names[1]), ylabel=unit_labeler(result.names[2]), colorbar_title="Oscillation Index", color=:vik, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
 
@@ -160,7 +166,8 @@ function plot_oscillation_contour(result; xscaling=:log10, yscaling=:log10)
 end
 
 
-testresult = evaluate_2D_solution_space([:L, :A], fullprob, define_initialcondition_constraints(); steps =300)
+
+testresult = evaluate_2D_solution_space([:L, :A], fullprob, icranges; steps =300)
 testpers = testresult.per
 
 #* Plot oscillatory regions of 2D parameter space with contour or heatplot
@@ -184,7 +191,7 @@ function evaluate_and_plot_all_2D_combinations(prob::ODEProblem, constraints::Co
         result = evaluate_2D_solution_space(combination, prob, constraints; steps)
 
         # Get string names from pair
-        name1, name2 = constraints.data[combination[1]].name, constraints.data[combination[2]].name
+        name1, name2 = result.names
 
         # Store the result in the dictionary
         result_dict[name1*"_"*name2] = result
@@ -199,5 +206,6 @@ function evaluate_and_plot_all_2D_combinations(prob::ODEProblem, constraints::Co
     return result_dict
 end
 
-IC_result_dict = evaluate_and_plot_all_2D_combinations(fullprob, define_initialcondition_constraints(); steps=500)
+icranges = define_initialcondition_constraints(;lipidrange=(0.1, 20.0), kinaserange=(0.1,5.0), phosphataserange=(0.1,5.0), ap2range=(0.1,20.0))
+IC_result_dict = evaluate_and_plot_all_2D_combinations(fullprob, icranges; steps=1000)
 
