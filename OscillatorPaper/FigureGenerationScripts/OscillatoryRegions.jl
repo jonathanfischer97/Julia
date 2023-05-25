@@ -117,14 +117,14 @@ function evaluate_2D_solution_space(paramrange_pair::Vector{Symbol}, prob::ODEPr
     # Create progress bar
     innerprogress = Progress(p1_length*p2_length, dt = 0.1, desc="Evaluating $p1name : $p2name solution space... ", color=:red)
 
-    # Evaluate parameter space
+
     @threads for i in 1:p1_length
         newparams = copy(prob.u0) #TODO Make this generic
         for j in 1:p2_length
             update_params!((p1_range[i], p2_range[j]), newparams, p1idx, p2idx)
             results = evalfunc_closed(newparams)
-            oscillation_scores[j, i] = results.fit
-            periods[j, i] = results.fit < -0.1 ? results.per : 0.0
+            oscillation_scores[j, i] = results[1]
+            periods[j, i] = results[1] < -0.1 ? results[2] : 0.0
             next!(innerprogress)
         end
     end

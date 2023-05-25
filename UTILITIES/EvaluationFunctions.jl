@@ -24,7 +24,7 @@ end
 
 """Calculates the period and amplitude of each individual in the population"""
 function getPerAmp(sol::ODESolution)
-    # Find peaks and calculate amplitudes and periods
+    #$ Find peaks and calculate amplitudes and periods
     indx_max, vals_max = findmaxima(sol.u, 1)
     indx_min, vals_min = findminima(sol.u, 1)
 
@@ -63,7 +63,7 @@ function CostFunction(Y::ODESolution)
 end
 
 
-
+#! EVALUATION FUNCTIONS ## 
 """Evaluate the fitness of an individual with new parameters"""
 function eval_param_fitness(params::Vector{Float64},  prob::ODEProblem)
     # remake with new parameters
@@ -78,8 +78,7 @@ function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem)
     return eval_fitness_catcherrors(new_prob)
 end
 
-"""Function called by wrappers that actually solves the ODE and catches errors, returns named tuple of fitness, period, and amplitude \n
-    DON'T USE WITH GA, RETURNS MORE THAN ONE VALUE"""
+"""Function called by wrappers that actually solves the ODE and catches errors, returns named tuple of fitness, period, and amplitude"""
 function eval_fitness_catcherrors(prob::ODEProblem)
     Y = nothing
     try 
