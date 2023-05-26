@@ -16,8 +16,12 @@ Evolutionary.value(s::CustomGAState) = s.fitness #return the fitness of the fitt
 Evolutionary.minimizer(s::CustomGAState) = s.fittest #return the fittest individual
 
 """Trace override function"""
-function Evolutionary.trace!(record::Dict{String,Any}, objfun, state::CustomGAState, population, method::GA, options)
+function Evolutionary.trace!(record::Dict{String,NamedTuple}, objfun, state::CustomGAState, population, method::GA, options)
     record["staterecord"] = [(ind=population[i], fit=state.fitpop[i], per=state.extradata[i][1], amp=state.extradata[i][2]) for i in eachindex(population)]
+end
+
+function Evolutionary.trace!(record::Dict{String,NamedTuple}, objfun, state, population, method::GA, options)
+    record["staterecord"] = [(ind=population[i], fit=state.fitpop[i]) for i in eachindex(population)]
 end
 
 """Show override function to prevent printing large arrays"""

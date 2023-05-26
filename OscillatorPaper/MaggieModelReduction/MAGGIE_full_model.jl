@@ -56,11 +56,11 @@ fullrn = @reaction_network fullrn begin
     kcat7, APLp --> L + AP #dephosphorylation of lipid
 end  
 
-using AppleAccelerate
-AppleAccelerate.@replaceBase ceil floor trunc round exp expm1 log log10 sin cos sqrt copysign abs
+# using AppleAccelerate
+# AppleAccelerate.@replaceBase ceil floor trunc round exp expm1 log log10 sin cos sqrt copysign abs
 
-@benchmark round(1.59897987)
-@benchmark AppleAccelerate.ceil(1.5)
+# @benchmark round(1.59897987)
+# @benchmark AppleAccelerate.ceil(1.5)
 
 
 #! Solve model for arbitrary oscillatory parameters and initial conditions
@@ -85,19 +85,19 @@ begin
     prob = ODEProblem(fullrn, u0, tspan, p)
     sol = solve(prob, saveat=0.1) #solve adaptively
     #* plot the results save
-    plot(sol)
+    # plot(sol)
 end
 
 
-@benchmark solve(prob, saveat=0.1)
+# @benchmark solve(prob, saveat=0.1)
 
-testarray = rand(Float64, (1000,1000))
-@benchmark ceil.(testarray)
-@benchmark AppleAccelerate.ceil(testarray)
+# testarray = rand(Float64, (1000,1000))
+# @benchmark ceil.(testarray)
+# @benchmark AppleAccelerate.ceil(testarray)
 
-X = randn(1_000_000);
-@which exp.(1) # standard libm function
-@which AppleAccelerate.exp(X) # Accelerate array-oriented function
+# X = randn(1_000_000);
+# @which exp.(1) # standard libm function
+# @which AppleAccelerate.exp(X) # Accelerate array-oriented function
 
 
 Meta.parse("x=1")
@@ -175,13 +175,13 @@ end
 begin
     """Custom data structure to store the period and amplitude of each individual"""
     struct PeriodAmplitudes
-        peramps::Dict{Vector{Float64}, Tuple{Float64, Float64}}
+        peramps::Vector{Vector{Float64}}
     
         PeriodAmplitudes() = new(Dict{Vector{Float64}, Tuple{Float64, Float64}}())
     end    
 
-    function update_peramp!(tracker::PeriodAmplitudes, parameters::Vector{Float64}, values::Tuple{Float64, Float64})
-        tracker.peramps[parameters] = values
+    function update_peramp!(tracker::PeriodAmplitudes, idx, values::Tuple{Float64, Float64})
+        tracker.peramps[idx] = values
     end
 end
 
@@ -284,8 +284,8 @@ end
 
 #! OVERRIDES FOR Evolutionary.jl ##
 """Trace override function"""
-function Evolutionary.trace!(record::Dict{String,Any}, objfun, state::CustomGAState, population, method::GA, options)
-    record["staterecord"] = [(ind=population[i], fit=state.fitpop[i], per=state.extradata[i][1], amp=state.extradata[i][2]) for i in eachindex(population)]
+function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population, method::GA, options)
+    record["staterecord"] = [(ind=population[i], fit=state.fitpop[i]) for i in eachindex(population)]
 end
 
 """Show override function to prevent printing large arrays"""
@@ -875,7 +875,7 @@ function make_new_fitness_function(func::Function, prob::ODEProblem, fixed_param
             end
         end
 
-        return func(tracker, p_combined, prob)
+        return func(p_combined, prob, tracker)
     end
     return new_fitness_function
 end
@@ -909,7 +909,7 @@ function monte_carlo_volume(points::Vector{Vector{T}}, param_values::OrderedDict
 end
 
 
-monte_carlo_volume(fitinds, param_values, 10000)
+monte_carlo_volume(random_points, param_values, 10000)
 
 function generate_random_points(param_values, n_samples)
     random_points = Vector{Vector{Float64}}(undef, 0)
@@ -960,21 +960,12 @@ function reachability_analysis(param_values::OrderedDict{String, Dict{String, Fl
         oscillatory_points = optimize_parameters(variable_param_values, wrapped_fitness_function)::Vector{Vector{Float64}} #? Vector of oscillatory points
 
         # Compute convex hull volume of the oscillatory region in parameter space
-        volume = LazySets.volume(oscillatory_points)
-        variable_param_keys = collect(keys(variable_param_values))
-        min_values = OrderedDict(p => Inf for p in variable_param_keys)
-        max_values = OrderedDict(p => -Inf for p in variable_param_keys)
+        mcvolume = monte_carlo_volume(oscillatory_points, param_values, 10000)
+ 
 
-        for point in oscillatory_points
-            vals = point.ind
-            for (p, val) in zip(variable_param_keys, vals)
-                min_values[p] = min(min_values[p], val)
-                max_values[p] = max(max_values[p], val)
-            end
-        end
-
-        # Compute the volume of the oscillatory region in parameter space
-        @show normalized_volume = prod((max(0, max_values[p] - min_values[p]) / (param_values[p]["max"] - param_values[p]["min"])) for p in variable_param_keys)
+        # Normalize the volume by something (#?total volume?)
+        # normalized_volume = prod((max(0, max_values[p] - min_values[p]) / (param_values[p]["max"] - param_values[p]["min"])) for p in variable_param_keys)
+        normalized_volume = mcvolume 
         if normalized_volume == 0.0
             @warn "Oscillatory region has zero volume"
             continue

@@ -191,10 +191,10 @@ end
 """
 generate_population(constraints::InitialConditionConstraints, n::Int)
 
-Generate a population of n individuals for the given initial condition constraints. Each individual is sampled from a uniform distribution within the valid range for each initial condition.
+Generate a population of `n` individuals for the given initial condition constraints. Each individual is sampled from a uniform distribution within the valid range for each initial condition.
 
-Example
-julia
+# Example
+```julia
 constraints = define_initialcondition_constraints(lipidrange = (0.1, 10.0), kinaserange = (0.1, 10.0))
 population = generate_population(constraints, 100)
 ```
@@ -208,7 +208,7 @@ end
 
 
 #< DEFAULT FITNESS FUNCTION FACTORY
-"""Returns the fitness function for the cost function, referencing the ODE problem and tracker with closure"""
+"""Returns the `fitness function(input)` for the cost function, referencing the ODE problem and tracker with closure"""
 function make_fitness_function(evalfunc::Function, prob::ODEProblem)
     function fitness_function(input::Vector{Float64})
         #? Returns a cost function method that takes in just a vector of parameters/ICs and references the ODE problem and tracker
@@ -221,7 +221,7 @@ end
 
 #< RUN GENETIC ALGORITHM OPTIMIZATION ##
 """
-Runs the genetic algorithm, returning the result, and the record named tuple
+Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 """
 function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; population_size = 10000, abstol=1e-12, reltol=1e-10, successive_f_tol = 5, iterations=10, parallelization = :thread)
     # Generate the initial population.
@@ -243,6 +243,7 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     mutation  = BGA(mutation_range, 2), mutationRate = 0.7)
 
     # Make fitness function
+    # @code_warntype fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem)
     fitness_function = fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem)
 
     # Run the optimization.
@@ -259,7 +260,7 @@ end
 
 
 #< MISCALAENOUS FUNCTIONS ##
-"""Find the indices of the inputs in a NAME array"""
+"""Find the indices of the inputs in a `NAME` array"""
 function find_indices(combination::Vector{String}, NAMES::Vector{String})
     p1idx = findfirst(isequal(combination[1]), NAMES)
     p2idx = findfirst(isequal(combination[2]), NAMES)

@@ -1,7 +1,7 @@
 begin 
-    using Plots 
+    # using Plots 
     using Catalyst
-    using DifferentialEquations
+    using OrdinaryDiffEq
     using Statistics
     using Peaks
     using Evolutionary, FFTW
@@ -10,23 +10,24 @@ begin
     # using DataFrames
     # using Unitful
     # using Unitful: µM, nm, s
-    using StaticArrays
-    using BenchmarkTools, Profile, ProgressMeter
+    # using StaticArrays
+    # using BenchmarkTools, Profile, ProgressMeter
     # using MultivariateStats, UMAP, TSne, StatsPlots
     # using GlobalSensitivity, QuasiMonteCarlo
     using LinearAlgebra
     # using BifurcationKit, Setfield, ForwardDiff, Parameters; const BK = BifurcationKit
-    using ColorSchemes, Plots.PlotMeasures
-    using OrderedCollections
+    # using ColorSchemes, Plots.PlotMeasures
+    # using OrderedCollections
     using Combinatorics
     # using LazySets, Polyhedra
-    default(lw = 2, size = (1000, 600))
+    # default(lw = 2, size = (1000, 600))
     # plotlyjs()
     # gr()
     # using Base.Threads
 end
-
-include("../../UTILITIES/EvolutionaryOverloads.jl")
+using JuliaSyntax
+JuliaSyntax.enable_in_core!(true)
+# include("../../UTILITIES/EvolutionaryOverloads.jl")
 
 # import the Catalyst model "fullrn"
 include("../../UTILITIES/ReactionNetwork.jl")
@@ -142,7 +143,7 @@ end
 myconstraints = define_parameter_constraints()
 ga_problem = GAProblem(myconstraints, fullprob)
 ga_problem.eval_function
-testresult = run_GA(ga_problem; population_size = 1000, parallelization=:thread) #? Vector of oscillatory points
+@fastmath run_GA(ga_problem; population_size = 1000, parallelization=:thread) #? Vector of oscillatory points
 
 
 population_size = 1000
