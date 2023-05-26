@@ -74,25 +74,25 @@ end
 """Evaluate the fitness of an individual with new initial conditions"""
 function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem)
     # remake with new initial conditions
-    new_prob = remake(prob, u0=initial_conditions)
+    new_prob = remake(prob, u0=[initial_conditions zeros(length(prob.u0)-length(initial_conditions))])
     return eval_fitness_catcherrors(new_prob)
 end
 
 """Function called by wrappers that actually solves the ODE and catches errors, returns named tuple of fitness, period, and amplitude"""
 function eval_fitness_catcherrors(prob::ODEProblem)
-    Y = nothing
-    try 
+    #Y = nothing
+    #try 
         Y = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
-        if Y.retcode in (ReturnCode.Unstable, ReturnCode.MaxIters) || any(x==1 for array in isnan.(Y) for x in array) || any(x==1 for array in isless.(Y, 0.0) for x in array)
-            return 1.0
-        end
-    catch e 
-        if e isa DomainError #catch domain errors
-            return 1.0
-        else
-            rethrow(e) #rethrow other errors
-        end
-    end
+        # if Y.retcode in (ReturnCode.Unstable, ReturnCode.MaxIters) || any(x==1 for array in isnan.(Y) for x in array) || any(x==1 for array in isless.(Y, 0.0) for x in array)
+        #     return 1.0
+        # end
+    # catch e 
+    #     if e isa DomainError #catch domain errors
+    #         return 1.0
+    #     else
+    #         rethrow(e) #rethrow other errors
+    #     end
+    # end
     fitness, period, amplitude = CostFunction(Y)
     return [-fitness, period, amplitude]
 end

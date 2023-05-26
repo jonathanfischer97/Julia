@@ -50,32 +50,13 @@ Struct encapsulating initial condition constraints. Each field represents a diff
     P::ConstraintRange #* Synaptojanin phosphotase
     A::ConstraintRange #* AP2 adaptor
 end
+
+Base.iterate(C::ConstraintType, state=1) = state > length(fieldnames(typeof(C))) ? nothing : (getfield(C, state), state + 1)
+Base.length(C::ConstraintType) = length(fieldnames(typeof(C)))
+Base.eltype(::Type{<:ConstraintType}) = ConstraintRange
+
 #> END 
 
-#< GA PROBLEM TYPE
-"""
-    GAProblem{T <: ConstraintType}
-
-Struct encapsulating a Genetic Algorithm (GA) optimization problem. It holds the constraints for the problem, the ODE problem to be solved, the fitness function, and any additional keyword arguments.
-
-# Fields
-- `constraints::T`: Constraints for the problem. Either `ParameterConstraints` or `InitialConditionConstraints`.
-- `ode_problem::ODEProblem`: ODE problem to be solved.
-- `fitness_function::Function`: Fitness function, automatically generated with constructor
-- `options::NamedTuple`: Additional keyword arguments for `Evolutionary.Options`.
-"""
-struct GAProblem{T <: ConstraintType}
-    constraints::T
-    ode_problem::ODEProblem
-    fitness_function::Function
-
-    function GAProblem(constraints::T, ode_problem::ODEProblem; fitness_function_maker::Function = make_fitness_function) where T <: ConstraintType
-        evalfunc = T <: ParameterConstraints ? eval_param_fitness : eval_ic_fitness
-        fitness_function = fitness_function_maker(evalfunc, ode_problem)
-        new{T}(constraints, ode_problem, fitness_function)
-    end
-end
-#> END
 
 
 #< CONSTRAINT RANGE CONSTRUCTORS
@@ -101,7 +82,7 @@ function define_parameter_constraints(; karange = (-3.0, 1.0), kbrange = (-3.0, 
     kcat_min, kcat_max = kcatrange # s^-1, log scale
     df_min, df_max = dfrange # for DF, log scale
 
-    return ParameterConstraints((
+    return ParameterConstraints(
         ka1 = ConstraintRange("ka1", ka_min, ka_max),
         kb1 = ConstraintRange("kb1", kb_min, kb_max),
         kcat1 = ConstraintRange("kcat1", kcat_min, kcat_max),
@@ -115,7 +96,7 @@ function define_parameter_constraints(; karange = (-3.0, 1.0), kbrange = (-3.0, 
         kb7 = ConstraintRange("kb7", kb_min, kb_max),
         kcat7 = ConstraintRange("kcat7", kcat_min, kcat_max),
         DF = ConstraintRange("DF", df_min, df_max)
-    ))
+    )
 end
 
 
@@ -141,15 +122,53 @@ function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinasera
     phosphatase_min, phosphatase_max = phosphataserange # uM
     ap2_min, ap2_max = ap2range # uM
 
-    return InitialConditionConstraints((
+    return InitialConditionConstraints(
         L = ConstraintRange("PIP+PIP2", lipid_min, lipid_max),
         K = ConstraintRange("Kinase", kinase_min, kinase_max),
         P = ConstraintRange("Phosphatase", phosphatase_min, phosphatase_max),
         A = ConstraintRange("AP2", ap2_min, ap2_max)
-    ))
+    )
 end
 #> END
 
+
+
+
+#< GA PROBLEM TYPE
+"""
+    GAProblem{T <: ConstraintType}
+
+Struct encapsulating a Genetic Algorithm (GA) optimization problem. It holds the constraints for the problem, the ODE problem to be solved, the fitness function, and any additional keyword arguments.
+
+# Fields
+- `constraints::T`: Constraints for the problem. Either `ParameterConstraints` or `InitialConditionConstraints`.
+- `ode_problem::ODEProblem`: ODE problem to be solved.
+- `fitness_function::Function`: Fitness function, automatically generated with constructor
+- `options::NamedTuple`: Additional keyword arguments for `Evolutionary.Options`.
+"""
+struct GAProblem{T <: ConstraintType}
+    constraints::T
+    ode_problem::ODEProblem
+    eval_function::Function
+
+    function GAProblem(constraints::T, ode_problem::ODEProblem) where T <: ConstraintType
+        evalfunc = T <: ParameterConstraints ? eval_param_fitness : eval_ic_fitness
+        # fitness_function = fitness_function_maker(evalfunc, ode_problem)
+        new{T}(constraints, ode_problem, evalfunc)
+    end
+end
+
+
+function Base.show(io::IO, ::MIME"text/plain", prob::GAProblem) #TODO add labels for nominal values
+    printstyled(io, "GAProblem with constraints:\n"; bold = true, underline=true, color = :green)
+    printstyled(io, prob.constraints, "\n")
+    printstyled(io, "\nNominal parameter values:\n"; bold = true, color = :blue)
+    printstyled(io, prob.ode_problem.p, "\n")
+    printstyled(io, "\nNominal initial conditions:\n"; bold = true, color = :blue)
+    printstyled(io, prob.ode_problem.u0, "\n")
+end
+
+#> END
 
 #< POPULATION GENERATION METHODS
 """
@@ -188,9 +207,7 @@ end
 #> END
 
 
-
-
-#< MAIN FUNCTIONS ##
+#< DEFAULT FITNESS FUNCTION FACTORY
 """Returns the fitness function for the cost function, referencing the ODE problem and tracker with closure"""
 function make_fitness_function(evalfunc::Function, prob::ODEProblem)
     function fitness_function(input::Vector{Float64})
@@ -199,12 +216,14 @@ function make_fitness_function(evalfunc::Function, prob::ODEProblem)
     end
     return fitness_function
 end
+#> END
 
 
+#< RUN GENETIC ALGORITHM OPTIMIZATION ##
 """
 Runs the genetic algorithm, returning the result, and the record named tuple
 """
-function run_GA(ga_problem::GAProblem; population_size = 10000, abstol=1e-12, reltol=1e-10, successive_f_tol = 5, iterations=10, parallelization = :thread)
+function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; population_size = 10000, abstol=1e-12, reltol=1e-10, successive_f_tol = 5, iterations=10, parallelization = :thread)
     # Generate the initial population.
     pop = generate_population(ga_problem.constraints, population_size)
 
@@ -216,15 +235,18 @@ function run_GA(ga_problem::GAProblem; population_size = 10000, abstol=1e-12, re
                         store_trace = true, show_trace=true, show_every=1, parallelization=parallelization)
 
     # Define the range of possible values for each parameter.
-    mutation_scalar = 0.5; mutation_range = fill(mutation_scalar, length(ga_problem.constraints.data))
+    mutation_scalar = 0.5; mutation_range = fill(mutation_scalar, length(ga_problem.constraints))
 
     # Define the GA method.
     mthd = GA(populationSize = population_size, selection = tournament(Int(population_size/10)),
     crossover = TPX, crossoverRate = 0.5,
     mutation  = BGA(mutation_range, 2), mutationRate = 0.7)
 
+    # Make fitness function
+    fitness_function = fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem)
+
     # Run the optimization.
-    result = Evolutionary.optimize(ga_problem.fitness_function, boxconstraints, mthd, pop, opts)
+    result = Evolutionary.optimize(fitness_function, boxconstraints, mthd, pop, opts)
 
     # Get the individual, fitness, and extradata of the population
     record = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace])

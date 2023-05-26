@@ -34,12 +34,20 @@ function Evolutionary.show(io::IO, t::Evolutionary.OptimizationTraceRecord)
 end
 
 
-
 """Modified value! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
 function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}},
-                F::AbstractVector, E::AbstractVector, xs::AbstractVector{TX}) where {TC,TF<:AbstractVector,TX}
+                                F::AbstractVector, E::AbstractVector, xs::AbstractVector{TX}) where {TC,TF<:AbstractVector,TX}
     n = length(xs)
     Threads.@threads for i in 1:n
+        F[i], E[i]... = Evolutionary.value(obj, xs[i])  # get the vector
+    end
+    F, E
+end
+
+function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:serial}},
+                                F::AbstractVector, E::AbstractVector, xs::AbstractVector{TX}) where {TC,TF<:AbstractVector,TX}
+    n = length(xs)
+    for i in 1:n
         F[i], E[i]... = Evolutionary.value(obj, xs[i])  # get the vector
     end
     F, E

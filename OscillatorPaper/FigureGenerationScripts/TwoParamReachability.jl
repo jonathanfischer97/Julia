@@ -7,7 +7,7 @@ begin
     using Evolutionary, FFTW
     using Random
     using Distributions
-    using DataFrames
+    # using DataFrames
     # using Unitful
     # using Unitful: µM, nm, s
     using StaticArrays
@@ -107,10 +107,42 @@ end
 #     return random_points
 # end
 
+# function funclose(f, args...)
+#     function(x)
+#         f([x, args...])
+#     end
+# end
+
+# testclose = funclose(mean, 1.0, 2.0, 3.0, 4.0)
+# testclose(11.0)
+
+# struct TestStruct
+#     func::Function
+
+#     function TestStruct(testfunc::Function, closure::Function=funclose)
+#         testclosure = closure(testfunc, 1.0, 2.0, 3.0, 4.0)
+#         new(testclosure)
+#     end
+# end
+
+# teststruct = TestStruct(mean)
+# teststruct.func(10)
+
+# testoptimize(f) = [f(x) for x in 1:10]
+
+# function testGA(teststruct::TestStruct, optimizerfunction::Function=testoptimize)
+#     optimizerfunction(teststruct.func)
+# end
+
+# testGA(teststruct)
 
 #! TESTING MONTE CARLO WITH SINGLE GA RUN 
+
+
 myconstraints = define_parameter_constraints()
-testresult = run_GA(constraints, fullprob, make_fitness_function; population_size = 1000, parallelization=:thread) #? Vector of oscillatory points
+ga_problem = GAProblem(myconstraints, fullprob)
+ga_problem.eval_function
+testresult = run_GA(ga_problem; population_size = 1000, parallelization=:thread) #? Vector of oscillatory points
 
 
 population_size = 1000
