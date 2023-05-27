@@ -108,77 +108,6 @@ end
 #     return random_points
 # end
 
-# function funclose(f, args...)
-#     function(x)
-#         f([x, args...])
-#     end
-# end
-
-# testclose = funclose(mean, 1.0, 2.0, 3.0, 4.0)
-# testclose(11.0)
-
-# struct TestStruct
-#     func::Function
-
-#     function TestStruct(testfunc::Function, closure::Function=funclose)
-#         testclosure = closure(testfunc, 1.0, 2.0, 3.0, 4.0)
-#         new(testclosure)
-#     end
-# end
-
-# teststruct = TestStruct(mean)
-# teststruct.func(10)
-
-# testoptimize(f) = [f(x) for x in 1:10]
-
-# function testGA(teststruct::TestStruct, optimizerfunction::Function=testoptimize)
-#     optimizerfunction(teststruct.func)
-# end
-
-# testGA(teststruct)
-
-#! TESTING MONTE CARLO WITH SINGLE GA RUN 
-
-
-myconstraints = define_parameter_constraints()
-ga_problem = GAProblem(myconstraints, fullprob)
-ga_problem.eval_function
-@fastmath run_GA(ga_problem; population_size = 1000, parallelization=:thread) #? Vector of oscillatory points
-
-
-population_size = 1000
-
-# Generate the initial population.
-pop = generate_population(myconstraints, population_size)
-
-# Create constraints using the min and max values from param_values.
-boxconstraints = BoxConstraints([constraintrange.min for constraintrange in myconstraints.data], [constraintrange.max for constraintrange in myconstraints.data])
-
-# Define options for the GA.
-opts = Evolutionary.Options(abstol=1e-12, reltol=1e-10, iterations=10, 
-                    store_trace = true, show_trace=true, show_every=1, parallelization=:thread)
-
-# Define the range of possible values for each parameter.
-mutation_scalar = 0.5; mutation_range = fill(mutation_scalar, length(myconstraints.data))
-
-# Define the GA method.
-mthd = GA(populationSize = population_size, selection = tournament(Int(population_size/10)),
-crossover = TPX, crossoverRate = 0.5,
-mutation  = BGA(mutation_range, 2), mutationRate = 0.7)
-
-# Create a tracker to store the period and amplitude of each individual.
-peramp_tracker = PeriodAmplitudes()
-
-# Define the fitness function by calling the closure (holds prob, tracker, etc.).
-fitness_function = make_fitness_function(eval_param_fitness, fullprob, peramp_tracker)
-
-# Run the optimization.
-result = Evolutionary.optimize(fitness_function, boxconstraints, mthd, pop, opts)
-
-
-
-
-
 
 """Monte carlo sampling to estimate bounding volume"""
 function monte_carlo_volume(points::Vector{Vector{Float64}}, constraints::ConstraintType, n_samples::Int = 10000)
@@ -221,7 +150,7 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
     avg_periods = []
     avg_amplitudes = []
 
-    input_names::Vector{String} = [constraintrange.name for constraintrange in constraints.data] # Get the names of the inputs.
+    input_names::Vector{String} = [constraintrange.name for constraintrange in constraints] # Get the names of the inputs.
 
     constraints isa ParameterConstraints ? nominal_values = prob.p : nominal_values = vcat(prob.u0[1],prob.u0[3:5]) # Get the nominal values of the inputs depending on whether they are parameters or initial conditions. 
     
@@ -238,10 +167,8 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
         variable_constraints = deepcopy(constraints)
 
         # Remove the fixed parameters from the constraints
-        filter!(x -> x.name != combo[1].name && x.name != combo[2].name, variable_constraints.data)
+        filter!(x -> x.name != combo[1].name && x.name != combo[2].name, variable_constraints)
 
-        # Create a new instance of PeriodAmplitudes for each param_pair loop
-        peramp_tracker = PeriodAmplitudes()
 
         fixed_fitness_function_factory = () -> make_fitness_function_with_fixed_inputs(eval_ic_fitness, prob, peramp_tracker, combo, input_names)
 

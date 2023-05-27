@@ -30,10 +30,10 @@ end
 include("../../UTILITIES/ReactionNetwork.jl")
 
 # import the cost function and other evaluation functions
-# include("../../UTILITIES/EvaluationFunctions.jl")
+include("../../UTILITIES/EvaluationFunctions.jl")
 
 # import the genetic algorithm and associated functions
-# include("../../UTILITIES/GA_functions.jl")
+include("../../UTILITIES/GA_functions.jl")
 
 #! Solve model for arbitrary oscillatory parameters and initial conditions
 begin
@@ -44,7 +44,7 @@ begin
     p = [x[2] for x in psym]
         
     #? Initial condition list
-    usym = [:L => 0.0, :Lp => 3.0, :K => 0.5, :P => 0.3, :A => 2.0, :LpA => 0.0, :LK => 0.0, 
+    usym = [:L => 3.0,  :K => 0.5, :P => 0.3, :A => 2.0,:Lp => 0.0, :LpA => 0.0, :LK => 0.0, 
             :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, 
             :AKL => 0.0, :APLp => 0.0]
     u0 = [x[2] for x in usym]
@@ -54,97 +54,13 @@ begin
 
     #? Create ODE problem and solve
     fullprob = ODEProblem(fullrn, u0, tspan, p)
-    # sol = solve(prob, saveat=0.1, save_idxs=1)
+    # sol = solve(fullprob, saveat=0.1, save_idxs=1)
 
     #? Plot the results
     # plot(sol)
 end
 
-#! Helper functions for cost function ## 
-begin
-    """Get summed difference of peaks in the frequency domain"""
-    function getDif(indexes::Vector{Int}, arrayData::Vector{Float64}) 
-        idxarrLen = length(indexes)
-        if idxarrLen < 2
-            return 0.0
-        end
-        sum_diff = @inbounds sum(arrayData[indexes[i]] - arrayData[indexes[i+1]] for i in 1:(idxarrLen-1))
-        sum_diff += arrayData[indexes[end]]
-        return sum_diff
-    end
 
-    """Get summed average standard deviation of peaks in the frequency domain"""
-    function getSTD(peakindxs::Vector{Int}, arrayData::Vector{Float64}, window_ratio::Float64) #get average standard deviation of fft peak indexes
-        arrLen = length(arrayData)
-        window = max(1, round(Int, window_ratio * arrLen))
-        sum_std = @inbounds sum(std(arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in peakindxs)
-        return sum_std / length(peakindxs)
-    end
-
-    """Return normalized FFT of solution vector"""
-    function getFrequencies(y::Vector{Float64})
-        res = abs.(rfft(y))
-        return res ./ cld(length(y), 2) #normalize amplitudes
-    end
-
-    """Calculates the period and amplitude of each individual in the population"""
-    function getPerAmp(sol::ODESolution)
-        # Find peaks and calculate amplitudes and periods
-        indx_max, vals_max = findmaxima(sol.u, 1)
-        indx_min, vals_min = findminima(sol.u, 1)
-
-        if length(indx_max) < 2 || length(indx_min) < 2
-            return 0., 0.
-        else
-            # Calculate amplitudes and periods
-            @inbounds amps = [(vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min))]
-            @inbounds pers = [sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1)]
-
-            # Calculate means of amplitudes and periods
-            amp = mean(amps)
-            per = mean(pers)
-
-            return per, amp
-        end
-    end
-
-    """Cost function to be plugged into eval_fitness wrapper"""
-    function CostFunction(Y::ODESolution)
-        #get the fft of the solution
-        fftData = getFrequencies(Y.u)
-        fftindexes = findmaxima(fftData,1)[1] #get the indexes of the peaks in the fft
-        timeindexes = findmaxima(Y.u,10)[1] #get the times of the peaks in the fft
-        if isempty(fftindexes) || length(timeindexes) < 2 #if there are no peaks, return 0
-            return 0.0
-        end
-        std = getSTD(fftindexes, fftData, 0.0001) #get the standard deviation of the peaks
-        diff = getDif(fftindexes, fftData) #get the difference between the peaks
-
-
-        # Return cost, period, and amplitude as a tuple
-        return -std + diff
-    end
-end
-
-
-"""Cost function that catches errors and returns 1.0 if there is an error"""
-function eval_fitness_catcherrors(p::Vector{Float64},  prob::ODEProblem)
-    Y = nothing
-    try 
-        Y = solve(remake(prob, view(u0,1:5)=p), saveat=0.1, save_idxs=1, maxiters=100000, verbose=false)
-        if Y.retcode in (ReturnCode.Unstable, ReturnCode.MaxIters) #|| any(x==1 for array in isnan.(Y) for x in array) || any(x==1 for array in isless.(Y, 0.0) for x in array)
-            return 1.0
-        end
-    catch e 
-        if e isa DomainError #catch domain errors
-            return 1.0
-        else
-            rethrow(e) #rethrow other errors
-        end
-    end
-    fitness = CostFunction(Y)
-    return -fitness
-end
 
 begin
     ## parameter constraint ranges ##
@@ -238,16 +154,16 @@ end
 # Create a PeriodAmplitudes instance
 # tracker = PeriodAmplitudes()
 
-fitness_function = make_fitness_function(eval_fitness_catcherrors, fullprob) # Create a fitness function that includes your ODE problem as a constant
+fitness_function = make_fitness_function(eval_ic_fitness, fullprob) # Create a fitness function that includes your ODE problem as a constant
 
 # using Debugger
 #! Optimization block
-begin
-    population_size = 1000
+function testGAfunc(evalfunc, fitness_function_factory, prob)
+    population_size = 100
     pop = generate_population(ic_values, population_size)
 
     myconstraints = BoxConstraints([ic_values[p]["min"] for p in keys(ic_values)], [ic_values[p]["max"] for p in keys(ic_values)])
-    opts = Evolutionary.Options(abstol=1e-2, reltol=1.00, successive_f_tol = 5, iterations=10, store_trace = true, 
+    opts = Evolutionary.Options(abstol=1e-2, reltol=1.00, successive_f_tol = 5, iterations=5, store_trace = true, 
             show_trace=true, show_every=1, parallelization=:thread)
     common_range = 0.5; valrange = fill(common_range, length(ic_values))
     mthd = GA(populationSize = population_size, selection = tournament(Int(population_size/10)),
@@ -264,13 +180,24 @@ begin
     record = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace])
 
     # Filter out individuals with fitness values less than 0.1
-    fitpops = filter(x -> x.fit < -0.1, record)
+    # fitpops = filter(x -> x.fit < -0.1, record)
 
-    # Get the best solution
-    newp = result.minimizer
-    newsol = solve(remake(fullprob, u0=vcat(newp,zeros(11))))
+    # # Get the best solution
+    # newp = result.minimizer
+    # newsol = solve(remake(fullprob, u0=[newp,zeros(11)]))
 
 
-    #plot the results
-    plot(newsol, xlabel="Time (s)", ylabel="Concentration (mM)", title="Optimized Model")
+    # #plot the results
+    # plot(newsol, xlabel="Time (s)", ylabel="Concentration (mM)", title="Optimized Model")
 end
+
+testGAfunc(eval_ic_fitness, fitness_function, fullprob)
+
+
+ic_constraints = define_initialcondition_constraints()
+
+ga_problem = GAProblem(ic_constraints, fullprob)
+
+run_GA(ga_problem; population_size=100, iterations = 5)
+
+
