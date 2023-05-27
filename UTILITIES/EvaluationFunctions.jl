@@ -1,41 +1,50 @@
 #! Helper functions for cost function ## 
 
 """Get summed difference of peaks in the frequency domain"""
-function getDif(indexes::Vector{Int}, arrayData::Vector{Float64}) 
-    idxarrLen = length(indexes)
-    sum_diff = @inbounds sum(arrayData[indexes[i]] - arrayData[indexes[i+1]] for i in 1:(idxarrLen-1))
-    sum_diff += arrayData[indexes[end]]
+function getDif(peakvals::Vector{Float64}) #todo iterate from both ends simultaneously to deal with symmetry
+    idxarrLen = length(peakvals)
+    sum_diff = @inbounds sum(peakvals[i] - peakvals[i+1] for i in 1:(idxarrLen-1))
+    sum_diff += peakvals[end]
     return sum_diff
 end
 
+function getDif_bidirectional(peakvals::Vector{Float64})
+    idxarrLen = length(peakvals)
+
+    #* iterate from both ends simultaneously to deal with symmetry
+    sum_diff = @inbounds sum((peakvals[i] - peakvals[idxarrLen + 1 - i]) for i in 1:(idxarrLen ÷ 2)) 
+
+    return 2 * sum_diff #* multiply by 2 to account for the fact that we're only summing half of the differences
+end
+
+
+
 """Get summed average standard deviation of peaks in the frequency domain"""
-function getSTD(peakindxs::Vector{Int}, arrayData::Vector{Float64})#, window_ratio::Float64) #get average standard deviation of fft peak indexes
-    arrLen = length(arrayData)
-    window = 1 #max(1, round(Int, window_ratio * arrLen))
-    sum_std = @inbounds sum(std(arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in peakindxs)
-    return sum_std / length(peakindxs)
+function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; window::Int = 1)#, window_ratio::Float64) #get average standard deviation of fft peak indexes
+    arrLen = length(fft_arrayData)
+    sum_std = @inbounds sum(std(fft_arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in fft_peakindxs) #* sum rolling window of standard deviations
+    return sum_std / length(fft_peakindxs) #* divide by number of peaks to get average std
 end
 
 """Return normalized FFT of solution vector"""
-function getFrequencies(y::Vector{Float64})
-    res = abs.(rfft(y))
-    return res ./ cld(length(y), 2) #normalize amplitudes
+function getFrequencies(timeseries::Vector{Float64})
+    res = abs.(rfft(timeseries))
+    return res ./ cld(length(timeseries), 2) #* normalize amplitudes
 end
 
 """Calculates the period and amplitude of each individual in the population"""
-function getPerAmp(sol::ODESolution)
-    #$ Find peaks and calculate amplitudes and periods
-    indx_max, vals_max = findmaxima(sol.u, 1)
-    indx_min, vals_min = findminima(sol.u, 1)
+function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Float64})
+    #* Find peaks of the minima too 
+    indx_min, vals_min = findminima(sol.u, 10)
 
-    if length(indx_max) < 2 || length(indx_min) < 2
+    if length(indx_max) < 2 || length(indx_min) < 2 #* If there are less than 2 extrema, return 0
         return 0., 0.
     else
-        # Calculate amplitudes and periods
+        #* Calculate amplitudes and periods
         @inbounds pers = [sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1)]
         @inbounds amps = [(vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min))]
 
-        # Calculate means of amplitudes and periods
+        #* Calculate means of amplitudes and periods
         per = mean(pers)
         amp = mean(amps)
 
@@ -44,22 +53,22 @@ function getPerAmp(sol::ODESolution)
 end
 
 """Cost function to be plugged into eval_fitness wrapper"""
-function CostFunction(Y::ODESolution)
-    #get the fft of the solution
-    fftData = getFrequencies(Y.u)
-    fftindexes = findmaxima(fftData,1)[1] #get the indexes of the peaks in the fft
-    timeindexes = findmaxima(Y.u,10)[1] #get the times of the peaks in the fft
-    if length(fftindexes) < 2 || length(timeindexes) < 2 #if there are no peaks, return 0
+function CostFunction(sol::ODESolution)
+    #*get the fft of the solution
+    fftData = getFrequencies(sol.u)
+    fft_peakindexes, fft_peakvals = findmaxima(fftData,2) #* get the indexes of the peaks in the fft
+    time_peakindexes, time_peakvals = findmaxima(sol.u,5) #* get the times of the peaks in the fft
+    if length(fft_peakindexes) < 2 || length(time_peakindexes) < 2 #* if there are no peaks in either domain, return 0
         return 0.0, 0.0, 0.0
     end
-    std = getSTD(fftindexes, fftData) #get the standard deviation of the peaks
-    diff = getDif(fftindexes, fftData) #get the difference between the peaks
+    std = getSTD(fft_peakindexes, fftData) #* get the average standard deviation of the peaks in frequency domain
+    diff = getDif(fft_peakvals) #* get the summed difference between the peaks in frequency domain
 
-    # Compute the period and amplitude
-    period, amplitude = getPerAmp(Y)
+    #* Compute the period and amplitude
+    period, amplitude = getPerAmp(sol, time_peakindexes, time_peakvals)
 
-    # Return cost, period, and amplitude as a tuple
-    return -std + diff, period, amplitude
+    #* Return cost, period, and amplitude as a tuple
+    return std - diff, period, amplitude
 end
 
 
@@ -74,26 +83,26 @@ end
 """Evaluate the fitness of an individual with new initial conditions"""
 function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem)
     # remake with new initial conditions
-    new_prob = remake(prob, u0=[initial_conditions zeros(length(prob.u0)-length(initial_conditions))])
-    return solve_for_fitness(new_prob)
+    new_prob = remake(prob, u0=[initial_conditions; zeros(length(prob.u0)-length(initial_conditions))])
+    return solve_for_fitness_peramp(new_prob)
 end
 
 """Utility function to solve the ODE and return the fitness"""
 function solve_for_fitness(prob::ODEProblem)
 
-    Y = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
+    sol = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
 
-    fitness, _, _ = CostFunction(Y)
-    return -fitness
+    fitness, _, _ = CostFunction(sol)
+    return fitness
 end
 
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
 function solve_for_fitness_peramp(prob::ODEProblem)
 
-    Y = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
+    sol = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
 
-    fitness, period, amplitude = CostFunction(Y)
-    return -[fitness, period, amplitude]
+    fitness, period, amplitude = CostFunction(sol)
+    return [fitness, period, amplitude]
 end
 
 
