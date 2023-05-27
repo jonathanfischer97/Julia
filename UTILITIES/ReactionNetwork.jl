@@ -1,10 +1,10 @@
 const PARAM_NAMES = ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "DF"]
-const VAR_NAMES = ["L", "Lp", "K", "P", "A", "LpA", "LK", "LpP", "LpAK", "LpAP", "LpAKL", "LpAPLp", "AK", "AP", "AKL", "APLp"]
+const VAR_NAMES = ["L", "K", "P", "A", "Lp", "LpA", "LK", "LpP", "LpAK", "LpAP", "LpAKL", "LpAPLp", "AK", "AP", "AKL", "APLp"]
 
 """Full oscillator model"""
 fullrn = @reaction_network fullrn begin
     @parameters ka1 kb1 kcat1 ka2 kb2 ka3 kb3 ka4 kb4 ka7 kb7 kcat7 DF
-    @species L(t) Lp(t) K(t) P(t) A(t) LpA(t) LK(t) LpP(t) LpAK(t) LpAP(t) LpAKL(t) LpAPLp(t) AK(t) AP(t) AKL(t) APLp(t)
+    @species L(t) K(t) P(t) A(t) Lp(t) LpA(t) LK(t) LpP(t) LpAK(t) LpAP(t) LpAKL(t) LpAPLp(t) AK(t) AP(t) AKL(t) APLp(t)
     # ALIASES: L = PIP, Lp = PIP2, K = Kinase, P = Phosphatase, A = AP2 
     # reactions between the same binding interfaces will have the same rate constant no matter the dimensionality or complex
     (ka1,kb1), L + K <--> LK # L binding to kinase
