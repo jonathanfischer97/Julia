@@ -23,7 +23,7 @@ end
 
 Struct encapsulating parameter constraints. Each field represents a different parameter, holding a `ConstraintRange` object that defines the valid range for that parameter.
 """
-@kwdef struct ParameterConstraints <: ConstraintType
+@kwdef mutable struct ParameterConstraints <: ConstraintType
     ka1::ConstraintRange
     kb1::ConstraintRange
     kcat1::ConstraintRange
@@ -44,7 +44,7 @@ end
 
 Struct encapsulating initial condition constraints. Each field represents a different initial condition, holding a `ConstraintRange` object that defines the valid range for that initial condition.
 """
-@kwdef struct InitialConditionConstraints <: ConstraintType
+@kwdef mutable struct InitialConditionConstraints <: ConstraintType
     L::ConstraintRange #* PIP
     K::ConstraintRange #* PIP5K kinase
     P::ConstraintRange #* Synaptojanin phosphotase
@@ -54,6 +54,7 @@ end
 Base.iterate(C::ConstraintType, state=1) = state > length(fieldnames(typeof(C))) ? nothing : (getfield(C, state), state + 1)
 Base.length(C::ConstraintType) = length(fieldnames(typeof(C)))
 Base.eltype(::Type{<:ConstraintType}) = ConstraintRange
+Base.filter!
 
 #> END 
 
@@ -255,6 +256,9 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     return result, record
 end
 #> END
+
+
+
 
 
 
