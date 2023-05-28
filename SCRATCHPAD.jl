@@ -32,3 +32,19 @@ eval_ic_fitness(fullprob.u0, fullprob)
 getDif(testpeakidxs, testarray)
 getDif(testpeakvals)
 getDif_bidirectional(testpeakvals)
+
+
+#< Testing Supertypes 
+abstract type AbstractTestType <: ConstraintType end
+
+struct TestType1 <: AbstractTestType 
+    a::Int
+    b::Int
+    c::Int
+end
+
+testype1 = TestType1(1,2,3)
+
+for n in testype1
+    println(n)
+end
