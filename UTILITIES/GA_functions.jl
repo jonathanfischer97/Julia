@@ -20,6 +20,7 @@ struct ConstraintRange
     name::String
     min::Float64
     max::Float64
+    nominal::Float64
 end
 
 """
@@ -28,7 +29,7 @@ end
 Struct encapsulating parameter constraints. Each field represents a different parameter, holding a `ConstraintRange` object that defines the valid range for that parameter.
 """
 mutable struct ParameterConstraints <: ConstraintType
-    constraintranges::Vector{ConstraintRange}
+    ranges::Vector{Pair{Symbol,ConstraintRange}}
 end
 
 """
@@ -37,11 +38,7 @@ end
 Struct encapsulating initial condition constraints. Each field represents a different initial condition, holding a `ConstraintRange` object that defines the valid range for that initial condition.
 """
 mutable struct InitialConditionConstraints <: ConstraintType
-    constraintranges::Vector{ConstraintRange}
-    L::ConstraintRange #* PIP
-    K::ConstraintRange #* PIP5K kinase
-    P::ConstraintRange #* Synaptojanin phosphotase
-    A::ConstraintRange #* AP2 adaptor
+    ranges::Vector{Pair{Symbol,ConstraintRange}}
 end
 #> END 
 
@@ -64,6 +61,10 @@ constraints = define_parameter_constraints(
 ```
 """
 function define_parameter_constraints(; karange = (-3.0, 1.0), kbrange = (-3.0, 3.0), kcatrange = (-3.0, 3.0), dfrange = (1.0, 5.0))
+
+    nominalvals = SVector(:ka1 => 0.009433439939827041, :kb1 => 2.3550169939427845, :kcat1 => 832.7213093872278, :ka2 => 12.993995997539924, :kb2 => 6.150972501791291,
+            :ka3 => 1.3481451097940793, :kb3 => 0.006201726090609513, :ka4 => 0.006277294665474662, :kb4 => 0.9250191811994848, :ka7 => 57.36471615394549, 
+            :kb7 => 0.04411989797898752, :kcat7 => 42.288085868394326, :DF => 3631.050539219606)
     # Define parameter constraint ranges
     ka_min, ka_max = karange  # uM^-1s^-1, log scale
     kb_min, kb_max = kbrange  # s^-1, log scale
@@ -72,19 +73,19 @@ function define_parameter_constraints(; karange = (-3.0, 1.0), kbrange = (-3.0, 
 
     return ParameterConstraints(
         [
-        :ka1 => ConstraintRange("ka1", ka_min, ka_max),
-        :kb1 => ConstraintRange("kb1", kb_min, kb_max),
-        :kcat1 => ConstraintRange("kcat1", kcat_min, kcat_max),
-        :ka2 => ConstraintRange("ka2",ka_min, ka_max),
-        :kb2 => ConstraintRange("kb2",kb_min, kb_max),
-        :ka3 => ConstraintRange("ka3",ka_min, ka_max),
-        :kb3 => ConstraintRange("kb3", kb_min, kb_max),
-        :ka4 => ConstraintRange("ka4", ka_min, ka_max),
-        :kb4 => ConstraintRange("kb4", kb_min, kb_max),
-        :ka7 => ConstraintRange("ka7", ka_min, ka_max),
-        :kb7 => ConstraintRange("kb7", kb_min, kb_max),
-        :kcat7 => ConstraintRange("kcat7", kcat_min, kcat_max),
-        :DF => ConstraintRange("DF", df_min, df_max)
+        :ka1 => ConstraintRange("ka1", ka_min, ka_max, nominalvals[1]),
+        :kb1 => ConstraintRange("kb1", kb_min, kb_max, nominalvals[2]),
+        :kcat1 => ConstraintRange("kcat1", kcat_min, kcat_max, nominalvals[3]),
+        :ka2 => ConstraintRange("ka2",ka_min, ka_max, nominalvals[4]),
+        :kb2 => ConstraintRange("kb2",kb_min, kb_max, nominalvals[5]),
+        :ka3 => ConstraintRange("ka3",ka_min, ka_max, nominalvals[6]),
+        :kb3 => ConstraintRange("kb3", kb_min, kb_max, nominalvals[7]),
+        :ka4 => ConstraintRange("ka4", ka_min, ka_max, nominalvals[8]),
+        :kb4 => ConstraintRange("kb4", kb_min, kb_max, nominalvals[9]),
+        :ka7 => ConstraintRange("ka7", ka_min, ka_max, nominalvals[10]),
+        :kb7 => ConstraintRange("kb7", kb_min, kb_max, nominalvals[11]),
+        :kcat7 => ConstraintRange("kcat7", kcat_min, kcat_max, nominalvals[12]),
+        :DF => ConstraintRange("DF", df_min, df_max, nominalvals[13])
         ]
     )
 end
@@ -106,6 +107,7 @@ constraints = define_initialcondition_constraints(
 ```
 """
 function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinaserange = (0.1, 10.0), phosphataserange = (0.1, 10.0), ap2range = (0.1, 10.0))
+    nominalvals = SVector(:L => 3.0, :K => 0.5, :P => 0.3, :A => 2.0)
     # Define parameter constraint ranges
     lipid_min, lipid_max = lipidrange  # uM
     kinase_min, kinase_max = kinaserange  # uM
@@ -114,10 +116,10 @@ function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinasera
 
     return InitialConditionConstraints(
         [
-        :L => ConstraintRange("PIP+PIP2", lipid_min, lipid_max),
-        :K => ConstraintRange("Kinase", kinase_min, kinase_max),
-        :P => ConstraintRange("Phosphatase", phosphatase_min, phosphatase_max),
-        :A => ConstraintRange("AP2", ap2_min, ap2_max)
+        :L => ConstraintRange("PIP+PIP2", lipid_min, lipid_max, nominalvals[1]),
+        :K => ConstraintRange("Kinase", kinase_min, kinase_max, nominalvals[2]),
+        :P => ConstraintRange("Phosphatase", phosphatase_min, phosphatase_max, nominalvals[3]),
+        :A => ConstraintRange("AP2", ap2_min, ap2_max, nominalvals[4])
         ]
     )
 end
@@ -244,7 +246,7 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     # Get the individual, fitness, and extradata of the population
     record = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace])
     
-    return result, record
+    return record, result
 end
 #> END
 
@@ -267,6 +269,12 @@ function find_indices(combination::Vector{Symbol}, NAMES::Vector{String})
     str2 = string(combination[2])
     p1idx = findfirst(isequal(str1), NAMES)
     p2idx = findfirst(isequal(str2), NAMES)
+    return p1idx, p2idx
+end
+
+function find_indices(combination::Vector{ConstraintRange}, constraints::Vector{ConstraintRange})
+    p1idx = findfirst(isequal(combination[1]), constraints)
+    p2idx = findfirst(isequal(combination[2]), constraints)
     return p1idx, p2idx
 end
 #> END
