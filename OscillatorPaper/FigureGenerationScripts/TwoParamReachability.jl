@@ -1,33 +1,33 @@
 begin 
-    # using Plots 
+    using Plots 
     using Catalyst
-    using OrdinaryDiffEq
+    using DifferentialEquations
     using Statistics
     using Peaks
     using Evolutionary, FFTW
     using Random
     using Distributions
-    # using DataFrames
+    using DataFrames
     # using Unitful
     # using Unitful: µM, nm, s
-    # using StaticArrays
+    using StaticArrays
     # using BenchmarkTools, Profile, ProgressMeter
     # using MultivariateStats, UMAP, TSne, StatsPlots
     # using GlobalSensitivity, QuasiMonteCarlo
     using LinearAlgebra
     # using BifurcationKit, Setfield, ForwardDiff, Parameters; const BK = BifurcationKit
-    # using ColorSchemes, Plots.PlotMeasures
+    using ColorSchemes, Plots.PlotMeasures
     # using OrderedCollections
     using Combinatorics
     # using LazySets, Polyhedra
-    # default(lw = 2, size = (1000, 600))
+    default(lw = 2, size = (1000, 600))
     # plotlyjs()
     # gr()
     # using Base.Threads
 end
-using JuliaSyntax
-JuliaSyntax.enable_in_core!(true)
-# include("../../UTILITIES/EvolutionaryOverloads.jl")
+
+
+include("../../UTILITIES/EvolutionaryOverloads.jl")
 
 # import the Catalyst model "fullrn"
 include("../../UTILITIES/ReactionNetwork.jl")
@@ -48,7 +48,7 @@ begin
     p = [x[2] for x in psym]
         
     #? Initial condition list
-    usym = [:L => 0.0, :Lp => 3.0, :K => 0.5, :P => 0.3, :A => 2.0, :LpA => 0.0, :LK => 0.0, 
+    usym = [:L => 0.0, :K => 0.5, :P => 0.3, :A => 2.0, :Lp => 3.0, :LpA => 0.0, :LK => 0.0, 
             :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, 
             :AKL => 0.0, :APLp => 0.0]
     u0 = [x[2] for x in usym]
@@ -66,8 +66,7 @@ end
 
 
 """Returns the function factory for the cost function, referencing the ODE problem, tracker, and fixed inputs with closure"""
-function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_pair::Vector{NamedTuple}, input_names::Vector{String})
-    fixed_input_idxs = find_indices([fixed_input_pair[1].name, fixed_input_pair[2].name], input_names) # Get the indices of the fixed inputs.
+function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_pair::Vector{ConstraintRange}, pair_idxs::Vector{Int})
     function fitness_function(input::Vector{Float64})
         # Create a new input vector that includes the fixed inputs.
         new_input = Vector{Float64}(undef, length(input) + length(fixed_inputs))
@@ -76,7 +75,7 @@ function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEPr
         fixed_inputs_inserted = 0
 
         for i in eachindex(new_input)
-            if fixed_inputs_inserted < length(fixed_inputs) && i == fixed_input_idxs[fixed_inputs_inserted + 1]
+            if fixed_inputs_inserted < length(fixed_inputs) && i == pair_idxs[fixed_inputs_inserted + 1]
                 # If the current index matches the index of a fixed input, insert the fixed input.
                 new_input[i] = fixed_input_pair[fixed_inputs_inserted + 1].nominal_value
                 fixed_inputs_inserted += 1
@@ -143,37 +142,41 @@ end
 
 """Compare the allowed solution space for when each pair of inputs is fixed"""
 function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
-    # results = OrderedDict{Vector{String}, Tuple{Float64, Int, Float64, Float64, Float64}}()
-    volumes = [] #? Convex hull volume for each fixed pair
-    num_oscillatory_points = []
-    avg_fitnesses = []
-    avg_periods = []
-    avg_amplitudes = []
 
-    input_names::Vector{String} = [constraintrange.name for constraintrange in constraints] # Get the names of the inputs.
+    # Get the nominal values of the inputs depending on whether they are parameters or initial conditions. 
+    @SVector nominal_values = constraints isa ParameterConstraints ? prob.p : nominal_values = prob.u0[1:4] 
 
-    constraints isa ParameterConstraints ? nominal_values = prob.p : nominal_values = vcat(prob.u0[1],prob.u0[3:5]) # Get the nominal values of the inputs depending on whether they are parameters or initial conditions. 
-    
-    name_value_pairs = [(name = input_names[i], nominal_value = nominal_values[i]) for i in eachindex(input_names)] # Get the name-value pairs of the inputs.
     #Now, map each input name to its nominal value within fixed_input_combos. This is what we will loop through
-    fixed_input_combos::Vector{Vector{NamedTuple}} = collect(combinations(name_value_pairs, 2)) # Get all combinations of name:nominalvalue.
+    fixed_pair_combos::Vector{Vector{ConstraintRange}} = collect(combinations(constraint.ranges, 2)) # Get all combinations of name:nominalvalue.
 
-    
-    loopprogress = Progress(length(collect(fixed_param_pairs)), desc ="Looping thru fixed pairs: " , color=:green)
-    for combo in fixed_input_combos
-        @info "Fixed input pair: $(combo[1].name), $(combo[2].name)"
+    loopprogress = Progress(length(collect(fixed_input_combos)), desc ="Looping thru fixed pairs: " , color=:green)
 
-        # Create a copy of the constraints
-        variable_constraints = deepcopy(constraints)
+    # Create a copy of the constraints
+    variable_constraints = deepcopy(constraints)
 
-        # Remove the fixed parameters from the constraints
-        filter!(x -> x.name != combo[1].name && x.name != combo[2].name, variable_constraints)
+    # volumes,
+    # avg_periods,
+    # avg_amplitudes = SizedVector{length(collect(fixed_input_combos)), Float64}(Vector{Float64}(undef, length(collect(fixed_input_combos)))) 
+    # num_oscillatory_points = SizedVector{length(collect(fixed_input_combos)), Int}(Vector{Int}(undef, length(collect(fixed_input_combos)))) 
 
+    #* Make a results dictionary where fixedpair => (volume, avg_period, avg_amplitude, num_oscillatory_points)
+    results = Dict{Tuple{Symbol, Symbol}, NamedTuple{(:volume, :avg_period, :avg_amplitude, :num_oscillatory_points), Tuple{Float64, Float64, Float64, Int}}}() 
 
-        fixed_fitness_function_factory = () -> make_fitness_function_with_fixed_inputs(eval_ic_fitness, prob, peramp_tracker, combo, input_names)
+    for (i, fixedpair) in enumerate(fixed_pair_combos)
+        @info "Fixed input pair: $(fixedpair[1].first), $(fixedpair[2].first)"
+
+        # Remove the fixed parameters from the variable constraints
+        filter!(x -> x.first != fixedpair[1].first && x.first != fixedpair[2].first, variable_constraints.ranges)
+
+        fixed_ga_problem = GAProblem(variable_constraints, prob)
+
+        fixedpair_idxs = find_indices(fixedpair, constraints) # Get the indices of the fixed inputs.
+
+        #* Create a closure for the fitness function that includes the fixed inputs
+        make_fitness_function_closure(evalfunc) = make_fitness_function_with_fixed_inputs(fixed_ga_problem.eval_function, prob, fixedpair, fixedpair_idxs)
 
         # Run the optimization function to get the oscillatory points
-        _, oscillatory_points, _ = run_GA(constraints, fixed_fitness_function_factory; population_size = 8000, iterations = 8) #? Vector of oscillatory points
+        oscillatory_points, _ = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 8000, iterations = 8) #? Vector of oscillatory points
 
         #! START HERE ##
         # Compute convex hull volume of the oscillatory region in parameter space
@@ -181,41 +184,31 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
  
 
         # Compute the volume of the oscillatory region in parameter space
-        @show normalized_volume = prod((max(0, max_values[p] - min_values[p]) / (param_values[p]["max"] - param_values[p]["min"])) for p in variable_param_keys)
-        if normalized_volume == 0.0
-            @warn "Oscillatory region has zero volume"
-            continue
-        end
+        # @show normalized_volume = prod((max(0, max_values[p] - min_values[p]) / (param_values[p]["max"] - param_values[p]["min"])) for p in variable_param_keys)
+        # if normalized_volume == 0.0
+        #     @warn "Oscillatory region has zero volume"
+        #     continue
+        # end
 
         # Calculate the number of oscillatory points
         num_points = length(oscillatory_points)
         @info "Number of oscillatory points: $num_points"
 
-        # Calculate the average fitness value
-        avg_fitness = mean(point.fit for point in oscillatory_points)
-
         # Calculate the average period and amplitude
-        # avg_period = mean(haskey(tracker.peramps, point.ind) ? tracker.peramps[point.ind][1] : 0 for point in oscillatory_points)
-        avg_period = mean(x -> x[2][1], tracker.peramps)
+        avg_period = mean(x -> x.per, oscillatory_points)
         @info "Average period: $avg_period"
-        # avg_amplitude = mean(haskey(tracker.peramps, point.ind) ? tracker.peramps[point.ind][2] : 0 for point in oscillatory_points)
-        avg_amplitude = mean(x -> x[2][2], tracker.peramps)
+
+        avg_amplitude = mean(x -> x.amp, oscillatory_points)
         @info "Average amplitude: $avg_amplitude"
 
 
         # Store the results for the given fixed parameter combination
-        # results[param_pair] = (normalized_volume, num_points, avg_fitness, avg_period, avg_amplitude)
-        push!(volumes, normalized_volume)
-        push!(num_oscillatory_points, num_points)
-        push!(avg_fitnesses, avg_fitness)
-        push!(avg_periods, avg_period)
-        push!(avg_amplitudes, avg_amplitude)
-
+        results[param_pair] = (volume = volume, avg_period = num_points, avg_amplitude, num_oscillatory_points = num_points)
 
         next!(loopprogress)
     end
     # Convert results to DataFrame
-    results_df = DataFrame(combo = collect(fixed_param_pairs), volume = volumes, num_points = num_oscillatory_points, avg_fitness = avg_fitnesses, avg_period = avg_periods, avg_amplitude = avg_amplitudes)
+    results_df = DataFrame(results)
     return results_df
 end
 
