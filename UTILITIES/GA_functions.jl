@@ -2,6 +2,10 @@
 
 abstract type ConstraintType end
 
+Base.iterate(C::ConstraintType, state=1) = state > length(fieldnames(typeof(C))) ? nothing : (getfield(C, state), state + 1)
+Base.length(C::ConstraintType) = length(fieldnames(typeof(C)))
+Base.eltype(::Type{<:ConstraintType}) = ConstraintRange
+
 """
     ConstraintRange
 
@@ -23,20 +27,8 @@ end
 
 Struct encapsulating parameter constraints. Each field represents a different parameter, holding a `ConstraintRange` object that defines the valid range for that parameter.
 """
-@kwdef mutable struct ParameterConstraints <: ConstraintType
-    ka1::ConstraintRange
-    kb1::ConstraintRange
-    kcat1::ConstraintRange
-    ka2::ConstraintRange
-    kb2::ConstraintRange
-    ka3::ConstraintRange
-    kb3::ConstraintRange
-    ka4::ConstraintRange
-    kb4::ConstraintRange
-    ka7::ConstraintRange
-    kb7::ConstraintRange
-    kcat7::ConstraintRange
-    DF::ConstraintRange #* Dimensional factor, or V/A
+mutable struct ParameterConstraints <: ConstraintType
+    constraintranges::Vector{ConstraintRange}
 end
 
 """
@@ -44,18 +36,13 @@ end
 
 Struct encapsulating initial condition constraints. Each field represents a different initial condition, holding a `ConstraintRange` object that defines the valid range for that initial condition.
 """
-@kwdef mutable struct InitialConditionConstraints <: ConstraintType
+mutable struct InitialConditionConstraints <: ConstraintType
+    constraintranges::Vector{ConstraintRange}
     L::ConstraintRange #* PIP
     K::ConstraintRange #* PIP5K kinase
     P::ConstraintRange #* Synaptojanin phosphotase
     A::ConstraintRange #* AP2 adaptor
 end
-
-Base.iterate(C::ConstraintType, state=1) = state > length(fieldnames(typeof(C))) ? nothing : (getfield(C, state), state + 1)
-Base.length(C::ConstraintType) = length(fieldnames(typeof(C)))
-Base.eltype(::Type{<:ConstraintType}) = ConstraintRange
-Base.filter!
-
 #> END 
 
 
@@ -84,19 +71,21 @@ function define_parameter_constraints(; karange = (-3.0, 1.0), kbrange = (-3.0, 
     df_min, df_max = dfrange # for DF, log scale
 
     return ParameterConstraints(
-        ka1 = ConstraintRange("ka1", ka_min, ka_max),
-        kb1 = ConstraintRange("kb1", kb_min, kb_max),
-        kcat1 = ConstraintRange("kcat1", kcat_min, kcat_max),
-        ka2 = ConstraintRange("ka2",ka_min, ka_max),
-        kb2 = ConstraintRange("kb2",kb_min, kb_max),
-        ka3 = ConstraintRange("ka3",ka_min, ka_max),
-        kb3 = ConstraintRange("kb3", kb_min, kb_max),
-        ka4 = ConstraintRange("ka4", ka_min, ka_max),
-        kb4 = ConstraintRange("kb4", kb_min, kb_max),
-        ka7 = ConstraintRange("ka7", ka_min, ka_max),
-        kb7 = ConstraintRange("kb7", kb_min, kb_max),
-        kcat7 = ConstraintRange("kcat7", kcat_min, kcat_max),
-        DF = ConstraintRange("DF", df_min, df_max)
+        [
+        :ka1 => ConstraintRange("ka1", ka_min, ka_max),
+        :kb1 => ConstraintRange("kb1", kb_min, kb_max),
+        :kcat1 => ConstraintRange("kcat1", kcat_min, kcat_max),
+        :ka2 => ConstraintRange("ka2",ka_min, ka_max),
+        :kb2 => ConstraintRange("kb2",kb_min, kb_max),
+        :ka3 => ConstraintRange("ka3",ka_min, ka_max),
+        :kb3 => ConstraintRange("kb3", kb_min, kb_max),
+        :ka4 => ConstraintRange("ka4", ka_min, ka_max),
+        :kb4 => ConstraintRange("kb4", kb_min, kb_max),
+        :ka7 => ConstraintRange("ka7", ka_min, ka_max),
+        :kb7 => ConstraintRange("kb7", kb_min, kb_max),
+        :kcat7 => ConstraintRange("kcat7", kcat_min, kcat_max),
+        :DF => ConstraintRange("DF", df_min, df_max)
+        ]
     )
 end
 
@@ -124,10 +113,12 @@ function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinasera
     ap2_min, ap2_max = ap2range # uM
 
     return InitialConditionConstraints(
-        L = ConstraintRange("PIP+PIP2", lipid_min, lipid_max),
-        K = ConstraintRange("Kinase", kinase_min, kinase_max),
-        P = ConstraintRange("Phosphatase", phosphatase_min, phosphatase_max),
-        A = ConstraintRange("AP2", ap2_min, ap2_max)
+        [
+        :L => ConstraintRange("PIP+PIP2", lipid_min, lipid_max),
+        :K => ConstraintRange("Kinase", kinase_min, kinase_max),
+        :P => ConstraintRange("Phosphatase", phosphatase_min, phosphatase_max),
+        :A => ConstraintRange("AP2", ap2_min, ap2_max)
+        ]
     )
 end
 #> END
