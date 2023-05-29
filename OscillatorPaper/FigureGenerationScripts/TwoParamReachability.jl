@@ -11,7 +11,7 @@ begin
     # using Unitful
     # using Unitful: µM, nm, s
     using StaticArrays
-    # using BenchmarkTools, Profile, ProgressMeter
+    using BenchmarkTools, Profile, ProgressMeter
     # using MultivariateStats, UMAP, TSne, StatsPlots
     # using GlobalSensitivity, QuasiMonteCarlo
     using LinearAlgebra
@@ -24,19 +24,19 @@ begin
     # plotlyjs()
     # gr()
     # using Base.Threads
+
+
+    include("../../UTILITIES/EvolutionaryOverloads.jl")
+
+    # import the Catalyst model "fullrn"
+    include("../../UTILITIES/ReactionNetwork.jl")
+
+    # import the cost function and other evaluation functions
+    include("../../UTILITIES/EvaluationFunctions.jl")
+
+    # import the genetic algorithm and associated functions
+    include("../../UTILITIES/GA_functions.jl")
 end
-
-
-include("../../UTILITIES/EvolutionaryOverloads.jl")
-
-# import the Catalyst model "fullrn"
-include("../../UTILITIES/ReactionNetwork.jl")
-
-# import the cost function and other evaluation functions
-include("../../UTILITIES/EvaluationFunctions.jl")
-
-# import the genetic algorithm and associated functions
-include("../../UTILITIES/GA_functions.jl")
 
 
 #! Solve model for arbitrary oscillatory parameters and initial conditions
@@ -57,7 +57,7 @@ begin
     tspan = (0., 100.)
 
     #? Create ODE problem and solve
-    fullprob = ODEProblem(fullrn, u0, tspan, p)
+    const fullprob = ODEProblem(fullrn, u0, tspan, p)
     # sol = solve(prob, saveat=0.1, save_idxs=1)
 
     #? Plot the results
@@ -89,23 +89,6 @@ function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEPr
     end
     return fitness_function
 end
-
-
-
-# function generate_random_points(param_values, n_samples)
-#     random_points = Vector{Vector{Float64}}(undef, 0)
-#     for _ in 1:n_samples
-#         point = []
-#         for key in keys(param_values)
-#             min_val = param_values[key]["min"]
-#             max_val = param_values[key]["max"]
-#             element = rand(min_val:0.001:max_val)
-#             push!(point, element)
-#         end
-#         push!(random_points, point)
-#     end
-#     return random_points
-# end
 
 
 """Monte carlo sampling to estimate bounding volume"""
@@ -144,12 +127,12 @@ end
 function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
 
     # Get the nominal values of the inputs depending on whether they are parameters or initial conditions. 
-    @SVector nominal_values = constraints isa ParameterConstraints ? prob.p : nominal_values = prob.u0[1:4] 
+    nominal_values = constraints isa ParameterConstraints ? SVector{13}(prob.p) : nominal_values = SVector{4}(prob.u0[1:4]) 
 
     #Now, map each input name to its nominal value within fixed_input_combos. This is what we will loop through
-    fixed_pair_combos::Vector{Vector{ConstraintRange}} = collect(combinations(constraint.ranges, 2)) # Get all combinations of name:nominalvalue.
+    fixed_pair_combos::Vector{Vector{Pair{Symbol,ConstraintRange}}} = collect(combinations(constraints.ranges, 2)) # Get all combinations of name:nominalvalue.
 
-    loopprogress = Progress(length(collect(fixed_input_combos)), desc ="Looping thru fixed pairs: " , color=:green)
+    loopprogress = Progress(length(collect(fixed_pair_combos)), desc ="Looping thru fixed pairs: " , color=:green)
 
     # Create a copy of the constraints
     variable_constraints = deepcopy(constraints)
@@ -162,7 +145,7 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
     #* Make a results dictionary where fixedpair => (volume, avg_period, avg_amplitude, num_oscillatory_points)
     results = Dict{Tuple{Symbol, Symbol}, NamedTuple{(:volume, :avg_period, :avg_amplitude, :num_oscillatory_points), Tuple{Float64, Float64, Float64, Int}}}() 
 
-    for (i, fixedpair) in enumerate(fixed_pair_combos)
+    for fixedpair in fixed_pair_combos
         @info "Fixed input pair: $(fixedpair[1].first), $(fixedpair[2].first)"
 
         # Remove the fixed parameters from the variable constraints
@@ -170,10 +153,10 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
 
         fixed_ga_problem = GAProblem(variable_constraints, prob)
 
-        fixedpair_idxs = find_indices(fixedpair, constraints) # Get the indices of the fixed inputs.
+        fixedpair_idxs = find_indices(fixedpair, constraints.ranges) # Get the indices of the fixed inputs.
 
         #* Create a closure for the fitness function that includes the fixed inputs
-        make_fitness_function_closure(evalfunc) = make_fitness_function_with_fixed_inputs(fixed_ga_problem.eval_function, prob, fixedpair, fixedpair_idxs)
+        make_fitness_function_closure(evalfunc) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixedpair, fixedpair_idxs)
 
         # Run the optimization function to get the oscillatory points
         oscillatory_points, _ = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 8000, iterations = 8) #? Vector of oscillatory points
@@ -203,14 +186,18 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
 
 
         # Store the results for the given fixed parameter combination
-        results[param_pair] = (volume = volume, avg_period = num_points, avg_amplitude, num_oscillatory_points = num_points)
+        results[fixedpair[1].name*"|"*fixedpair[2].name] = (volume = volume, avg_period = num_points, avg_amplitude, num_oscillatory_points = num_points)
 
         next!(loopprogress)
+        return results
     end
     # Convert results to DataFrame
     results_df = DataFrame(results)
     return results_df
 end
+
+ic_constraints = define_initialcondition_constraints()
+restults = reachability_analysis(ic_constraints, fullprob)
 
 function visualize_reachability(results::Dict{Vector{String}, Tuple{Float64, Int, Float64, Float64, Float64}})
     x_vals = Float64[]
