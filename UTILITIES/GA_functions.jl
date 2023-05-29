@@ -73,19 +73,19 @@ function define_parameter_constraints(; karange = (-3.0, 1.0), kbrange = (-3.0, 
 
     return ParameterConstraints(
         [
-        :ka1 => ConstraintRange("ka1", ka_min, ka_max, nominalvals[1]),
-        :kb1 => ConstraintRange("kb1", kb_min, kb_max, nominalvals[2]),
-        :kcat1 => ConstraintRange("kcat1", kcat_min, kcat_max, nominalvals[3]),
-        :ka2 => ConstraintRange("ka2",ka_min, ka_max, nominalvals[4]),
-        :kb2 => ConstraintRange("kb2",kb_min, kb_max, nominalvals[5]),
-        :ka3 => ConstraintRange("ka3",ka_min, ka_max, nominalvals[6]),
-        :kb3 => ConstraintRange("kb3", kb_min, kb_max, nominalvals[7]),
-        :ka4 => ConstraintRange("ka4", ka_min, ka_max, nominalvals[8]),
-        :kb4 => ConstraintRange("kb4", kb_min, kb_max, nominalvals[9]),
-        :ka7 => ConstraintRange("ka7", ka_min, ka_max, nominalvals[10]),
-        :kb7 => ConstraintRange("kb7", kb_min, kb_max, nominalvals[11]),
-        :kcat7 => ConstraintRange("kcat7", kcat_min, kcat_max, nominalvals[12]),
-        :DF => ConstraintRange("DF", df_min, df_max, nominalvals[13])
+        :ka1 => ConstraintRange("ka1", ka_min, ka_max, nominalvals[1].second),
+        :kb1 => ConstraintRange("kb1", kb_min, kb_max, nominalvals[2].second),
+        :kcat1 => ConstraintRange("kcat1", kcat_min, kcat_max, nominalvals[3].second),
+        :ka2 => ConstraintRange("ka2",ka_min, ka_max, nominalvals[4].second),
+        :kb2 => ConstraintRange("kb2",kb_min, kb_max, nominalvals[5].second),
+        :ka3 => ConstraintRange("ka3",ka_min, ka_max, nominalvals[6].second),
+        :kb3 => ConstraintRange("kb3", kb_min, kb_max, nominalvals[7].second),
+        :ka4 => ConstraintRange("ka4", ka_min, ka_max, nominalvals[8].second),
+        :kb4 => ConstraintRange("kb4", kb_min, kb_max, nominalvals[9].second),
+        :ka7 => ConstraintRange("ka7", ka_min, ka_max, nominalvals[10].second),
+        :kb7 => ConstraintRange("kb7", kb_min, kb_max, nominalvals[11].second),
+        :kcat7 => ConstraintRange("kcat7", kcat_min, kcat_max, nominalvals[12].second),
+        :DF => ConstraintRange("DF", df_min, df_max, nominalvals[13].second)
         ]
     )
 end
@@ -116,10 +116,10 @@ function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinasera
 
     return InitialConditionConstraints(
         [
-        :L => ConstraintRange("PIP+PIP2", lipid_min, lipid_max, nominalvals[1]),
-        :K => ConstraintRange("Kinase", kinase_min, kinase_max, nominalvals[2]),
-        :P => ConstraintRange("Phosphatase", phosphatase_min, phosphatase_max, nominalvals[3]),
-        :A => ConstraintRange("AP2", ap2_min, ap2_max, nominalvals[4])
+        :L => ConstraintRange("PIP+PIP2", lipid_min, lipid_max, nominalvals[1].second),
+        :K => ConstraintRange("Kinase", kinase_min, kinase_max, nominalvals[2].second),
+        :P => ConstraintRange("Phosphatase", phosphatase_min, phosphatase_max, nominalvals[3].second),
+        :A => ConstraintRange("AP2", ap2_min, ap2_max, nominalvals[4].second)
         ]
     )
 end
@@ -272,9 +272,9 @@ function find_indices(combination::Vector{Symbol}, NAMES::Vector{String})
     return p1idx, p2idx
 end
 
-function find_indices(combination::Vector{ConstraintRange}, constraints::Vector{ConstraintRange})
-    p1idx = findfirst(isequal(combination[1]), constraints)
-    p2idx = findfirst(isequal(combination[2]), constraints)
+function find_indices(combination::Vector{Pair{Symbol, ConstraintRange}}, constraints::Vector{Pair{Symbol, ConstraintRange}})
+    p1idx = findfirst(isequal(combination[1].first), constraints.first)
+    p2idx = findfirst(isequal(combination[2].first), constraints.first)
     return p1idx, p2idx
 end
 #> END
