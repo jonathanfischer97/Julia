@@ -22,7 +22,7 @@ begin
     # using LazySets, Polyhedra
     default(lw = 2, size = (1000, 600))
     # plotlyjs()
-    gr()
+    # gr()
     using Base.Threads
 end
 
