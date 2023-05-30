@@ -17,7 +17,6 @@ Evolutionary.minimizer(s::CustomGAState) = s.fittest #return the fittest individ
 
 """Trace override function"""
 function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population::Vector{Vector{Float64}}, method::GA, options) 
-    @info "My trace override function called"
     record["staterecord"] = [(ind=population[i], fit=state.fitpop[i], per=state.extradata[i][1], amp=state.extradata[i][2]) for i in eachindex(population)]
 end
 

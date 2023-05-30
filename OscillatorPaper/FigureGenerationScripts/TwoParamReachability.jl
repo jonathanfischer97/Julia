@@ -66,18 +66,18 @@ end
 
 
 """Returns the function factory for the cost function, referencing the ODE problem, tracker, and fixed inputs with closure"""
-function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_pair::Vector{ConstraintRange}, pair_idxs::Vector{Int})
+function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_pair::Vector{ConstraintRange}, pair_idxs::Tuple{Int,Int})
     function fitness_function(input::Vector{Float64})
         # Create a new input vector that includes the fixed inputs.
-        new_input = Vector{Float64}(undef, length(input) + length(fixed_inputs))
+        new_input = Vector{Float64}(undef, length(input) + length(fixed_input_pair))
 
         # Keep track of the number of fixed inputs that have been inserted.
         fixed_inputs_inserted = 0
 
         for i in eachindex(new_input)
-            if fixed_inputs_inserted < length(fixed_inputs) && i == pair_idxs[fixed_inputs_inserted + 1]
+            if fixed_inputs_inserted < length(fixed_input_pair) && i == pair_idxs[fixed_inputs_inserted + 1]
                 # If the current index matches the index of a fixed input, insert the fixed input.
-                new_input[i] = fixed_input_pair[fixed_inputs_inserted + 1].nominal_value
+                new_input[i] = fixed_input_pair[fixed_inputs_inserted + 1].nominal
                 fixed_inputs_inserted += 1
             else
                 # Otherwise, insert the next value from the input vector.
@@ -92,18 +92,15 @@ end
 
 
 """Monte carlo sampling to estimate bounding volume"""
-function monte_carlo_volume(points::Vector{Vector{Float64}}, constraints::ConstraintType, n_samples::Int = 10000)
+function monte_carlo_volume(points::Vector{Vector{Float64}}, constraint::ConstraintType, n_samples::Int = 10000)
     n_points, dim = length(points), length(points[1])
 
-    # Extract data from constraints
-    constraint_tuple = constraints.data
-
     # Calculate the total volume using the parameter constraint ranges
-    total_volume = prod([constraint_tuple[key].max - constraint_tuple[key].min for key in keys(constraints_)])
+    total_volume = prod([conrange.max - conrange.min for conrange in constraint.ranges])
     @info "Total solution volume: $total_volume"
 
     # Generate random points within the bounds specified by param_values
-    random_points = [rand() * (constraint_tuple[key].max - constraint_tuple[key].min) + constraint_tuple[key].min for key in keys(constraint_tuple) for _ in 1:n_samples]
+    random_points = [rand() * (conrange.max - conrange.min) + conrange.min for conrange in constraint.ranges for _ in 1:n_samples]
 
     # Reshape the random_points into an array of vectors
     random_points = reshape(random_points, (dim, n_samples))
@@ -127,43 +124,40 @@ end
 function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
 
     # Get the nominal values of the inputs depending on whether they are parameters or initial conditions. 
-    nominal_values = constraints isa ParameterConstraints ? SVector{13}(prob.p) : nominal_values = SVector{4}(prob.u0[1:4]) 
+    # nominal_values = constraints isa ParameterConstraints ? SVector{13}(prob.p) : nominal_values = SVector{4}(prob.u0[1:4]) 
 
     #Now, map each input name to its nominal value within fixed_input_combos. This is what we will loop through
-    fixed_pair_combos::Vector{Vector{Pair{Symbol,ConstraintRange}}} = collect(combinations(constraints.ranges, 2)) # Get all combinations of name:nominalvalue.
+    fixed_pair_combos = combinations(constraints.ranges, 2) # Get all combinations of name:nominalvalue.
 
     loopprogress = Progress(length(collect(fixed_pair_combos)), desc ="Looping thru fixed pairs: " , color=:green)
 
-    # Create a copy of the constraints
-    variable_constraints = deepcopy(constraints)
-
-    # volumes,
-    # avg_periods,
-    # avg_amplitudes = SizedVector{length(collect(fixed_input_combos)), Float64}(Vector{Float64}(undef, length(collect(fixed_input_combos)))) 
-    # num_oscillatory_points = SizedVector{length(collect(fixed_input_combos)), Int}(Vector{Int}(undef, length(collect(fixed_input_combos)))) 
 
     #* Make a results dictionary where fixedpair => (volume, avg_period, avg_amplitude, num_oscillatory_points)
     results = Dict{Tuple{Symbol, Symbol}, NamedTuple{(:volume, :avg_period, :avg_amplitude, :num_oscillatory_points), Tuple{Float64, Float64, Float64, Int}}}() 
 
     for fixedpair in fixed_pair_combos
-        @info "Fixed input pair: $(fixedpair[1].first), $(fixedpair[2].first)"
+        @info "Fixed input pair: $(fixedpair[1].name), $(fixedpair[2].name)"
+
+        # Make a copy of the constraints to modify
+        variable_constraints = deepcopy(constraints)
+
 
         # Remove the fixed parameters from the variable constraints
-        filter!(x -> x.first != fixedpair[1].first && x.first != fixedpair[2].first, variable_constraints.ranges)
+        filter!(x -> x.name != fixedpair[1].name && x.name != fixedpair[2].name, variable_constraints.ranges)
 
         fixed_ga_problem = GAProblem(variable_constraints, prob)
 
         fixedpair_idxs = find_indices(fixedpair, constraints.ranges) # Get the indices of the fixed inputs.
 
         #* Create a closure for the fitness function that includes the fixed inputs
-        make_fitness_function_closure(evalfunc) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixedpair, fixedpair_idxs)
+        make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixedpair, fixedpair_idxs)
 
         # Run the optimization function to get the oscillatory points
         oscillatory_points, _ = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 8000, iterations = 8) #? Vector of oscillatory points
 
         #! START HERE ##
         # Compute convex hull volume of the oscillatory region in parameter space
-        volume = monte_carlo_volume(oscillatory_points, constraints)
+        volume = monte_carlo_volume([x.ind for x in oscillatory_points], constraints)
  
 
         # Compute the volume of the oscillatory region in parameter space
@@ -186,9 +180,10 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
 
 
         # Store the results for the given fixed parameter combination
-        results[fixedpair[1].name*"|"*fixedpair[2].name] = (volume = volume, avg_period = num_points, avg_amplitude, num_oscillatory_points = num_points)
+        results[(fixedpair[1].symbol, fixedpair[2].symbol)] = (volume = volume, avg_period = num_points, avg_amplitude, num_oscillatory_points = num_points)
 
         next!(loopprogress)
+        display(loopprogress)
         return results
     end
     # Convert results to DataFrame
@@ -196,8 +191,14 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
     return results_df
 end
 
-ic_constraints = define_initialcondition_constraints()
-restults = reachability_analysis(ic_constraints, fullprob)
+@code_warntype define_parameter_constraints()
+param_constraints = define_parameter_constraints()
+@code_warntype GAProblem(param_constraints, fullprob)
+ga_problem = GAProblem(param_constraints, fullprob)
+@code_warntype run_GA(ga_problem; population_size = 1000, iterations = 8) #? Vector of oscillatory points
+results = reachability_analysis(ic_constraints, fullprob)
+
+
 
 function visualize_reachability(results::Dict{Vector{String}, Tuple{Float64, Int, Float64, Float64, Float64}})
     x_vals = Float64[]
