@@ -191,12 +191,12 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
     return results_df
 end
 
-@code_warntype define_parameter_constraints()
+@trace define_parameter_constraints()
 param_constraints = define_parameter_constraints()
 @code_warntype GAProblem(param_constraints, fullprob)
 ga_problem = GAProblem(param_constraints, fullprob)
-@code_warntype run_GA(ga_problem; population_size = 1000, iterations = 8) #? Vector of oscillatory points
-results = reachability_analysis(ic_constraints, fullprob)
+@trace run_GA(ga_problem; population_size = 1000, iterations = 8) #? Vector of oscillatory points
+results = reachability_analysis(param_constraints, fullprob)
 
 
 
