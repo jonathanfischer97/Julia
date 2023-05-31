@@ -63,7 +63,8 @@ tspan = (0., 100.)
 # fullmodel(u,p,t) = fullmodel!(similar(u),u,p,t)
 
 odeprob = ODEProblem(fullmodel!, u0, tspan, p)
-odeprobstatic = ODEProblem(fullmodel, u0static, tspan, p, jac=true)
+odeprobstatic = ODEProblem(fullmodel, u0static, tspan, p)
+fullprob = ODEProblem(fullrn, u0, tspan, p)
 
 @benchmark solve($odeprob, saveat=0.1, save_idxs=1)
 @benchmark solve($odeprobstatic, saveat=0.1, save_idxs=1)
