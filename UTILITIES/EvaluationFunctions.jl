@@ -62,7 +62,7 @@ function CostFunction(sol::ODESolution)
     period, amplitude = getPerAmp(sol, time_peakindexes, time_peakvals)
 
     #* Return cost, period, and amplitude as a vector
-    return [std - diff, period, amplitude]
+    return [-std - diff, period, amplitude]
 end
 
 
