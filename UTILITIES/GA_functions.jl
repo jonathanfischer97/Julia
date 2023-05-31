@@ -2,7 +2,6 @@
 
 abstract type ConstraintType end
 
-
 """
     ConstraintRange
 
@@ -253,11 +252,11 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     @info "Starting optimization"
     result = Evolutionary.optimize(fitness_function, boxconstraints, mthd, pop, opts)
     @info "Finished optimization"
-
+    # return result
     # Get the individual, fitness, and extradata of the population
     record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector,Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace])
-    
-    return record, result
+    return record
+    # return record, result
 end
 #> END
 
@@ -266,8 +265,7 @@ end
 
 
 
-
-#< MISCALAENOUS FUNCTIONS ##
+#< MISCELLANEOUS FUNCTIONS ##
 """Find the indices of the inputs in a `NAME` array"""
 function find_indices(combination::Vector{String}, NAMES::Vector{String})
     p1idx = findfirst(isequal(combination[1]), NAMES)

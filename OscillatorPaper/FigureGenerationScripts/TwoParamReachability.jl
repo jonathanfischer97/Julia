@@ -57,8 +57,8 @@ begin
     tspan = (0., 100.)
 
     #? Create ODE problem and solve
-    const fullprob = ODEProblem(fullrn, u0, tspan, p)
-    # sol = solve(prob, saveat=0.1, save_idxs=1)
+    fullprob = ODEProblem(fullrn, u0, tspan, p)
+    sol = solve(fullprob, saveat=0.1, save_idxs=1)
 
     #? Plot the results
     # plot(sol)
@@ -153,8 +153,8 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
         make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixedpair, fixedpair_idxs)
 
         # Run the optimization function to get the oscillatory points
-        oscillatory_points, _ = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 8000, iterations = 8) #? Vector of oscillatory points
-
+        oscillatory_points = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 8) #? Vector of oscillatory points
+        # return oscillatory_points
         #! START HERE ##
         # Compute convex hull volume of the oscillatory region in parameter space
         volume = monte_carlo_volume([x.ind for x in oscillatory_points], constraints)
@@ -184,21 +184,34 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
 
         next!(loopprogress)
         display(loopprogress)
-        return results
     end
     # Convert results to DataFrame
-    results_df = DataFrame(results)
-    return results_df
+    # results_df = DataFrame(results)
+    return results
 end
 
-@trace define_parameter_constraints()
-param_constraints = define_parameter_constraints()
-@code_warntype GAProblem(param_constraints, fullprob)
-ga_problem = GAProblem(param_constraints, fullprob)
-@trace run_GA(ga_problem; population_size = 1000, iterations = 8) #? Vector of oscillatory points
-results = reachability_analysis(param_constraints, fullprob)
+# @trace define_parameter_constraints()
+ic_constraints = define_initialcondition_constraints()
+# @code_warntype GAProblem(param_constraints, fullprob)
+ga_problem = GAProblem(ic_constraints, fullprob)
+@profile run_GA(ga_problem; population_size=100) #? Vector of oscillatory points
+
+Profile.print()
+Profile.print(sortedby=:overhead, maxdepth=7)
+Profile.clear()
+@profile for i in 1:1000
+    CostFunction(sol)
+end
+Profile.print()
+@btime CostFunction($sol)
+@code_warntype CostFunction(sol)
 
 
+
+
+results = reachability_analysis(ic_constraints, fullprob)
+
+eval_param_fitness(p,fullprob)
 
 function visualize_reachability(results::Dict{Vector{String}, Tuple{Float64, Int, Float64, Float64, Float64}})
     x_vals = Float64[]
@@ -232,7 +245,12 @@ function visualize_reachability(results::Dict{Vector{String}, Tuple{Float64, Int
     plot(p1, p2, p3, p4, p5, layout=(1, 5), size=(2000, 400))
 end
 
+function testfunc(x)
+    x+"hi"
+    x[1] + x[2]
+end
 
+testfunc(1)
 
 
 # function visualize_reachability(results::Dict{Vector{String}, Tuple{Float64, Int, Float64}})

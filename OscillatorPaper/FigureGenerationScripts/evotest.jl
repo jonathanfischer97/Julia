@@ -151,15 +151,14 @@ function make_fitness_function(func::Function, prob::ODEProblem)
     return fitness_function
 end
 
-# Create a PeriodAmplitudes instance
-# tracker = PeriodAmplitudes()
+
 
 fitness_function = make_fitness_function(eval_ic_fitness, fullprob) # Create a fitness function that includes your ODE problem as a constant
 
 # using Debugger
 #! Optimization block
 function testGAfunc(evalfunc, fitness_function_factory, prob)
-    population_size = 100
+    population_size = 1000
     pop = generate_population(ic_values, population_size)
 
     myconstraints = BoxConstraints([ic_values[p]["min"] for p in keys(ic_values)], [ic_values[p]["max"] for p in keys(ic_values)])
@@ -198,6 +197,6 @@ ic_constraints = define_initialcondition_constraints()
 
 ga_problem = GAProblem(ic_constraints, fullprob)
 
-run_GA(ga_problem; population_size=100, iterations = 5)
+run_GA(ga_problem; population_size=10000, iterations = 5)
 
 
