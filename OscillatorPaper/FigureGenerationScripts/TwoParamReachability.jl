@@ -58,12 +58,14 @@ begin
 
     #? Create ODE problem and solve
     fullprob = ODEProblem(fullrn, u0, tspan, p)
-    sol = solve(fullprob, saveat=0.1, save_idxs=1)
+    solve(fullprob, saveat=0.1, save_idxs=1)
 
     #? Plot the results
     # plot(sol)
 end
-
+Profile.print()
+@benchmark solve($fullprob, saveat=0.1, save_idxs=1)
+@benchmark solve($odeprob, saveat=0.1, save_idxs=1)
 
 """Returns the function factory for the cost function, referencing the ODE problem, tracker, and fixed inputs with closure"""
 function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_pair::Vector{ConstraintRange}, pair_idxs::Tuple{Int,Int})
@@ -184,6 +186,7 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
 
         next!(loopprogress)
         display(loopprogress)
+        return results
     end
     # Convert results to DataFrame
     # results_df = DataFrame(results)
@@ -192,7 +195,7 @@ end
 
 # @trace define_parameter_constraints()
 ic_constraints = define_initialcondition_constraints()
-# @code_warntype GAProblem(param_constraints, fullprob)
+@report_call GAProblem(ic_constraints, fullprob)
 ga_problem = GAProblem(ic_constraints, fullprob)
 @profile run_GA(ga_problem; population_size=100) #? Vector of oscillatory points
 
