@@ -1,26 +1,36 @@
 #! Helper functions for cost function ## 
 
+# """Get summed difference of peaks in the frequency domain"""
+# function getDif(peakvals::Vector{Float64}) #todo fix normalization
+#     idxarrLen = length(peakvals)
+#     sum_diff = @inbounds sum(peakvals[i] - peakvals[i+1] for i in 1:(idxarrLen-1))
+#     # @info "Test sum diff of just first and last elements: $(peakvals[1] - peakvals[end])"
+#     sum_diff += peakvals[end]
+#     # @info "Old sum diff: $sum_diff"
+#     return sum_diff
+# end
+
 """Get summed difference of peaks in the frequency domain"""
-function getDif(peakvals::Vector{Float64}) #todo fix normalization
-    idxarrLen = length(peakvals)
-    sum_diff = @inbounds sum(peakvals[i] - peakvals[i+1] for i in 1:(idxarrLen-1))
-    sum_diff += peakvals[end]
-    return sum_diff
+function getDiff(peakvals::Vector{Float64})
+    return peakvals[1] - peakvals[end]
 end
 
-function getDif_bidirectional(peakvals::Vector{Float64})
-    idxarrLen = length(peakvals)
 
-    #* iterate from both ends simultaneously to deal with symmetry
-    sum_diff = @inbounds sum((peakvals[i] - peakvals[idxarrLen + 1 - i]) for i in 1:(idxarrLen ÷ 2)) 
 
-    return 2 * sum_diff #* multiply by 2 to account for the fact that we're only summing half of the differences
-end
+
+# function getDif_bidirectional(peakvals::Vector{Float64})
+#     idxarrLen = length(peakvals)
+
+#     #* iterate from both ends simultaneously to deal with symmetry
+#     sum_diff = @inbounds sum((peakvals[i] - peakvals[idxarrLen + 1 - i]) for i in 1:(idxarrLen ÷ 2)) 
+
+#     return 2 * sum_diff #* multiply by 2 to account for the fact that we're only summing half of the differences
+# end
 
 
 
 """Get summed average standard deviation of peaks in the frequency domain"""
-function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; window::Int = 1)#, window_ratio::Float64) #get average standard deviation of fft peak indexes
+function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; window::Int = 2)#, window_ratio::Float64) #get average standard deviation of fft peak indexes
     arrLen = length(fft_arrayData)
     sum_std = @inbounds sum(std(fft_arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in fft_peakindxs) #* sum rolling window of standard deviations
     return sum_std / length(fft_peakindxs) #* divide by number of peaks to get average std
@@ -50,7 +60,7 @@ end
 function CostFunction(sol::ODESolution)
     #*get the fft of the solution
     fftData = getFrequencies(sol.u)
-    fft_peakindexes, fft_peakvals = findmaxima(fftData,2) #* get the indexes of the peaks in the fft
+    fft_peakindexes, fft_peakvals = findmaxima(fftData,10) #* get the indexes of the peaks in the fft
     time_peakindexes, time_peakvals = findmaxima(sol.u,5) #* get the times of the peaks in the fft
     if length(fft_peakindexes) < 2 || length(time_peakindexes) < 2 #* if there are no peaks in either domain, return 0
         return [0.0, 0.0, 0.0]
@@ -99,10 +109,12 @@ function solve_for_fitness_peramp(prob::ODEProblem)
 end
 
 
+function testfunc2(x)
+    return x[1] + "hi"
+end
 
 
-
-
+testfunc2([1,2,3])
 
 
 # """Custom data structure to store the period and amplitude of each individual"""
