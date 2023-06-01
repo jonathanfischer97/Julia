@@ -1,9 +1,12 @@
 using Plots
+using DifferentialEquations
 using ReachabilityAnalysis
 
 # include("../../UTILITIES/ODESystems.jl")
 
-function fullmodel_ode!(du, u, p, t) #todo figure out @taylorize
+function fullmodel_ode!(du, u, t) #todo figure out @taylorize
+    p = [0.009433439939827041, 2.3550169939427845, 832.7213093872278, 12.993995997539924, 6.150972501791291, 1.3481451097940793, 
+            0.006201726090609513, 0.006277294665474662, 0.9250191811994848, 57.36471615394549, 0.04411989797898752, 42.288085868394326, 3631.050539219606]
     # u[1], u[2], u[3], u[4], u[5], u[6], u[7], u[8], u[9], u[10], u[11], u[12], u[13], u[14], u[15], u[16] = u #initial conditions
     # p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], p[11], p[12], p[13] = p #parameters
     du[1] = p[2]*u[15] + p[12]*u[16] + p[2]*u[7] + p[2]*u[11] + p[12]*u[12] + p[12]*u[8] - p[1]*u[13]*u[1] - p[1]*u[2]*u[1] - p[1]*p[13]*u[1]*u[9] #* u[1]
@@ -26,7 +29,7 @@ function fullmodel_ode!(du, u, p, t) #todo figure out @taylorize
 end
 
 
-function reachability_fullmodel_ode(; W=0.1)
+function reachability_fullmodel_ode(; W=0.01)
     # initial states
     U0c = [0.0, 0.5, 0.3, 2.0, 3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     U0 = Hyperrectangle(U0c, fill(W, length(U0c)))
@@ -39,7 +42,7 @@ end
 
 ivprob = reachability_fullmodel_ode(W=0.01)
 
-alg = TMJets(;abstol=1e-11, orderT=12, orderQ=1, adaptive=true)
+alg = TMJets(;abstol=1e-11, orderT=8, orderQ=2, adaptive=true)
 
 sol1 = solve(ivprob; T=20.0, alg=alg)
 sol1z = overapproximate(sol1, Zonotope)
