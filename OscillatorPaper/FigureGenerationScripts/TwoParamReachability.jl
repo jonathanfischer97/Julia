@@ -148,7 +148,7 @@ function monte_carlo_volume(points::Vector{Vector{Float64}}, var_constraints::Ve
 
     # For each random point, calculate the distance to each of the input points and check if it's in the hull
     Threads.@threads for i in 1:n_samples
-        min_distance = minimum([norm(points[j] .- random_points[:, i]) for j in 1:n_points])
+        min_distance = minimum([norm(points[j] .- random_points[i]) for j in 1:n_points])
 
         # Check if the point is within the maximum distance threshold
         if min_distance <= max_dist_threshold
@@ -176,7 +176,7 @@ acc[]
 
 
 generate_population(var_constraints,10000)
-testvol = monte_carlo_volume(points, var_constraints)
+testvol = monte_carlo_volume([rand(2) for i in 1:10000], var_constraints)
 
 
 using LazySets, Polyhedra, CDDLib
@@ -219,6 +219,7 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
     # Make a results dictionary where fixedpair => (volume, avg_period, avg_amplitude, num_oscillatory_points)
     results = Dict{Tuple{Symbol, Symbol}, NamedTuple{(:volume, :avg_period, :avg_amplitude, :num_oscillatory_points), Tuple{Float64, Float64, Float64, Int}}}() 
 
+    # reachplot = barhist(title="Reachability Analysis", xlabel="Volume", ylabel="Average Period", zlabel="Average Amplitude", legend=:bottomright)
     for fixedpair in fixed_pair_combos
         @info "Fixed input pair: $(fixedpair[1].name), $(fixedpair[2].name)"
 
@@ -240,7 +241,7 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
 
         # Filter out the non-oscillatory points
         # filter!(x -> x.fit < -0.1, oscillatory_points)
-        return oscillatory_points
+        # return oscillatory_points
     
         
         # Compute convex hull volume of the oscillatory region in parameter space
@@ -271,7 +272,6 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
         results[(fixedpair[1].symbol, fixedpair[2].symbol)] = (volume = volume, avg_period = num_points, avg_amplitude, num_oscillatory_points = num_points)
 
         next!(loopprogress)
-        display(loopprogress)
         # return results
     end
     # Convert results to DataFrame
@@ -279,6 +279,8 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
     return results
 end
 
+param_constraints = define_parameter_constraints()
+param_reach_results = reachability_analysis(param_constraints, fullprob)
 
 ic_constraints = define_initialcondition_constraints()
 reach_results = reachability_analysis(ic_constraints, fullprob)
@@ -382,12 +384,7 @@ function visualize_reachability(results::Dict{Vector{String}, Tuple{Float64, Int
     plot(p1, p2, p3, p4, p5, layout=(1, 5), size=(2000, 400))
 end
 
-function testfunc(x)
-    x+"hi"
-    x[1] + x[2]
-end
 
-testfunc(1)
 
 
 # function visualize_reachability(results::Dict{Vector{String}, Tuple{Float64, Int, Float64}})
