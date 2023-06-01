@@ -203,6 +203,13 @@ function generate_population(constraint::InitialConditionConstraints, n::Int)
     population = transpose(hcat(population...))
     return [population[:, i] for i in 1:n]
 end
+
+"""For calculating volume"""
+function generate_population(constraint::Vector{ConstraintRange}, n::Int)
+    population = [rand(Uniform(conrange.min, conrange.max), n) for conrange in constraint]
+    population = transpose(hcat(population...))
+    return [population[:, i] for i in 1:n]
+end
 #> END
 
 
@@ -219,12 +226,12 @@ end
 
 function ga_callback(trace::Evolutionary.OptimizationTrace, progressbar::Progress, threshold::Int)
     #? Callback function for the GA, updating the progress bar
-    num_oscillation = trace.metadata["num_oscillatory"]
-    if num_oscillation >= threshold
+    num_oscillation = trace[end].metadata["num_oscillatory"]
+    if num_oscillation >= threshold 
         finish!(progressbar)
         return true
     else
-        next!(progressbar, steps = num_oscillation)
+        next!(progressbar, step = num_oscillation)
         return false
     end
 end
@@ -234,7 +241,7 @@ end
 """
 Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 """
-function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; threshold=10000, population_size = 10000, abstol=1e-2, reltol=1e0, successive_f_tol = 1, iterations=10, parallelization = :thread)
+function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; threshold=10000, population_size = 10000, abstol=1e-12, reltol=1e-10, successive_f_tol = 1, iterations=10, parallelization = :thread)
     # Generate the initial population.
     pop = generate_population(ga_problem.constraints, population_size)
     # @info "Generated initial population"
