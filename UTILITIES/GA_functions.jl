@@ -217,23 +217,39 @@ function make_fitness_function(evalfunc::Function, prob::ODEProblem)
 end
 #> END
 
+function ga_callback(trace::Evolutionary.OptimizationTrace, progressbar::Progress, threshold::Int)
+    #? Callback function for the GA, updating the progress bar
+    num_oscillation = trace.metadata["num_oscillatory"]
+    if num_oscillation >= threshold
+        finish!(progressbar)
+        return true
+    else
+        next!(progressbar, steps = num_oscillation)
+        return false
+    end
+end
+
 
 #< RUN GENETIC ALGORITHM OPTIMIZATION ##
 """
 Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 """
-function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; population_size = 10000, abstol=1e-12, reltol=1e-10, successive_f_tol = 5, iterations=10, parallelization = :thread)
+function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; threshold=10000, population_size = 10000, abstol=1e-2, reltol=1e0, successive_f_tol = 1, iterations=10, parallelization = :thread)
     # Generate the initial population.
     pop = generate_population(ga_problem.constraints, population_size)
-    @info "Generated initial population"
+    # @info "Generated initial population"
 
     # Create constraints using the min and max values from param_values.
     boxconstraints = BoxConstraints([constraint.min for constraint in ga_problem.constraints.ranges], [constraint.max for constraint in ga_problem.constraints.ranges])
-    @info "Created box constraints"
+    # @info "Created box constraints"
+
+    # Create Progress bar and callback function
+    ga_progress = Progress(threshold; desc = "GA Progress")
+    callback_func = (trace) -> ga_callback(trace, ga_progress, threshold)
 
     # Define options for the GA.
     opts = Evolutionary.Options(abstol=abstol, reltol=reltol, successive_f_tol = successive_f_tol, iterations=iterations, 
-                        store_trace = true, show_trace=true, show_every=1, parallelization=parallelization)
+                        store_trace = true, show_trace=true, show_every=1, parallelization=parallelization, callback=callback_func)
 
     # Define the range of possible values for each parameter.
     mutation_scalar = 0.5; mutation_range = fill(mutation_scalar, length(ga_problem.constraints.ranges))
@@ -246,12 +262,12 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     # Make fitness function
     # @code_warntype fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem)
     fitness_function = fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem)
-    @info "Created fitness function"
+    # @info "Created fitness function"
 
     # Run the optimization.
-    @info "Starting optimization"
+    # @info "Starting optimization"
     result = Evolutionary.optimize(fitness_function, boxconstraints, mthd, pop, opts)
-    @info "Finished optimization"
+    # @info "Finished optimization"
     # return result
     # Get the individual, fitness, and extradata of the population
     record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector,Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace])
