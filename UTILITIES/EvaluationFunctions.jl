@@ -22,7 +22,7 @@
 
 #< START 
 """Get summed difference of peaks in the frequency domain"""
-function getDiff(peakvals::Vector{Float64})
+function getDif(peakvals::Vector{Float64})
     return peakvals[1] - peakvals[end]
 end
 
