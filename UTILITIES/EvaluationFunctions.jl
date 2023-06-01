@@ -19,6 +19,10 @@
 #     return 2 * sum_diff #* multiply by 2 to account for the fact that we're only summing half of the differences
 # end
 
+"""Get summed average difference of peaks in the frequency domain"""
+function getDifAvg(peakvals::Vector{Float64})
+    return (peakvals[1] - peakvals[end]) / length(peakvals)
+end
 
 #< START 
 """Get summed difference of peaks in the frequency domain"""
