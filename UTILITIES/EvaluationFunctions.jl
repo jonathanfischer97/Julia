@@ -10,14 +10,6 @@
 #     return sum_diff
 # end
 
-"""Get summed difference of peaks in the frequency domain"""
-function getDiff(peakvals::Vector{Float64})
-    return peakvals[1] - peakvals[end]
-end
-
-
-
-
 # function getDif_bidirectional(peakvals::Vector{Float64})
 #     idxarrLen = length(peakvals)
 
@@ -28,6 +20,11 @@ end
 # end
 
 
+#< START 
+"""Get summed difference of peaks in the frequency domain"""
+function getDiff(peakvals::Vector{Float64})
+    return peakvals[1] - peakvals[end]
+end
 
 """Get summed average standard deviation of peaks in the frequency domain"""
 function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; window::Int = 2)#, window_ratio::Float64) #get average standard deviation of fft peak indexes
@@ -107,14 +104,6 @@ function solve_for_fitness_peramp(prob::ODEProblem)
 
     return CostFunction(sol)
 end
-
-
-function testfunc2(x)
-    return x[1] + "hi"
-end
-
-
-testfunc2([1,2,3])
 
 
 # """Custom data structure to store the period and amplitude of each individual"""
