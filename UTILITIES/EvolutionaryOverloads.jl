@@ -19,6 +19,7 @@ Evolutionary.minimizer(s::CustomGAState) = s.fittest #return the fittest individ
 function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population::Vector{Vector{Float64}}, method::GA, options) 
     oscillatory_population_idxs = findall(fit -> fit < -0.1, state.fitpop) #find the indices of the oscillatory individuals
     record["staterecord"] = [(ind=population[i], fit=state.fitpop[i], per=state.extradata[i][1], amp=state.extradata[i][2]) for i in oscillatory_population_idxs]
+    record["num_oscillatory"] = length(oscillatory_population_idxs)
 end
 
 function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population, method::GA, options)
