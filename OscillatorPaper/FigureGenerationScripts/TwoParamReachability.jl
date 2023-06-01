@@ -124,7 +124,8 @@ function monte_carlo_volume(points::Vector{Vector{Float64}}, var_constraints::Co
     return estimated_volume
 end
 
-#<ChatGPT version
+
+#<ChatGPT version revised
 """Monte carlo sampling to estimate bounding volume out of total volume"""
 function monte_carlo_volume(points::Vector{Vector{Float64}}, var_constraints::Vector{ConstraintRange}, n_samples::Int = 10000)
     # Get the number of points and the dimension of each point
@@ -140,11 +141,8 @@ function monte_carlo_volume(points::Vector{Vector{Float64}}, var_constraints::Ve
     # Calculate maximum distance threshold for points to be inside the hull
     max_dist_threshold = maximum([norm(points[i] .- points[j]) for i in 1:n_points for j in 1:n_points]) * 2
 
-    # Create a lock for thread-safe addition
-    # lock = ReentrantLock()
-
     # Initialize a counter for points inside the hull
-    in_hull = Threads.Atomic{Int64}(0)
+    in_hull = zeros(Int64, Threads.nthreads())
 
     # For each random point, calculate the distance to each of the input points and check if it's in the hull
     Threads.@threads for i in 1:n_samples
@@ -152,27 +150,18 @@ function monte_carlo_volume(points::Vector{Vector{Float64}}, var_constraints::Ve
 
         # Check if the point is within the maximum distance threshold
         if min_distance <= max_dist_threshold
-            Threads.atomic_add!(in_hull, 1)
-            # lock(lock) do
-            #     in_hull[] += 1
-            # end
-            # unlock(lock)
+            in_hull[Threads.threadid()] += 1
         end
     end
 
-    estimated_volume = total_volume * (in_hull[] / n_samples)
+    # Reduce the partial results into a final result
+    total_in_hull = sum(in_hull)
+
+    estimated_volume = total_volume * (total_in_hull / n_samples)
 
     return estimated_volume
 end
 #>End
-
-acc = Threads.Atomic{Int64}(0)
-Threads.@threads for i in 1:10000
-    if iseven(i)
-        Threads.atomic_add!(acc, 1)
-    end
-end
-acc[]
 
 
 generate_population(var_constraints,10000)
