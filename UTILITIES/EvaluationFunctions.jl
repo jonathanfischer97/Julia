@@ -92,14 +92,14 @@ function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem)
     return solve_for_fitness_peramp(new_prob)
 end
 
-"""Utility function to solve the ODE and return the fitness"""
-function solve_for_fitness(prob::ODEProblem)
+# """Utility function to solve the ODE and return the fitness"""
+# function solve_for_fitness(prob::ODEProblem)
 
-    sol = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
+#     sol = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
 
-    fitness = CostFunction(sol)[1]
-    return fitness
-end
+#     fitness = CostFunction(sol)[1]
+#     return fitness
+# end
 
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
 function solve_for_fitness_peramp(prob::ODEProblem)
