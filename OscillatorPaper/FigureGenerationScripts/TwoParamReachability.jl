@@ -57,8 +57,8 @@ begin
     tspan = (0., 100.)
 
     #? Create ODE problem and solve
-    fullprob = ODEProblem(fullrn, u0, tspan, p)
-    # solve(fullprob, saveat=0.1, save_idxs=1)
+    fullprob = ODEProblem(fullrn, u0, tspan, p) #TODO fix type stability
+    sol = solve(fullprob, saveat=0.1, save_idxs=1) #TODO fix type stability
 
     #? Plot the results
     # plot(sol)
@@ -92,38 +92,15 @@ function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEPr
     return fitness_function
 end
 
+#TODO Testing type stability
+fitness_function = make_fitness_function_with_fixed_inputs(eval_ic_fitness, fullprob, ic_constraints.ranges[1:2], (1, 2))
+@code_warntype fitness_function(rand(14))
+@benchmark fitness_function($(u0[1:end-2]))
 
-"""Monte carlo sampling to estimate bounding volume out of total volume"""
-function monte_carlo_volume(points::Vector{Vector{Float64}}, var_constraints::ConstraintType, n_samples::Int = 10000)
-    #todo Maybe comparing to the slice volume (D-2) of nonfixed GA run would be better standard of comparison?
-
-    # Get the number of points and the dimension of each point (will be all params, or all ICs - 2 fixed)
-    n_points, dim = length(points), length(points[1])
-
-    # Calculate the total volume using the parameter constraint ranges
-    total_volume = prod([conrange.max - conrange.min for conrange in var_constraints.ranges])
-    @info "Total solution volume: $total_volume"
-
-    # Generate random points within the bounds specified by param_values
-    random_points = generate_population(var_constraints, n_samples)
-
-    # Reshape the random_points into an array of vectors
-    random_points = reshape(random_points, (dim, n_samples))
-
-    # Calculate distances between random points and input points
-    distances = [norm(points[j] .- random_points[:, i]) for i in 1:n_samples, j in 1:n_points]
-
-    # Find the minimum distance from each random point to any of the input points
-    min_distances = minimum(distances, dims=2)
-
-    # Check if each random point is within the maximum distance between the input points
-    in_hull = sum(min_distances .<= maximum([norm(points[i] .- points[j]) for i in 1:n_points for j in 1:n_points]) * 2)
-
-    estimated_volume = total_volume * (in_hull / n_samples)
-
-    return estimated_volume
-end
-
+@benchmark solve($fullprob, saveat=0.1, save_idxs=1)
+@code_warntype ODEProblem(fullrn, usym, tspan, psym)
+@code_warntype solve(fullprob, saveat=0.1, save_idxs=1)
+@code_warntype eval_ic_fitness(rand(14), fullprob)
 
 #<ChatGPT version revised
 """Monte carlo sampling to estimate bounding volume out of total volume"""
@@ -197,6 +174,7 @@ result = compute_result(points, constraints)
 
 const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 
+
 """Compare the allowed solution space for when each pair of inputs is fixed"""
 function reachability_analysis(constraints::ConstraintType, prob::ODEProblem) 
 
@@ -226,24 +204,12 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
         make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixedpair, fixedpair_idxs)
 
         # Run the optimization function to get the evaluated points
-        oscillatory_points = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 8) 
-
-        # Filter out the non-oscillatory points
-        # filter!(x -> x.fit < -0.1, oscillatory_points)
-        # return oscillatory_points
+        oscillatory_points = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 8) #TODO: outputting the same number of points for multiple pairs
     
-        
         # Compute convex hull volume of the oscillatory region in parameter space
-        volume = monte_carlo_volume([x.ind for x in oscillatory_points], variable_constraints.ranges)
+        volume = monte_carlo_volume([x.ind for x in oscillatory_points], variable_constraints.ranges) #TODO: computing the same volume for multiple pairs
         @info "Volume of oscillatory region: $volume"
  
-
-        # Compute the volume of the oscillatory region in parameter space
-        # @show normalized_volume = prod((max(0, max_values[p] - min_values[p]) / (param_values[p]["max"] - param_values[p]["min"])) for p in variable_param_keys)
-        # if normalized_volume == 0.0
-        #     @warn "Oscillatory region has zero volume"
-        #     continue
-        # end
 
         # Calculate the number of oscillatory points
         num_points = length(oscillatory_points)
@@ -258,7 +224,7 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
 
 
         # Store the results for the given fixed parameter combination
-        results[(fixedpair[1].symbol, fixedpair[2].symbol)] = (volume = volume, avg_period = num_points, avg_amplitude, num_oscillatory_points = num_points)
+        results[(fixedpair[1].symbol, fixedpair[2].symbol)] = (volume = volume, avg_period = avg_period, avg_amplitude, num_oscillatory_points = num_points)
 
         next!(loopprogress)
         # return results
@@ -273,23 +239,11 @@ param_reach_results = reachability_analysis(param_constraints, fullprob)
 
 ic_constraints = define_initialcondition_constraints()
 reach_results = reachability_analysis(ic_constraints, fullprob)
-# @report_call GAProblem(ic_constraints, fullprob)
-# ga_problem = GAProblem(ic_constraints, fullprob)
-# @profile run_GA(ga_problem; population_size=100) #? Vector of oscillatory points
-
-# Profile.print()
-# Profile.print(sortedby=:overhead, maxdepth=7)
-# Profile.clear()
-# @profile for i in 1:1000
-#     CostFunction(sol)
-# end
-# Profile.print()
-# @btime CostFunction($sol)
-# @code_warntype CostFunction(sol)
 
 
-oscillatory_points = reachability_analysis(ic_constraints, fullprob)
-points = [x.ind for x in oscillatory_points]
+
+
+points = [x.ind for x in reach_results]
 chull = convexhull(points...)
 planarhull = Polyhedra.planar_hull(chull)
 poly = polyhedron(planarhull)
@@ -308,38 +262,7 @@ plot!([Singleton(p) for p in points[1:10:end]])
 # Plot the constraint hull
 plot!(constraint_poly, ratio=:equal, legend=false)
 
-#<Testing monte_carlo_volume
-n_samples = 10000
-n_points, dim = length(points), length(points[1])
 
-# Filter out the fixed dimensions so we can compare 
-#todo Maybe comparing to the slice volume (D-2) of nonfixed GA run would be better standard of comparison?
-var_constraints = filter(x -> x.name != "PIP+PIP2" && x.name != "Kinase", ic_constraints.ranges)
-var_constraints = InitialConditionConstraints(var_constraints)
-
-# Calculate the total allowable volume using the constraint ranges
-total_volume = prod([conrange.max - conrange.min for conrange in var_constraints])
-@info "Total solution volume: $total_volume"
-
-# Generate random points within the bounds specified by param_values
-random_points = [rand() * (conrange.max - conrange.min) + conrange.min for conrange in var_constraints for _ in 1:n_samples]
-
-# Reshape the random_points into an array of vectors
-random_points = reshape(random_points, (dim, n_samples))
-
-# Calculate distances between random points and input points
-distances = [norm(points[j] .- random_points[:, i]) for i in 1:n_samples, j in 1:n_points]
-
-# Find the minimum distance from each random point to any of the input points
-min_distances = minimum(distances, dims=2)
-
-# Check if each random point is within the maximum distance between the input points
-in_hull = sum(min_distances .<= maximum([norm(points[i] .- points[j]) for i in 1:n_points for j in 1:n_points]) * 2)
-
-estimated_volume = total_volume * (in_hull / n_samples)
-
-return estimated_volume
-#>END
 
 function visualize_reachability(results::Dict{Vector{String}, Tuple{Float64, Int, Float64, Float64, Float64}})
     x_vals = Float64[]
