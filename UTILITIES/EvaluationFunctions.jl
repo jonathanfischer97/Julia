@@ -102,7 +102,7 @@ end
 # end
 
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
-function solve_for_fitness_peramp(prob::ODEProblem)
+function solve_for_fitness_peramp(prob)
 
     sol = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
 
