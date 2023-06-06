@@ -17,19 +17,19 @@
 #     kcat7, LpAPLp --> L + LpAP # L dephosphorylation by phosphatase, same as 3D: first order reactions aren't dependent on dimensionality
 # end  
 
-"""Michaelis-Menten approximation of the original oscillator model, without all possible pairs of reactions"""
-mm_rn = @reaction_network mm_rn begin
-    @parameters Vmax1 Km1 ka2 kb2 ka3 kb3 ka4 kb4 Vmax7 Km7 DF
-    @species L(t) K(t) P(t) A(t) Lp(t) LpA(t) LpAK(t) LpAP(t) 
+# """Michaelis-Menten approximation of the original oscillator model, without all possible pairs of reactions"""
+# mm_rn = @reaction_network mm_rn begin
+#     @parameters Vmax1 Km1 ka2 kb2 ka3 kb3 ka4 kb4 Vmax7 Km7 DF
+#     @species L(t) K(t) P(t) A(t) Lp(t) LpA(t) LpAK(t) LpAP(t) 
 
-    Vmax1*L/(Km1+L), L + K --> Lp + K # L phosphorylation by kinase into Lp using Michaelis-Menten
-    (ka2,kb2), Lp + A <--> LpA # Lp binding to AP2 adaptor
-    (ka3,kb3), LpA + K <--> LpAK # Membrane-bound adaptor binding to kinase
-    Vmax1*DF*L/(Km1+L), LpAK + L --> Lp + LpAK # 2D reaction: Membrane-bound kinase binds to L with greater affinity as determined by y (V/A) using Michaelis-Menten
-    Vmax7*Lp/(Km7+Lp), Lp + P --> L + P # Lp dephosphorylation by phosphatase using Michaelis-Menten
-    (ka4,kb4), LpA + P <--> LpAP # Membrane-bound adaptor binding to phosphatase 
-    Vmax7*DF*Lp/(Km7+Lp), Lp + LpAP --> L + LpAP # 2D reaction: Membrane-bound phosphatase binds to Lp with greater affinity as determined by y (V/A) using Michaelis-Menten
-end
+#     Vmax1*L/(Km1+L), L + K --> Lp + K # L phosphorylation by kinase into Lp using Michaelis-Menten
+#     (ka2,kb2), Lp + A <--> LpA # Lp binding to AP2 adaptor
+#     (ka3,kb3), LpA + K <--> LpAK # Membrane-bound adaptor binding to kinase
+#     Vmax1*DF*L/(Km1+L), LpAK + L --> Lp + LpAK # 2D reaction: Membrane-bound kinase binds to L with greater affinity as determined by y (V/A) using Michaelis-Menten
+#     Vmax7*Lp/(Km7+Lp), Lp + P --> L + P # Lp dephosphorylation by phosphatase using Michaelis-Menten
+#     (ka4,kb4), LpA + P <--> LpAP # Membrane-bound adaptor binding to phosphatase 
+#     Vmax7*DF*Lp/(Km7+Lp), Lp + LpAP --> L + LpAP # 2D reaction: Membrane-bound phosphatase binds to Lp with greater affinity as determined by y (V/A) using Michaelis-Menten
+# end
 
 """Michaelis-Menten approximation of the original oscillator model, without all possible pairs of reactions"""
 mm_rn = @reaction_network mm_rn begin
