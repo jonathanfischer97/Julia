@@ -60,7 +60,9 @@ tspan = (0., 100.)
 
 # fullmodel(u,p,t) = fullmodel!(similar(u),u,p,t)
 
+# @code_warntype ODEProblem(fullmodel_ode!, u0, tspan, p)
 odeprob = ODEProblem(fullmodel_ode!, u0, tspan, p)
+# @code_warntype solve(odeprob, saveat=0.1, save_idxs=1)
 # odeprobstatic = ODEProblem(fullmodel, u0static, tspan, p)
 # fullprob = ODEProblem(fullrn, u0, tspan, p)
 
