@@ -12,6 +12,8 @@ begin
     # using Unitful: µM, nm, s
     using StaticArrays
     using BenchmarkTools, Profile, ProgressMeter
+    using Cthulhu
+    using JET
     # using MultivariateStats, UMAP, TSne, StatsPlots
     # using GlobalSensitivity, QuasiMonteCarlo
     using LinearAlgebra
@@ -36,37 +38,37 @@ begin
 
     # import the genetic algorithm and associated functions
     include("../../UTILITIES/GA_functions.jl")
+
+    const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 end
 
 
 #! Solve model for arbitrary oscillatory parameters and initial conditions
-function make_ODEProb()#{Vector{Float64}}{Tuple{Float64, Float64}}
+function make_ODEProb(rn = make_fullrn())
     #? Parameter list
-    # psym = [:ka1 => 0.009433439939827041, :kb1 => 2.3550169939427845, :kcat1 => 832.7213093872278, :ka2 => 12.993995997539924, :kb2 => 6.150972501791291,
-    #         :ka3 => 1.3481451097940793, :kb3 => 0.006201726090609513, :ka4 => 0.006277294665474662, :kb4 => 0.9250191811994848, :ka7 => 57.36471615394549, 
-    #         :kb7 => 0.04411989797898752, :kcat7 => 42.288085868394326, :DF => 3631.050539219606]
-    # p::Vector{Float64} = [x[2] for x in psym]
-    p = [0.009433439939827041, 2.3550169939427845, 832.7213093872278, 12.993995997539924, 6.150972501791291, 
-            1.3481451097940793, 0.006201726090609513, 0.006277294665474662, 0.9250191811994848, 57.36471615394549, 
-            0.04411989797898752, 42.288085868394326, 3631.050539219606]    
+    psym = [:ka1 => 0.009433439939827041, :kb1 => 2.3550169939427845, :kcat1 => 832.7213093872278, :ka2 => 12.993995997539924, :kb2 => 6.150972501791291,
+            :ka3 => 1.3481451097940793, :kb3 => 0.006201726090609513, :ka4 => 0.006277294665474662, :kb4 => 0.9250191811994848, :ka7 => 57.36471615394549, 
+            :kb7 => 0.04411989797898752, :kcat7 => 42.288085868394326, :DF => 3631.050539219606]
+    p= [x[2] for x in psym]
+ 
     #? Initial condition list
-    # usym = [:L => 0.0, :K => 0.5, :P => 0.3, :A => 2.0, :Lp => 3.0, :LpA => 0.0, :LK => 0.0, 
-    #         :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, 
-    #         :AKL => 0.0, :APLp => 0.0]
-    # u0::Vector{Float64} = [x[2] for x in usym]
-    u0 = [0.0, 0.5, 0.3, 2.0, 3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    usym = [:L => 0.0, :K => 0.5, :P => 0.3, :A => 2.0, :Lp => 3.0, :LpA => 0.0, :LK => 0.0, 
+            :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, 
+            :AKL => 0.0, :APLp => 0.0]
+    u0 = [x[2] for x in usym]
+
     #? Timespan for integration
     tspan = (0., 100.)
 
-    #? Create ODE problem and solve
-    return ODEProblem(fullrn, u0, tspan, p) #TODO fix type stability
-    # sol = solve(fullprob, saveat=0.1, save_idxs=1) #TODO fix type stability
-
-    #? Plot the results
-    # plot(sol)
+    #? Create ODE problem
+    return ODEProblem(rn, u0, tspan, p) #TODO fix type stability
 end
-@code_warntype make_ODEProb()
-fullprob = make_ODEProb()
+
+
+const fullprob = make_ODEProb()
+
+
+
 
 """Returns the function factory for the cost function, referencing the ODE problem, tracker, and fixed inputs with closure"""
 function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_pair::Vector{ConstraintRange}, pair_idxs::Tuple{Int,Int})
@@ -103,52 +105,10 @@ fitness_function = make_fitness_function_with_fixed_inputs(eval_ic_fitness, full
 @code_warntype solve(fullprob, saveat=0.1, save_idxs=1)
 @code_warntype eval_ic_fitness(rand(14), fullprob)
 
-#<ChatGPT version revised
-"""Monte carlo sampling to estimate bounding volume out of total volume"""
-function monte_carlo_volume(points::Vector{Vector{Float64}}, var_constraints::Vector{ConstraintRange}, n_samples::Int = 10000)
-    # Get the number of points and the dimension of each point
-    n_points, dim = length(points), length(points[1])
 
-    # Calculate the total volume using the parameter constraint ranges
-    total_volume = prod([conrange.max - conrange.min for conrange in var_constraints])
-    @info "Total solution volume: $total_volume"
-
-    # Generate random points within the bounds specified by param_values
-    random_points = generate_population(var_constraints, n_samples)
-
-    # Calculate maximum distance threshold for points to be inside the hull
-    max_dist_threshold = maximum([norm(points[i] .- points[j]) for i in 1:n_points for j in 1:n_points]) * 2
-
-    # Initialize a counter for points inside the hull
-    in_hull = zeros(Int64, Threads.nthreads())
-
-    # For each random point, calculate the distance to each of the input points and check if it's in the hull
-    Threads.@threads for i in 1:n_samples
-        min_distance = minimum([norm(points[j] .- random_points[i]) for j in 1:n_points])
-
-        # Check if the point is within the maximum distance threshold
-        if min_distance <= max_dist_threshold
-            in_hull[Threads.threadid()] += 1
-        end
-    end
-
-    # Reduce the partial results into a final result
-    total_in_hull = sum(in_hull)
-
-    estimated_volume = total_volume * (total_in_hull / n_samples)
-
-    return estimated_volume
-end
-#>End
-
-
-generate_population(var_constraints,10000)
-testvol = monte_carlo_volume([rand(2) for i in 1:10000], var_constraints)
 
 
 using LazySets, Polyhedra, CDDLib
-
-
 # Define the function to compute the result
 function compute_result(points::Vector{Vector{Float64}}, var_constraints::ConstraintType)
     n = length(points)
@@ -173,28 +133,77 @@ end
 result = compute_result(points, constraints)
 
 
-const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
+
+
+
+#<ChatGPT version revised
+"""Monte carlo sampling to estimate bounding volume out of total volume"""
+function monte_carlo_volume(points::Vector{Vector{Float64}}, var_constraints::Vector{ConstraintRange}, n_samples::Int = 10000)
+    #* Get the number of points and the dimension of each point
+    n_points, dim = length(points), length(points[1])
+
+    #* Calculate the total volume using the parameter constraint ranges
+    total_volume = prod([conrange.max - conrange.min for conrange in var_constraints])
+    @info "Total solution volume: $total_volume"
+
+    #* Generate random points within the bounds specified by param_values
+    random_points = generate_population(var_constraints, n_samples)
+
+    #* Calculate maximum distance threshold for points to be inside the hull
+    max_dist_threshold = maximum([norm(points[i] .- points[j]) for i in 1:n_points for j in 1:n_points]) * 2
+
+    #* Initialize a counter for points inside the hull
+    in_hull = zeros(Int64, Threads.nthreads())
+
+    #* For each random point, calculate the distance to each of the input points and check if it's in the hull
+    Threads.@threads for i in 1:n_samples
+        min_distance = minimum([norm(points[j] .- random_points[i]) for j in 1:n_points])
+
+        #* Check if the point is within the maximum distance threshold
+        if min_distance <= max_dist_threshold
+            in_hull[Threads.threadid()] += 1
+        end
+    end
+
+    #* Reduce the partial results into a final result
+    total_in_hull = sum(in_hull)
+
+    estimated_volume = total_volume * (total_in_hull / n_samples)
+
+    return estimated_volume
+end
+#>End
+
+ic_constraints = define_initialcondition_constraints()
+var_constraints = ic_constraints.ranges[1:2]
+generate_population(var_constraints,10000)
+testvol = monte_carlo_volume([rand(2) for i in 1:10000], var_constraints)
 
 
 """Compare the allowed solution space for when each pair of inputs is fixed"""
 function reachability_analysis(constraints::ConstraintType, prob::ODEProblem) 
 
-    #Get all combinations of fixed pairs
+    #* store the original number of BLAS threads
+    original_blas_threads = BLAS.get_num_threads()
+
+    #* set the number of BLAS threads to 1 to avoid multithreading issues
+    BLAS.set_num_threads(1)
+
+    #* Get all combinations of fixed pairs
     fixed_pair_combos = combinations(constraints.ranges, 2)
 
     loopprogress = Progress(length(collect(fixed_pair_combos)), desc ="Looping thru fixed pairs: " , color=:blue)
 
-    # Make a results dictionary where fixedpair => (volume, avg_period, avg_amplitude, num_oscillatory_points)
+    #* Make a results dictionary where fixedpair => (volume, avg_period, avg_amplitude, num_oscillatory_points)
     results = Dict{Tuple{Symbol, Symbol}, NamedTuple{(:volume, :avg_period, :avg_amplitude, :num_oscillatory_points), Tuple{Float64, Float64, Float64, Int}}}() 
 
-    # reachplot = barhist(title="Reachability Analysis", xlabel="Volume", ylabel="Average Period", zlabel="Average Amplitude", legend=:bottomright)
     for fixedpair in fixed_pair_combos
         @info "Fixed input pair: $(fixedpair[1].name), $(fixedpair[2].name)"
 
-        # Make a copy of the constraints to modify
+        #* Make a copy of the constraints to modify
         variable_constraints = deepcopy(constraints)
 
-        # Remove the fixed parameters from the variable constraints
+        #* Remove the fixed parameters from the variable constraints
         filter!(x -> x.name != fixedpair[1].name && x.name != fixedpair[2].name, variable_constraints.ranges)
 
         fixed_ga_problem = GAProblem(variable_constraints, prob)
@@ -204,19 +213,19 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
         #* Create a closure for the fitness function that includes the fixed inputs
         make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixedpair, fixedpair_idxs)
 
-        # Run the optimization function to get the evaluated points
+        #* Run the optimization function to get the evaluated points
         oscillatory_points = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 8) #TODO: outputting the same number of points for multiple pairs
     
-        # Compute convex hull volume of the oscillatory region in parameter space
+        #* Compute convex hull volume of the oscillatory region in parameter space
         volume = monte_carlo_volume([x.ind for x in oscillatory_points], variable_constraints.ranges) #TODO: computing the same volume for multiple pairs
         @info "Volume of oscillatory region: $volume"
  
 
-        # Calculate the number of oscillatory points
+        #* Calculate the number of oscillatory points
         num_points = length(oscillatory_points)
         @info "Number of oscillatory points: $num_points"
 
-        # Calculate the average period and amplitude
+        #* Calculate the average period and amplitude
         avg_period = mean(x -> x.per, oscillatory_points)
         @info "Average period: $avg_period"
 
@@ -224,12 +233,13 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
         @info "Average amplitude: $avg_amplitude"
 
 
-        # Store the results for the given fixed parameter combination
+        #* Store the results for the given fixed parameter combination
         results[(fixedpair[1].symbol, fixedpair[2].symbol)] = (volume = volume, avg_period = avg_period, avg_amplitude, num_oscillatory_points = num_points)
 
         next!(loopprogress)
-        # return results
     end
+    #* restore the original number of BLAS threads
+    BLAS.set_num_threads(original_blas_threads)
     # Convert results to DataFrame
     # results_df = DataFrame(results)
     return results
