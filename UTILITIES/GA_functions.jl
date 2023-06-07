@@ -277,7 +277,7 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     # @info "Finished optimization"
     # return result
     # Get the individual, fitness, and extradata of the population
-    record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector,Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace])
+    record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector{Float64},Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace])
     return record
     # return record, result
 end
@@ -304,7 +304,7 @@ function find_indices(combination::Vector{Symbol}, NAMES::Vector{String})
     return p1idx, p2idx
 end
 
-function find_indices(combination::Vector{ConstraintRange}, constraints::Vector{ConstraintRange})
+function find_indices(combination::Vector{ConstraintRange}, constraints::Vector{ConstraintRange})::Tuple{Int,Int}
     p1idx = findfirst(x -> x.name == combination[1].name, constraints)
     p2idx = findfirst(x -> x.name == combination[2].name, constraints)
     return p1idx, p2idx
