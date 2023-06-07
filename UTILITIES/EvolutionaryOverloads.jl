@@ -49,7 +49,7 @@ function Evolutionary.NLSolversBase.value!(obj::EvolutionaryObjective{TC,TF,TX,V
     Threads.@threads for i in 1:n
         F[i], E[i]... = Evolutionary.value(obj, xs[i])  # get the vector
     end
-    F, E
+    # F, E
 end
 
 function Evolutionary.NLSolversBase.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:serial}},
@@ -59,7 +59,7 @@ function Evolutionary.NLSolversBase.value!(obj::EvolutionaryObjective{TC,TF,TX,V
     for i in 1:n
         F[i], E[i]... = Evolutionary.value(obj, xs[i])  # get the vector
     end
-    F, E
+    # F, E
 end
 
 """Initialization of my custom GA algorithm state that captures additional data from the objective function\n
