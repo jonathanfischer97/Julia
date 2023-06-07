@@ -58,7 +58,7 @@ function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Flo
 end
 
 """Cost function to be plugged into eval_fitness wrapper"""
-function CostFunction(sol::ODESolution)
+function CostFunction(sol::ODESolution)::Vector{Float64}
     #*get the fft of the solution
     fftData = getFrequencies(sol.u)
     fft_peakindexes, fft_peakvals = findmaxima(fftData,10) #* get the indexes of the peaks in the fft
