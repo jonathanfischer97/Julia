@@ -59,3 +59,25 @@ end
 #     (ka7*DF,kb7), Lp + LpAP <--> LpAPLp # 2D reaction: Membrane-bound phosphatase binds to Lp with greater affinity as determined by y (V/A)
 #     kcat7, LpAPLp --> L + LpAP # L dephosphorylation by phosphatase, same as 3D: first order reactions aren't dependent on dimensionality
 # end  
+
+
+
+#* Function to print out differential equations of a reaction network
+function format_equations(reactionnetwork::ReactionSystem)
+    osys = convert(ODESystem, reactionnetwork)
+    for ode in osys.eqs
+        ode_str = string(ode)
+        # ode_str = replace(ode_str, "~" => "=")
+        ode_str = replace(ode_str, "(t)" => "")
+        ode_str = replace(ode_str, "Differential(" => "d")
+        ode_str = replace(ode_str, ") ~" => " =")
+        println(ode_str)
+    end
+end
+
+
+# fullrn = make_fullrn()
+
+# format_equations(fullrn)
+
+
