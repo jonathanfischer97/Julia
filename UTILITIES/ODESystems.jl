@@ -21,7 +21,7 @@ function fullmodel_ode!(du, u, p, t)
     du[14] = kb2*LpAP + kb7*APLp + kcat7*APLp + ka4*A*P - kb4*AP - ka2*AP*Lp - ka7*AP*Lp #* AP
     du[15] = kb2*LpAKL + ka3*A*LK + ka1*AK*L - kb1*AKL - kb3*AKL - kcat1*AKL - ka2*y*AKL*Lp #* AKL
     du[16] = kb2*LpAPLp + ka7*AP*Lp + ka4*A*LpP - kb4*APLp - kb7*APLp - kcat7*APLp - ka2*y*APLp*Lp #* APLp
-    du
+    nothing
 end
 
 #* Out of place, with StaticArrays
@@ -63,11 +63,11 @@ u0 = [x[2] for x in usym]
 #? Timespan for integration
 tspan = (0., 100.)
 
-inplaceprob = ODEProblem(fullmodel_ode!, u0, tspan, p)
-oopprob = ODEProblem(fullmodel, SVector{16}(u0), tspan, SVector{13}(p))
+# inplaceprob = ODEProblem(fullmodel_ode!, u0, tspan, p)
+# oopprob = ODEProblem(fullmodel, SVector{16}(u0), tspan, SVector{13}(p))
 
-@btime solve($inplaceprob, saveat=0.1, save_idxs=1)
-@btime solve($oopprob, saveat=0.1, save_idxs=1)
+# @btime solve($inplaceprob, saveat=0.1, save_idxs=1)
+# @btime solve($oopprob, saveat=0.1, save_idxs=1)
 
 
 
