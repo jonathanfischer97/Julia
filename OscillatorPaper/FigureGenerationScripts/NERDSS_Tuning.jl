@@ -67,27 +67,32 @@ nerdsol = solve(nerdssprob, Rosenbrock23(), saveat = 0.1)
 
 # plot(nerdsol, idxs = [1,5,2,3,4], color = [:blue :gold :red :purple :green])
 scales = [0.5, 0.7, 0.9, 1.1, 1.3]
-begin 
+
+function make_tuneplot(prob, idx1, idx2)
     per_array = []
     amp_array = []
+    nerdsol = solve(prob, Rosenbrock23(), saveat = 0.1)
+    per, amp = getPerAmp(nerdsol)
+    pl = plot(nerdsol, idxs = (0,idx1,idx2), title = "Tuning the amplitude through V/A", label = "VA = $(prob.p[end]) nm\nPeriod = $(round(per)) s\nAmplitude = $(round(amp)) uM\n")
 
-    pl = plot(nerdsol, idxs = (0,1,3), xlabel = "PIP2 (uM)", ylabel = "Synaptojanin (µM)", title = "Tuning the period through V/A", label = "VA = $(p[end]) nm")
-
-    for i in 1:3
-        p[end] = p[end] * 2.0;
-        @info "V/A = $(p[end]) nm"
-        new_nerdsol = solve(remake(nerdssprob; p = p), Rosenbrock23(), saveat = 0.1);
+    pcopy = copy(prob.p)
+    for i in 1:2
+        pcopy[end] = pcopy[end] * 1.5;
+        @info "V/A = $(pcopy[end]) nm"
+        new_nerdsol = solve(remake(prob; p = pcopy), Rosenbrock23(), saveat = 0.1);
             per, amp = getPerAmp(new_nerdsol)
             println("Period = $per")
             println("Amplitude = $amp")
             push!(per_array, per)
             push!(amp_array, amp)
-        plot!(pl, new_nerdsol, idxs = (0,1,3),label = "V/A = $(p[end]) nm", ls = :dash)
+        plot!(pl, new_nerdsol, idxs = (0,idx1,idx2),label = "V/A = $(pcopy[end]) nm\nPeriod = $(round(per)) s\nAmplitude = $(round(amp)) uM\n", ls = :dash)
     end
-    p = [x[2] for x in psym]
     display(pl)
+    return pl
 end
 
+p1 = make_tuneplot(nerdssprob, 1, 10)
+savefig(p1, "/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/FigureGenerationScripts/ProgressReportFigures/tuneplot1.png")
 
 #* changing initial conditions to tune period
 begin 
