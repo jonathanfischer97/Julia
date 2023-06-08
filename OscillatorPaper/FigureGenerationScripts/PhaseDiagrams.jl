@@ -22,8 +22,9 @@ begin
     # using OrderedCollections
     using Combinatorics
     # using LazySets, Polyhedra
-    default(lw = 2, size = (1000, 600), dpi = 200)
-    # plotlyjs()
+    default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 8px)
+    plotlyjs()
+    using CairoMakie
     # gr()
     # using Base.Threads
 
@@ -46,7 +47,23 @@ begin
 end
 
 #* Solve model for arbitrary oscillatory parameters and initial conditions
-sol = solve(fullprob)
+sol = solve(fullprob, saveat=0.1)
 
 #* Plot the phase diagrams with time as the third dimension
-plot(sol, vars=(0, 1, 3), colorbar = false, xlabel = "Time", ylabel = "L", zlabel = "K", title = "Phase Diagrams", camera = (-100, 30))
+Plots.plot(sol, idxs=(0, 1, 3), colorbar = false, xlabel = "Time", ylabel = "L", zlabel = "K", title = "Phase Diagrams")#, camera = (-100, 30))
+
+
+#! Makie plotting 
+begin
+    t = sol.t
+    x = sol[1]
+    y = sol[2,:]
+    z = sol[3,:]
+end
+
+
+f = Figure()
+ax = Axis(f[1,1])
+lines!(ax, t, x, color = :blue, linewidth = 3, linestyle = :dash)
+CairoMakie.scatter!(ax, t, x, color = range(0,1,length=length(t)), markersize = range(5, 15, length=length(t)), colormap = :viridis)
+f
