@@ -66,7 +66,7 @@ psym = [:ka1 => 5.453534109021441e-05 #ka1, 1
 p = [x[2] for x in psym]
 
 
-usym = [:L => 634.6315289074139, :K => 47.42150049582334, :P => 239.66312964177104,  :A => 838.7724702072363, :Lp => 790.5014385747756, :LpA => 0.0, :LK => 0.0, 
+usym = [:L => 634.6315289074139, :K => 47.42150049582334, :P => 239.66312964177104,  :A => 838.7724702072363, :Lp => 0.0, :LpA => 0.0, :LK => 0.0, #:Lp => 790.5014385747756,
         :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, :AKL => 0.0, :APLp => 0.0]
 u0 = [x[2] for x in usym]
 
@@ -84,7 +84,7 @@ nerdss_gaproblem = GAProblem(ic_constraints,nerdssprob)
 
 nerdss_record = run_GA(nerdss_gaproblem)
 
-randprob = remake(nerdssprob; u0 = vcat(nerdss_record[end,:].ind,zeros(12)))
+randprob = remake(nerdssprob; u0 = vcat(nerdss_record[end,:].ind,zeros(12)), tspan = (0.,1000.0))
 randsol = solve(randprob, Rosenbrock23(), saveat = 0.1)
 plot(randsol)
 
