@@ -48,6 +48,10 @@ function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Flo
     #* Find peaks of the minima too 
     indx_min, vals_min = findminima(sol.u, 5)
 
+    if length(indx_max) < 3 || length(indx_min) < 3
+        return 0.0, 0.0
+    end
+
     #* Calculate amplitudes and periods
     @inbounds pers = (sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1))
     @inbounds amps = ((vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min)))
