@@ -4,7 +4,7 @@ begin
     using DifferentialEquations
     using Statistics
     using Peaks
-    # using Evolutionary, FFTW
+    using Evolutionary, FFTW
     using Random
     using Distributions
     using DataFrames
@@ -24,17 +24,23 @@ begin
     # using LazySets, Polyhedra
     default(lw = 2, size = (1000, 600), dpi = 200)
     # plotlyjs()
-    import CairoMakie as cm 
-    gr()
+    # import CairoMakie as cm 
+    # gr()
 
+
+    include("../../UTILITIES/EvolutionaryOverloads.jl")
 
     # import the Catalyst model "fullrn"
     include("../../UTILITIES/ReactionNetwork.jl")
 
-    # import the ODE problem generator. Sets `fullprob` as a constant
+    # import the cost function and other evaluation functions
+    include("../../UTILITIES/EvaluationFunctions.jl")
+
+    # import the genetic algorithm and associated functions
+    include("../../UTILITIES/GA_functions.jl")
+
     include("../../UTILITIES/ODEProbMaker.jl")
 
-    include("../../UTILITIES/EvaluationFunctions.jl")
 
     const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 end
@@ -58,15 +64,26 @@ psym = [:ka1 => 5.453534109021441e-05 #ka1, 1
     :kcat7 => 1.2733781341040291 #kcat7, 12
     :DF => 2000.] #DF, 13
 p = [x[2] for x in psym]
+
+
 usym = [:L => 634.6315289074139, :K => 47.42150049582334, :P => 239.66312964177104,  :A => 838.7724702072363, :Lp => 790.5014385747756, :LpA => 0.0, :LK => 0.0, 
         :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, :AKL => 0.0, :APLp => 0.0]
 u0 = [x[2] for x in usym]
+
+
+
 nerdssprob = make_ODEProb(; psym = psym, usym = usym, tspan = (0., 1000.))
 
 nerdsol = solve(nerdssprob, Rosenbrock23(), saveat = 0.1)
 
-# plot(nerdsol, idxs = [1,5,2,3,4], color = [:blue :gold :red :purple :green])
-scales = [0.5, 0.7, 0.9, 1.1, 1.3]
+
+#! run GA to get low copy number oscillations for NERDSS
+ic_constraints = define_initialcondition_constraints(;lipidrange = (100., 500.), kinaserange = (10., 200.), phosphataserange = (10., 200.), ap2range = (10., 500.))
+
+nerdss_gaproblem = GAProblem(ic_constraints,nerdssprob)
+
+nerdss_record = run_GA(nerdss_gaproblem)
+
 
 function make_tuneplot(prob, idx1, idx2)
     per_array = []
