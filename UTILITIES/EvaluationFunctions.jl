@@ -76,8 +76,8 @@ end
 function CostFunction(sol::ODESolution)::Vector{Float64}
     #*get the fft of the solution
     fftData = getFrequencies(sol.u)
-    fft_peakindexes, fft_peakvals = findmaxima(fftData,10) #* get the indexes of the peaks in the fft
-    time_peakindexes, time_peakvals = findmaxima(sol.u,5) #* get the times of the peaks in the fft
+    fft_peakindexes, fft_peakvals = findmaxima(fftData,1) #* get the indexes of the peaks in the fft
+    time_peakindexes, time_peakvals = findmaxima(sol.u,1) #* get the times of the peaks in the fft
     if length(fft_peakindexes) < 2 || length(time_peakindexes) < 2 #* if there are no peaks in either domain, return 0
         return [0.0, 0.0, 0.0]
     end
