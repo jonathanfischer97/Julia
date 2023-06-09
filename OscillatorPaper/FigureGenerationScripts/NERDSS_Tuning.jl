@@ -72,7 +72,7 @@ u0 = [x[2] for x in usym]
 
 
 
-nerdssprob = make_ODEProb(; psym = psym, usym = usym, tspan = (0., 1000.))
+nerdssprob = make_ODEProb(; psym = psym, usym = usym, tspan = (0., 100.))
 
 nerdsol = solve(nerdssprob, Rosenbrock23(), saveat = 0.1)
 
@@ -84,6 +84,9 @@ nerdss_gaproblem = GAProblem(ic_constraints,nerdssprob)
 
 nerdss_record = run_GA(nerdss_gaproblem)
 
+randprob = remake(nerdssprob; u0 = vcat(nerdss_record[end,:].ind,zeros(12)))
+randsol = solve(randprob, Rosenbrock23(), saveat = 0.1)
+plot(randsol)
 
 function make_tuneplot(prob, idx1, idx2)
     per_array = []
