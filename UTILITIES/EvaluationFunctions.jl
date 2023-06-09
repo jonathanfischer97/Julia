@@ -73,7 +73,7 @@ function getPerAmp(sol::ODESolution)
 end
 
 """Cost function to be plugged into eval_fitness wrapper"""
-function CostFunction(sol::ODESolution)::Tuple{Float64, Float64, Float64}
+function CostFunction(sol::ODESolution)::Vector{Float64}
     #*get the fft of the solution
     fftData = getFrequencies(sol.u)
     fft_peakindexes, fft_peakvals = findmaxima(fftData,10) #* get the indexes of the peaks in the fft
@@ -88,7 +88,7 @@ function CostFunction(sol::ODESolution)::Tuple{Float64, Float64, Float64}
     period, amplitude = getPerAmp(sol, time_peakindexes, time_peakvals)
 
     #* Return cost, period, and amplitude as a vector
-    return (-std - diff, period, amplitude)
+    return [-std - diff, period, amplitude]
 end
 
 
