@@ -20,7 +20,7 @@
 # end
 
 """Get summed average difference of peaks in the frequency domain"""
-function getDifAvg(peakvals::Vector{Float64})
+function getDifAvg(peakvals::Vector{Float64}) #todo: compressed the range of values
     return (peakvals[1] - peakvals[end]) / length(peakvals)
 end
 
@@ -31,7 +31,7 @@ function getDif(peakvals::Vector{Float64})
 end
 
 """Get summed average standard deviation of peaks in the frequency domain"""
-function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; window::Int = 2)#, window_ratio::Float64) #get average standard deviation of fft peak indexes
+function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; window::Int = 1)#, window_ratio::Float64) #get average standard deviation of fft peak indexes
     arrLen = length(fft_arrayData)
     sum_std = @inbounds sum(std(fft_arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in fft_peakindxs) #* sum rolling window of standard deviations
     return sum_std / length(fft_peakindxs) #* divide by number of peaks to get average std
@@ -46,9 +46,9 @@ end
 """Calculates the period and amplitude of each individual in the population"""
 function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Float64})
     #* Find peaks of the minima too 
-    indx_min, vals_min = findminima(sol.u, 5)
+    indx_min, vals_min = findminima(sol[1,:], 5)
 
-    if length(indx_max) < 3 || length(indx_min) < 3
+    if length(indx_max) < 1 || length(indx_min) < 1 #todo need to fix this, either keep or move check into cost function
         return 0.0, 0.0
     end
 
@@ -65,7 +65,7 @@ function getPerAmp(sol::ODESolution)
     indx_max, vals_max = findmaxima(sol[1,:], 5)
     indx_min, vals_min = findminima(sol[1,:], 5)
 
-    if length(indx_max) < 3 || length(indx_min) < 3
+    if length(indx_max) < 4 || length(indx_min) < 4
         return 0.0, 0.0
     end
     #* Calculate amplitudes and periods
@@ -79,9 +79,9 @@ end
 """Cost function to be plugged into eval_fitness wrapper"""
 function CostFunction(sol::ODESolution)::Vector{Float64}
     #*get the fft of the solution
-    fftData = getFrequencies(sol.u)
-    fft_peakindexes, fft_peakvals = findmaxima(fftData,1) #* get the indexes of the peaks in the fft
-    time_peakindexes, time_peakvals = findmaxima(sol.u,1) #* get the times of the peaks in the fft
+    fftData = getFrequencies(sol[1,:])
+    fft_peakindexes, fft_peakvals = findmaxima(fftData,10) #* get the indexes of the peaks in the fft
+    time_peakindexes, time_peakvals = findmaxima(sol[1,:],10) #* get the times of the peaks in the fft
     if length(fft_peakindexes) < 2 || length(time_peakindexes) < 2 #* if there are no peaks in either domain, return 0
         return [0.0, 0.0, 0.0]
     end
