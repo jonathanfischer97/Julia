@@ -17,6 +17,27 @@ function make_ODEProb(rn = make_fullrn(); psym = [:ka1 => 0.009433439939827041, 
 end
 
 
+#< Plotting utilities
+"""
+Plot the solution of an ODEProblem, `prob`, with respect to the variables `vars`.
+"""
+function plotsol(prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)))
+        sol = solve(prob, save_idxs=vars)
+        p = plot(sol, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600))
+
+        display(p)
+        return p
+end
+
+
+"""
+Plot the solution from a row of the DataFrame
+"""
+function plotsol(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)))
+
+        reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row]) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
+        plotsol(reprob; vars)        
+end
 
 # function make_nerdssODEProb(rn; p::Vector{Float64} = [1.4353350626245021e-5, 0.20705634097197367, 461.9447701768986, 0.6642156268695386, 15.902417897116093, 7.971443130885463e-5, 0.7016715934086192, 
 #                                                 1.5736952400326606e-5, 0.10411397662131976, 0.0007148707925785353, 0.05915700148314913, 0.8831745113213687, 1500.0], 
