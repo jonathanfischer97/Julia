@@ -57,7 +57,7 @@ constraints = define_parameter_constraints(
 )
 ```
 """
-function define_parameter_constraints(; karange = (-3.0, 1.0), kbrange = (-3.0, 3.0), kcatrange = (-3.0, 3.0), dfrange = (1.0, 5.0))
+function define_parameter_constraints(; karange = (1e-3, 1e1), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e3, 1e5))
 
     nominalvals = (;ka1 = 0.009433439939827041, kb1 = 2.3550169939427845, kcat1 = 832.7213093872278, ka2 = 12.993995997539924, kb2 = 6.150972501791291,
             ka3 = 1.3481451097940793, kb3 = 0.006201726090609513, ka4 = 0.006277294665474662, kb4 = 0.9250191811994848, ka7 = 57.36471615394549, 
@@ -124,7 +124,7 @@ function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinasera
 end
 #> END
 
-# @code_warntype define_initialcondition_constraints()
+
 
 
 #< GA PROBLEM TYPE
@@ -145,14 +145,10 @@ struct GAProblem{T <: ConstraintType}
     eval_function::Function
 
     function GAProblem(constraints::ParameterConstraints, ode_problem::ODEProblem) 
-        # evalfunc = T === ParameterConstraints ? eval_param_fitness : eval_ic_fitness
-        # fitness_function = fitness_function_maker(evalfunc, ode_problem)
         new{ParameterConstraints}(constraints, ode_problem, eval_param_fitness)
     end
 
     function GAProblem(constraints::InitialConditionConstraints, ode_problem::ODEProblem) 
-        # evalfunc = T === ParameterConstraints ? eval_param_fitness : eval_ic_fitness
-        # fitness_function = fitness_function_maker(evalfunc, ode_problem)
         new{InitialConditionConstraints}(constraints, ode_problem, eval_ic_fitness)
     end
 end
@@ -182,7 +178,7 @@ population = generate_population(constraints, 100)
 ```
 """
 function generate_population(constraint::ParameterConstraints, n::Int)
-    population = [exp10.(rand(Uniform(conrange.min, conrange.max), n)) for conrange in constraint.ranges]
+    population = [exp10.(rand(Uniform(log10(conrange.min), log10(conrange.max)), n)) for conrange in constraint.ranges]
     population = transpose(hcat(population...))
     return [population[:, i] for i in 1:n]
 end
@@ -242,6 +238,8 @@ end
 Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 """
 function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; threshold=10000, population_size = 10000, abstol=1e-12, reltol=1e-10, successive_f_tol = 1, iterations=10, parallelization = :thread)
+    blas_threads = BLAS.get_num_threads()
+    BLAS.set_num_threads(1)
     # Generate the initial population.
     pop = generate_population(ga_problem.constraints, population_size)
     # @info "Generated initial population"
@@ -278,10 +276,19 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     # return result
     # Get the individual, fitness, and extradata of the population
     record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector{Float64},Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace])
+
+    BLAS.set_num_threads(blas_threads)
     return DataFrame(record)
     # return record, result
 end
 #> END
+
+
+"""Extract solution of a row from the dataframe"""
+function extract_solution(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)))
+    reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row]) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
+    solve(reprob, save_idxs = vars, saveat = 0.1)
+end
 
 
 
