@@ -1,4 +1,5 @@
 
+import Evolutionary
 #! OVERRIDES FOR Evolutionary.jl ##
 """Custom GA state type that captures additional data from the objective function in the extradata field\n
     - `T` is the type of the fitness value\n
@@ -106,6 +107,14 @@ function Evolutionary.initial_state(method::GA, options, objfun, population)
     return CustomGAState(N, eliteSize, minfit, fitness, extradata, copy(population[fitidx]))
 end
 
+"""Modified evaluate! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
+function Evolutionary.evaluate!(objfun, fitness, extradata, population::Vector{Vector{Float64}}, constraints)
+    # calculate fitness of the population
+    Evolutionary.value!(objfun, fitness, extradata, population)
+    # apply penalty to fitness
+    Evolutionary.penalty!(fitness, constraints, population)
+end
+
 """Update state function that captures additional data from the objective function"""
 function Evolutionary.update_state!(objfun, constraints, state::CustomGAState, parents::AbstractVector{IT}, method::GA, options, itr) where {IT}
     populationSize = method.populationSize
@@ -145,10 +154,3 @@ function Evolutionary.update_state!(objfun, constraints, state::CustomGAState, p
     return false
 end
 
-"""Modified evaluate! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
-function Evolutionary.evaluate!(objfun, fitness, extradata, population, constraints)
-    # calculate fitness of the population
-    Evolutionary.value!(objfun, fitness, extradata, population)
-    # apply penalty to fitness
-    Evolutionary.penalty!(fitness, constraints, population)
-end
