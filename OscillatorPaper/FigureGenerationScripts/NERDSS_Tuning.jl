@@ -46,7 +46,6 @@ begin
 end
 
 
-const fullrn = make_fullrn()
 
 # format_equations(fullrn)
 
@@ -66,16 +65,41 @@ psym = [:ka1 => 5.453534109021441e-05 #ka1, 1
 p = [x[2] for x in psym]
 
 
-usym = [:L => 634.6315289074139, :K => 47.42150049582334, :P => 239.66312964177104,  :A => 838.7724702072363, :Lp => 0.0, :LpA => 0.0, :LK => 0.0, #:Lp => 790.5014385747756,
-        :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, :AKL => 0.0, :APLp => 0.0]
-u0 = [x[2] for x in usym]
+# usym = [:L => 634.6315289074139, :K => 47.42150049582334, :P => 239.66312964177104,  :A => 838.7724702072363, :Lp => 0.0, :LpA => 0.0, :LK => 0.0, #:Lp => 790.5014385747756,
+#         :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, :AKL => 0.0, :APLp => 0.0]
+# u0 = [x[2] for x in usym]
 
 
 
-nerdssprob = make_ODEProb(; psym = psym, usym = usym, tspan = (0., 100.))
+nerdssprob = make_ODEProb(; psym = psym, tspan = (0., 100.))
 
 nerdsol = solve(nerdssprob, Rosenbrock23(), saveat = 0.1)
 
+
+
+function concentration_to_copy_number(concentration::Float64, volume_um3::Float64)
+    # Convert volume from um^3 to L
+    volume_L = volume_um3 * 1e-15
+    # Calculate the number of moles in the solution
+    moles = concentration * volume_L
+    # Convert moles to molecules (i.e., copy number) using Avogadro's number
+    copy_number = moles * 6.022e23
+    return copy_number
+end
+
+
+
+function rate_constant_conversion(rate_constant_nm3_per_us::Float64, volume_um3::Float64)
+    # Convert volume from um^3 to L
+    volume_L = volume_um3 * 1e-15
+    # Convert from nm^3/us to L/s
+    rate_constant_L_per_s = rate_constant_nm3_per_us * (1e24) / (1e-6)
+    # Convert from L/s to uM^-1 s^-1 using Avogadro's number and the volume
+    rate_constant_uM_per_s = rate_constant_L_per_s / 6.022e23 / 1e6 / volume_L
+    return rate_constant_uM_per_s
+end
+
+rate_constant_conversion(15.453534109021441e-05, 0.5)
 
 #! run GA to get low copy number oscillations for NERDSS
 ic_constraints = define_initialcondition_constraints(;lipidrange = (100., 500.), kinaserange = (10., 200.), phosphataserange = (10., 200.), ap2range = (10., 500.))
