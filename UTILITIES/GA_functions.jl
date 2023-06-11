@@ -271,7 +271,7 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
 
     # Run the optimization.
     # @info "Starting optimization"
-    result = Evolutionary.optimize(fitness_function, [0.0,0.0,0.0], boxconstraints, mthd, pop, opts)
+    result = Evolutionary.optimize(fitness_function, boxconstraints, mthd, pop, opts)
     # @info "Finished optimization"
     # return result
     # Get the individual, fitness, and extradata of the population

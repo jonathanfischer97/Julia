@@ -47,19 +47,19 @@ end
 
 Constructor for an objective function object around the function `f` with initial parameter `x`, and objective value `F`.
 """
-function Evolutionary.EvolutionaryObjective(f::TC, x::AbstractArray, F::Vector{Float64};
-                               eval::Symbol = :serial) where {TC}
-    @info "Using custom EvolutionaryObjective constructor"
-    defval = Evolutionary.default_values(x)
-    # convert function into the in-place one
-    TF = typeof(F)
-    fn = (Fv,xv) -> (Fv .= f(xv))
-    TN = typeof(fn)
-    EvolutionaryObjective{TN,TF,typeof(x),Val{eval}}(fn, F, defval, 0)
-end
+# function Evolutionary.EvolutionaryObjective(f::TC, x::AbstractArray, F::Vector{Float64};
+#                                eval::Symbol = :serial) where {TC}
+#     @info "Using custom EvolutionaryObjective constructor"
+#     defval = Evolutionary.default_values(x)
+#     # convert function into the in-place one
+#     TF = typeof(F)
+#     fn = (Fv,xv) -> (Fv .= f(xv))
+#     TN = typeof(fn)
+#     EvolutionaryObjective{TN,TF,typeof(x),Val{eval}}(fn, F, defval, 0)
+# end
 
 """Modified value! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
-function Evolutionary.NLSolversBase.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}},
+function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}},
                                 F::AbstractVector, E::AbstractVector, xs::AbstractVector{TX}) where {TC,TF<:AbstractVector,TX}
     n = length(xs)
     # @info "Evaluating $(n) individuals in parallel"
@@ -69,7 +69,7 @@ function Evolutionary.NLSolversBase.value!(obj::EvolutionaryObjective{TC,TF,TX,V
     # F, E
 end
 
-function Evolutionary.NLSolversBase.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:serial}},
+function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:serial}},
                                 F::AbstractVector, E::AbstractVector, xs::AbstractVector{TX}) where {TC,TF<:AbstractVector,TX}
     n = length(xs)
     # @info "Evaluating $(n) individuals in serial"
@@ -139,9 +139,7 @@ function Evolutionary.update_state!(objfun, constraints, state::CustomGAState, p
     Evolutionary.mutate!(offspring, method, constraints, rng=rng)
 
     # calculate fitness and extradata of the population
-    # @info "Evaluating offspring in update_state!"
     Evolutionary.evaluate!(objfun, state.fitpop, state.extradata, offspring, constraints)
-    # @info "Finished evaluating offspring in update_state!"
 
     # select the best individual
     minfit, fitidx = findmin(state.fitpop)
