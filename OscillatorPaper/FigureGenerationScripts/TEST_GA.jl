@@ -60,28 +60,30 @@ paramgaproblem = GAProblem(param_constraints, testprob)
 
 testrun = run_GA(paramgaproblem; population_size = 5000)
 
-plotsol(row) = plotsol(row, testrun, testprob; vars = [1])
+# plotsol(row) = plotsol(row, testrun, testprob; vars = [1])
 
-plotsol(1)
+# plotsol(1)
 
 
-testsol = solve(testprob, saveat = 0.1)[1,:]
-plot(testsol)
+# testsol = solve(testprob, saveat = 0.1)[1,:]
+# plot(testsol)
 
-argmaxima(testsol, 10)
+# argmaxima(testsol, 10)
 
 
 
 
 extract_solution(row) = extract_solution(row, testrun, testprob; vars = [1])
 
-dfsol = extract_solution(1)
+dfsol = extract_solution(6);
 plot(dfsol)
 
-argmaxima(dfsol[1,:], 10)
+findmaxima(dfsol[1,:], 1)
 
 dfsolfreqs = getFrequencies(dfsol[1,:])
 
-plot(dfsolfreqs)
+plot(dfsolfreqs, title = "FFT of Solution", xlabel = "Frequency", ylabel = "Magnitude")
 
 argmaxima(dfsolfreqs, 10)
+
+CostFunction(dfsol)
