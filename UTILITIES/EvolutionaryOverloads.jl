@@ -47,16 +47,16 @@ end
 
 Constructor for an objective function object around the function `f` with initial parameter `x`, and objective value `F`.
 """
-# function Evolutionary.EvolutionaryObjective(f::TC, x::AbstractArray, F::Vector{Float64};
-#                                eval::Symbol = :serial) where {TC}
-#     @info "Using custom EvolutionaryObjective constructor"
-#     defval = Evolutionary.default_values(x)
-#     # convert function into the in-place one
-#     TF = typeof(F)
-#     fn = (Fv,xv) -> (Fv .= f(xv))
-#     TN = typeof(fn)
-#     EvolutionaryObjective{TN,TF,typeof(x),Val{eval}}(fn, F, defval, 0)
-# end
+function Evolutionary.EvolutionaryObjective(f::TC, x::AbstractArray, F::Vector{Float64};
+                               eval::Symbol = :serial) where {TC}
+    @info "Using custom EvolutionaryObjective constructor"
+    defval = Evolutionary.default_values(x)
+    # convert function into the in-place one
+    TF = typeof(F)
+    fn = (Fv,xv) -> (Fv .= f(xv))
+    TN = typeof(fn)
+    EvolutionaryObjective{TN,TF,typeof(x),Val{eval}}(fn, F, defval, 0)
+end
 
 """Modified value! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
 function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}},
