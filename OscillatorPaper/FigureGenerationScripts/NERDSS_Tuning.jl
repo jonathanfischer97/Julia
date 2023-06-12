@@ -22,7 +22,7 @@ begin
     # using OrderedCollections
     # using Combinatorics
     # using LazySets, Polyhedra
-    default(lw = 2, size = (1000, 600), dpi = 200)
+    default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
     # plotlyjs()
     # import CairoMakie as cm 
     # gr()
@@ -102,13 +102,13 @@ function getFreqvsDF_threaded(nerdssprob, DFs=1000:100:1000000)
         pcopy = deepcopy(nerdssprob.p)
         pcopy[13] = DFs[i]
         newprob = remake(nerdssprob, p = pcopy)
-        nerdsol = solve(newprob, Rosenbrock23(), save_idxs = 1, saveat = 0.01)
+        nerdsol = solve(newprob, save_idxs = 1, saveat = 0.01)
         fit, period, amplitude = CostFunction(nerdsol)
         
         if fit == 0.0
             freqs[i], amps[i] = 0.0, 0.0
         else 
-            freqs[i], amps[i] = 1/period, amplitude
+            freqs[i], amps[i] = 60/period, amplitude
         end
     end
     return collect(DFs), freqs, amps
@@ -178,7 +178,7 @@ fastp = [0.13631431320575543, 258.39273861543745, 922.897626015191,
         3.88687247761903, 0.5093036370614539, 
         0.6602571034403275, 1.3961637922644583, 
         10.627756359174143, 0.01, 33.6202081364354, 
-        49096.34604920212]
+        1.5*4909.34604920212]
                                                         
 ogusym = [:L => 1.5, :K => 0.1, :P => 0.29, :A => 1.0, :Lp => 0.0, 
         :LpA => 0.0, :LK => 0.0, :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, :AKL => 0.0, :APLp => 0.0]
@@ -195,8 +195,8 @@ plot(ogsol)
 
 
 #! run GA to get low copy number oscillations for NERDSS
-ic_constraints = define_initialcondition_constraints(lipidrange = (0.1,1.0), kinaserange = (0.01,1.0), phosphataserange = (0.01,1.0), ap2range = (0.01,1.0))
-param_constraints = define_parameter_constraints(karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e6))
+ic_constraints = define_initialcondition_constraints(lipidrange = (0.1,1.5), kinaserange = (0.01,1.5), phosphataserange = (0.01,1.5), ap2range = (0.01,1.5))
+param_constraints = define_parameter_constraints(karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 2e4))
 
 ic_gaproblem = GAProblem(ic_constraints,ogprob)
 param_gaproblem = GAProblem(param_constraints,ogprob)
@@ -204,7 +204,7 @@ param_gaproblem = GAProblem(param_constraints,ogprob)
 nerdss_record = run_GA(ic_gaproblem)
 
 
-extract_solution(row) = extract_solution(row, nerdss_record, ogprob; vars = [1], tspan = (0., 50.))
+extract_solution(row) = extract_solution(row, nerdss_record, ogprob; vars = [1], tspan = (0., 100.))
 plotsol(row) = plotsol(row, nerdss_record, ogprob; vars = [1])
 
 plotsol(6)
@@ -225,28 +225,104 @@ end
 minper = argmin(nerdss_record.per)
 minpersol = extract_solution(minper)
 minrow = nerdss_record[minper,:]
-getPerAmp(minpersol)
+minfreq = 60/getPerAmp(minpersol)[1]
 CostFunction(minpersol)
 minper_concentration = calc_concentration_ratio(minrow)
-minplot = plot(minpersol, title="Lipid:Enzyme ratio = $minper_concentration", xlabel = "Time (s)", ylabel = "Concentration (μM)", 
-            label = "Frequency = $(round(1/(nerdss_record[minper,:].per),digits = 3)) Hz",legend_font_pointsize=14)
+minplot = plot(minpersol, label="Lipid:Enzyme ratio = $minper_concentration", xlabel = "Time (s)", ylabel = "PIP (μM)", 
+            title = "Frequency = $(round(minfreq,digits = 3)) min⁻¹",legend_font_pointsize=14, legend=:topright)
 
 
 maxper = argmax(nerdss_record.per)
 maxpersol = extract_solution(maxper)
 maxrow = nerdss_record[maxper,:]
-getPerAmp(maxpersol)
+maxfreq = 60/getPerAmp(maxpersol)[1]
 CostFunction(maxpersol)
 maxper_concentration = calc_concentration_ratio(maxrow)
-maxplot = plot(maxpersol, title="Lipid:Enzyme ratio = $maxper_concentration",xlabel = "Time (s)", ylabel = "Concentration (μM)",
-                color = :blue, label = "Frequency = $(round(1/(nerdss_record[maxper,:].per),digits = 3)) Hz",legend_font_pointsize=14)
+maxplot = plot(maxpersol, label="Lipid:Enzyme ratio = $maxper_concentration",xlabel = "Time (s)", ylabel = "PIP (μM)",
+                color = :blue, title = "Frequency = $(round(maxfreq,digits = 3)) min⁻¹",legend_font_pointsize=14)
 
 
-minmaxplot = plot(minplot,maxplot, layout = (2,1),bottom_margin = 12px, left_margin = 16px, top_margin = 8px, right_margin = 8px, size = (1000,800),titlefontsize=18, guidefont = 14)
-savefig(minmaxplot, "OscillatorPaper/FigureGenerationScripts/ProgressReportFigures/frequency_compare_plot2.png")
+minmaxplot = plot(minplot,maxplot, layout = (2,1),bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px, size = (1000,800),titlefontsize=18, guidefont = 14)
+savefig(minmaxplot, "OscillatorPaper/FigureGenerationScripts/ProgressReportFigures/frequency_compare_plot5_LOWDF.png")
 
-# filter!(x -> x.per < -0.2, nerdss_record)
 
+
+
+
+#< COMPUTE PARAMETER CONVERSIONS FOR NERDSS
+nerdss_parms = deepcopy(psym)
+for (i, parm) in pairs(nerdss_parms)
+    if occursin("ka", string(parm[1]))
+        nerdss_parms[i] = parm[1] => convert_to_microrate(ogprob.p[i]) 
+    else
+        nerdss_parms[i] = parm[1] => ogprob.p[i]
+    end
+end
+
+#< COMPUTE WATER BOX SIZE FOR NERDSS
+calculate_waterbox(0.4, nerdss_parms[end][2])
+
+#< COMPUTE COPY NUMBERS FROM MAX FREQUENCY SOLUTION FOR NERDSS
+copyu0 = concentration_to_copy_number.(maxrow.ind, 0.4)
+
+
+"""Interpolate intermediate initial conditions between min and max frequency solutions"""
+function interpolate_points(start_point, end_point, num_points)
+    # Ensure start_point and end_point are of same length
+    if length(start_point) != length(end_point)
+        error("Start point and end point must have the same number of dimensions")
+    end
+
+    # Create a range for each dimension
+    ranges = [range(start_point[i], stop = end_point[i], length = num_points) for i in eachindex(start_point)]
+
+    # Use the ranges to create an array of points
+    points = [ [r[i] for r in ranges] for i in 1:num_points]
+
+    return points
+end
+
+maxfreqind = minrow.ind 
+minfreqind = maxrow.ind
+
+#< INTERPOLATE BETWEEN MIN AND MAX FREQUENCY SOLUTIONS
+intermediate_ics = interpolate_points(maxfreqind, minfreqind, 5)
+intermediate_ics = interpolate_points([1.25, 1.125, 0.856591382462083, 1.5], [1.440358036171343, 0.8507514631909991, 0.27735186553210145, 0.29092614167154873], 4)
+nerdss_copyarrays = [concentration_to_copy_number.(ic, 0.4) for ic in intermediate_ics] #* Ordered from max frequency to min frequency 
+
+function make_tunerplot(intermediate_ics)
+    tunerplot = plot(layout = (4,1), legend=:none, xlabel = "Time (s)", ylabel = "PIP (μM)", plot_title = "Tuning the frequency of the oscillator", size = (1000,800), plot_titlefontsize=18, guidefont = 14)
+    for i in eachindex(intermediate_ics)
+        interprob = remake(ogprob, u0 = [intermediate_ics[i]; zeros(12)], tspan = (0.,20.))
+        intersol = solve(interprob, saveat = 0.1, save_idxs=1)
+        interfreq = 60/getPerAmp(intersol)[1]
+        plot!(tunerplot[i], intersol, title= "Frequency = $(round(interfreq,digits = 3)) min⁻¹", xlabel = "Time (s)", ylabel = "PIP (μM)", color = :purple, label = "Lipid:Enzyme ratio = $(calc_concentration_ratio(intermediate_ics[i]))")
+    end
+    display(tunerplot)
+    return tunerplot
+end
+
+function make_tunerplot(intermediate_ics)
+    tunerplot = plot(layout = (4,1), legend=:none, plot_title = "Tuning the frequency of the oscillator", size = (1000,800), plot_titlefontsize=18, guidefont = 14)
+    color_palette = palette([:red, :blue], length(intermediate_ics)) # Generate a color gradient
+    
+    for (i, ic) in enumerate(intermediate_ics)
+        interprob = remake(ogprob, u0 = [ic; zeros(12)], tspan = (0.,20.))
+        intersol = solve(interprob, saveat = 0.1, save_idxs=1)
+        interfreq = 60/getPerAmp(intersol)[1]
+        plot!(tunerplot[i], intersol, title= "Frequency = $(round(interfreq,digits = 3)) min⁻¹", titlefontcolor = color_palette[i], titlelocation = :right, xlabel = "Time (s)", ylabel = "PIP (μM)", color = color_palette[i], label = "Lipid:Enzyme ratio = $(calc_concentration_ratio(ic))")
+    end
+
+    # Share x-axis across subplots
+    # plot!(tunerplot, subplot = (4,1), link = :x)
+
+    # display(tunerplot)
+    return tunerplot
+end
+
+tunerplot = make_tunerplot(intermediate_ics)
+
+savefig(tunerplot, "OscillatorPaper/FigureGenerationScripts/ProgressReportFigures/tunerplot1.png")
 
 # newpsym = [:ka1 => convert_to_macrorate(0.027267670545107203)#5.453534109021441e-05 #ka1, 1
 #     :kb1 => 0.0643048008980449 #kb1, 2
@@ -265,18 +341,19 @@ savefig(minmaxplot, "OscillatorPaper/FigureGenerationScripts/ProgressReportFigur
 
 
 # newu0 = [4.9855314928351095, 0.08222720105366571, 0.669026631395984, 3.621476302891451]
-newu0 = [0.9889272736535439, 0.754312949899292, 0.21447637196917263, 0.13832807513023648]
+newu0 = [0.9889272736535439, 0.754312949899292, 0.7*0.21447637196917263, 0.13832807513023648]
 newp = [0.13631431320575543, 258.39273861543745, 922.897626015191, 
             1.7222377782178393, 49.044199345966945, 
                 3.88687247761903, 0.5093036370614539, 
                 0.6602571034403275, 1.3961637922644583, 
                 10.627756359174143, 0.01, 33.6202081364354, 
-                49096.34604920212]
+                1.2*49096.34604920212]
 newprob = remake(ogprob; u0 = [newu0; zeros(12)], p = newp, tspan = (0.,100.0))
 newsol = solve(newprob, Rosenbrock23(), save_idxs = 1)
 period, amplitude = getPerAmp(newsol)
-
-plot(newsol, title = "$(calc_concentration_ratio(newu0))", label = "Period = $(round(period,digits = 3)) s\nAmplitude = $(round(amplitude,digits = 3)) uM")
+freq = 60/period
+@info "DF = $(newp[end]) nm, Frequency = $freq 1/min"
+plot(newsol, title = "$(calc_concentration_ratio(newu0))", label = "Frequency = $(round(freq,digits = 3)) min⁻¹\nAmplitude = $(round(amplitude,digits = 3)) uM")
 
 let
     DFs, freqs, amps = getFreqvsDF_threaded(newprob)
@@ -299,7 +376,7 @@ function getFreqvsGrid(nerdssprob, concid1, concid2, concrange1=range(0.1, stop=
             newp = copy(prob.p)
             newp[concid2] = concrange2[j]
             newprob = remake(prob; u0 = newu0, p = newp, tspan = (0.,1000.0))
-            nerdsol = solve(prob, save_idxs = 1, saveat = 0.1)
+            nerdsol = solve(newprob, save_idxs = 1, saveat = 0.1)
             fit, period, amplitude = CostFunction(nerdsol)
             
             if fit == 0.0
@@ -315,9 +392,9 @@ function getFreqvsGrid(nerdssprob, concid1, concid2, concrange1=range(0.1, stop=
 end
 
 
-DFs, concs, freqs, amps = getFreqvsGrid(ogprob, 4, 13, range(0.1, stop=100.0, length=1000), range(10000, stop=100000.0, length=1000))
+DFs, concs, freqs, amps = getFreqvsGrid(ogprob, 4, 13, range(0.1, stop=100.0, length=500), range(10000, stop=100000.0, length=500))
 
-surface(DFs, concs, freqs, xlabel = "DF", ylabel = "AP2", zlabel = "Frequency (1/min)", title = "Frequency vs DF and AP2", color = :plasma)
+surface(DFs, concs, freqs, xlabel = "DF", ylabel = "AP2", zlabel = "Frequency (1/min)", title = "Frequency vs DF and AP2", color = :vik)
 
 
 
