@@ -46,7 +46,7 @@ end
 """Calculates the period and amplitude of each individual in the population"""
 function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Float64})
     #* Find peaks of the minima too 
-    indx_min, vals_min = findminima(sol[1,:], 5)
+    indx_min, vals_min = findminima(sol[1,:], 1)
 
     if length(indx_max) < 1 || length(indx_min) < 1 #todo need to fix this, either keep or move check into cost function
         return 0.0, 0.0
@@ -65,7 +65,7 @@ function getPerAmp(sol::ODESolution)
     indx_max, vals_max = findmaxima(sol[1,:], 5)
     indx_min, vals_min = findminima(sol[1,:], 5)
 
-    if length(indx_max) < 4 || length(indx_min) < 4
+    if length(indx_max) < 2 || length(indx_min) < 2
         return 0.0, 0.0
     end
     #* Calculate amplitudes and periods
@@ -78,10 +78,13 @@ end
 
 """Cost function to be plugged into eval_fitness wrapper"""
 function CostFunction(sol::ODESolution)::Vector{Float64}
+    tstart = 50 #iterations, = 5 seconds
+    # sol = sol[tstart:end] #* get the solution from the clean start time to the end
+    viewsol = sol.u #* get the view of the solution
     #*get the fft of the solution
-    fftData = getFrequencies(sol[1,:])
-    fft_peakindexes, fft_peakvals = findmaxima(fftData,10) #* get the indexes of the peaks in the fft
-    time_peakindexes, time_peakvals = findmaxima(sol[1,:],10) #* get the times of the peaks in the fft
+    fftData = getFrequencies(viewsol)
+    fft_peakindexes, fft_peakvals = findmaxima(fftData,1) #* get the indexes of the peaks in the fft
+    time_peakindexes, time_peakvals = findmaxima(viewsol,1) #* get the times of the peaks in the fft
     if length(fft_peakindexes) < 2 || length(time_peakindexes) < 2 #* if there are no peaks in either domain, return 0
         return [0.0, 0.0, 0.0]
     end
