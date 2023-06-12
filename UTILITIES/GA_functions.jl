@@ -237,7 +237,7 @@ end
 """
 Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 """
-function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; threshold=10000, population_size = 10000, abstol=1e-12, reltol=1e-10, successive_f_tol = 1, iterations=10, parallelization = :thread)
+function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; threshold=10000, population_size = 10000, abstol=1e-12, reltol=1e-10, successive_f_tol = 1, iterations=5, parallelization = :thread)
     blas_threads = BLAS.get_num_threads()
     BLAS.set_num_threads(1)
     # Generate the initial population.
@@ -254,7 +254,7 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
 
     # Define options for the GA.
     opts = Evolutionary.Options(abstol=abstol, reltol=reltol, successive_f_tol = successive_f_tol, iterations=iterations, 
-                        store_trace = true, show_trace=true, show_every=1, parallelization=parallelization, callback=callback_func)
+                        store_trace = true, show_trace=true, show_every=1, parallelization=parallelization)#, callback=callback_func)
 
     # Define the range of possible values for each parameter.
     mutation_scalar = 0.5; mutation_range = fill(mutation_scalar, length(ga_problem.constraints.ranges))
@@ -271,11 +271,11 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
 
     # Run the optimization.
     # @info "Starting optimization"
-    result = Evolutionary.optimize(fitness_function, boxconstraints, mthd, pop, opts)
+    result = Evolutionary.optimize(fitness_function, [0.0,0.0,0.0], boxconstraints, mthd, pop, opts)
     # @info "Finished optimization"
     # return result
     # Get the individual, fitness, and extradata of the population
-    record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector{Float64},Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace])
+    record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector{Float64},Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace[2:end]])
 
     BLAS.set_num_threads(blas_threads)
     return DataFrame(record)
@@ -285,9 +285,9 @@ end
 
 
 """Extract solution of a row from the dataframe"""
-function extract_solution(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)))
-    reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row]) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
-    solve(reprob, save_idxs = vars, saveat = 0.1)
+function extract_solution(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)), tspan = (0.0, 100.0))
+    reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row], tspan = tspan) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))], tspan = tspan)
+    solve(reprob, Rosenbrock23(), save_idxs = vars)
 end
 
 
