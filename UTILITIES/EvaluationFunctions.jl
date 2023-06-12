@@ -79,12 +79,12 @@ end
 """Cost function to be plugged into eval_fitness wrapper"""
 function CostFunction(sol::ODESolution)::Vector{Float64}
     tstart = 50 #iterations, = 5 seconds
-    # sol = sol[tstart:end] #* get the solution from the clean start time to the end
-    viewsol = sol.u #* get the view of the solution
+    trimsol = sol[tstart:end] #* get the solution from the clean start time to the end
+    # viewsol = sol.u #* get the view of the solution
     #*get the fft of the solution
-    fftData = getFrequencies(viewsol)
+    fftData = getFrequencies(trimsol[1,:])
     fft_peakindexes, fft_peakvals = findmaxima(fftData,1) #* get the indexes of the peaks in the fft
-    time_peakindexes, time_peakvals = findmaxima(viewsol,1) #* get the times of the peaks in the fft
+    time_peakindexes, time_peakvals = findmaxima(trimsol[1,:],1) #* get the times of the peaks in the fft
     if length(fft_peakindexes) < 2 || length(time_peakindexes) < 2 #* if there are no peaks in either domain, return 0
         return [0.0, 0.0, 0.0]
     end
