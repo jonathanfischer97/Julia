@@ -10,11 +10,11 @@ function make_fullrn()
         # reactions between the same binding interfaces will have the same rate constant no matter the dimensionality or complex
         (ka1,kb1), L + K <--> LK # L binding to kinase
         kcat1, LK --> Lp + K # L phosphorylation by kinase into Lp
-        (ka2,kb2), Lp + A <--> LpA # Lp binding to AP2 adaptor #*POSSIBLY FIXED
+        (ka2,kb2), Lp + A <--> LpA # Lp binding to AP2 adaptor 
         (ka3,kb3), LpA + K <--> LpAK # Membrane-bound adaptor binding to kinase
         (ka1*DF,kb1), LpAK + L <--> LpAKL # 2D reaction: Membrane-bound kinase binds to L with greater affinity as determined by y (V/A)
         kcat1, LpAKL --> Lp + LpAK # L phosphorylation by kinase into Lp, same as 3D: first order reactions aren't dependent on dimensionality 
-        (ka7,kb7), Lp + P <--> LpP # Lp binding to phosphatase #*POSSIBLY FIXED
+        (ka7,kb7), Lp + P <--> LpP # Lp binding to phosphatase 
         kcat7, LpP --> L + P # L dephosphorylation by phosphatase
         (ka4,kb4), LpA + P <--> LpAP # Membrane-bound adaptor binding to phosphatase 
         (ka7*DF,kb7), Lp + LpAP <--> LpAPLp # 2D reaction: Membrane-bound phosphatase binds to Lp with greater affinity as determined by y (V/A)
