@@ -17,9 +17,22 @@ function concentration_to_copy_number(concentration_uM::Float64, volume_um3::Flo
     moles = concentration_M * volume_L
     # Convert moles to molecules (i.e., copy number) using Avogadro's number
     copy_number = moles * 6.022e23
-    return copy_number
+    return convert(Int, round(copy_number))
 end
 
+
+"""Calculates the NERDSS waterbox size, when total volume and DF are known"""
+function calculate_waterbox(fixedvolume::Float64, DF::Float64)
+    nanofixedvolume = fixedvolume*1e9 #volume in nm^3 from μm^3
+    area = nanofixedvolume / DF #volume in nm^3 divided by DF in nm
+
+    x = y = round(√area) #square nm of the floor
+    z = round(DF) #heigh of the waterbox in nm
+
+    @info "WaterBox is [$x, $y, $z]"
+
+    return [x,y,z]
+end
 
 # @unit copies "copies" Copynumber (6.022e2)*(μM*μm^3) false
 
