@@ -34,7 +34,8 @@ begin
     include("../../UTILITIES/ReactionNetwork.jl")
 
     # import the cost function and other evaluation functions
-    include("../../UTILITIES/EvaluationFunctions.jl")
+    # include("../../UTILITIES/EvaluationFunctions.jl")
+    using .EvaluationFunctions
 
     # import the genetic algorithm and associated functions
     include("../../UTILITIES/GA_functions.jl")
