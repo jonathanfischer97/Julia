@@ -1,7 +1,7 @@
-#! Helper functions for cost function ## 
+# Helper functions for cost function ## 
 
 # """Get summed difference of peaks in the frequency domain"""
-# function getDif(peakvals::Vector{Float64}) #todo fix normalization
+# function getDif(peakvals::Vector{Float64}) # fix normalization
 #     idxarrLen = length(peakvals)
 #     sum_diff = @inbounds sum(peakvals[i] - peakvals[i+1] for i in 1:(idxarrLen-1))
 #     # @info "Test sum diff of just first and last elements: $(peakvals[1] - peakvals[end])"
@@ -13,11 +13,26 @@
 # function getDif_bidirectional(peakvals::Vector{Float64})
 #     idxarrLen = length(peakvals)
 
-#     #* iterate from both ends simultaneously to deal with symmetry
+#     # iterate from both ends simultaneously to deal with symmetry
 #     sum_diff = @inbounds sum((peakvals[i] - peakvals[idxarrLen + 1 - i]) for i in 1:(idxarrLen ÷ 2)) 
 
-#     return 2 * sum_diff #* multiply by 2 to account for the fact that we're only summing half of the differences
+#     return 2 * sum_diff # multiply by 2 to account for the fact that we're only summing half of the differences
 # end
+
+
+"""
+# Module holding all evaluation functions for assesing oscillatory solutions
+"""
+module EvaluationFunctions #< MODULE START
+
+using DifferentialEquations: ODEProblem, ODESolution, solve #* for ODESolution type
+using FFTW: rfft #* for FFT
+
+#* Exported functions #####
+export getPerAmp, CostFunction
+#*#######
+
+
 
 """Get summed average difference of peaks in the frequency domain"""
 function getDifAvg(peakvals::Vector{Float64}) #todo: compressed the range of values
@@ -114,15 +129,6 @@ function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem)
     return solve_for_fitness_peramp(new_prob)
 end
 
-# """Utility function to solve the ODE and return the fitness"""
-# function solve_for_fitness(prob::ODEProblem)
-
-#     sol = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
-
-#     fitness = CostFunction(sol)[1]
-#     return fitness
-# end
-
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
 function solve_for_fitness_peramp(prob)
 
@@ -132,55 +138,13 @@ function solve_for_fitness_peramp(prob)
 end
 
 
-# """Custom data structure to store the period and amplitude of each individual"""
-# struct PeriodAmplitudes
-#     peramps::Dict{Vector{Float64}, Tuple{Float64, Float64}}
+# """Utility function to solve the ODE and return the fitness"""
+# function solve_for_fitness(prob::ODEProblem)
 
-#     PeriodAmplitudes() = new(Dict{Vector{Float64}, Tuple{Float64, Float64}}())
-# end    
+#     sol = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
 
-# """Helper function to update the period and amplitude of an individual, using in place in CostFunction"""
-# function update_peramp!(tracker::PeriodAmplitudes, parameters::Vector{Float64}, values::Tuple{Float64, Float64})
-#     tracker.peramps[parameters] = values
+#     fitness = CostFunction(sol)[1]
+#     return fitness
 # end
 
-
-# """Evaluate the fitness of an individual with new parameters and track periods and amplitudes"""
-# function eval_param_fitness(params::Vector{Float64},  prob::ODEProblem, tracker::PeriodAmplitudes)
-#     # remake with new parameters
-#     new_prob = remake(prob, p=params)
-#     return eval_fitness_catcherrors!(new_prob, tracker)
-# end
-
-# """Evaluate the fitness of an individual with new initial conditions and track periods and amplitudes"""
-# function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem, tracker::PeriodAmplitudes)
-#     # remake with new initial conditions
-#     new_prob = remake(prob, u0=initial_conditions)
-#     return eval_fitness_catcherrors!(new_prob, tracker)
-# end
-
-# """Cost function that also updates the period and amplitude in the tracker"""
-# function eval_fitness_catcherrors!(prob::ODEProblem, peramp_tracker::PeriodAmplitudes)
-#     Y = nothing
-#     try 
-#         Y = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
-#         if Y.retcode in (ReturnCode.Unstable, ReturnCode.MaxIters) || any(x==1 for array in isnan.(Y) for x in array) || any(x==1 for array in isless.(Y, 0.0) for x in array)
-#             return 1.0
-#         end
-#     catch e 
-#         if e isa DomainError #catch domain errors
-#             return 1.0
-#         else
-#             rethrow(e) #rethrow other errors
-#         end
-#     end
-#     fitness, period, amplitude = CostFunction(Y)
-
-#     # Update the additional values stored in the tracker
-#     update_peramp!(peramp_tracker, p, (period, amplitude))
-
-#     return -fitness
-# end
-
-
-
+end; #>MODULE END
