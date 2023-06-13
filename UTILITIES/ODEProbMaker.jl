@@ -16,6 +16,17 @@ function make_ODEProb(psym::Vector{Pair{Symbol, Float64}} = [:ka1 => 0.009433439
     return ODEProblem(rn, u0, tspan, p) #TODO fix type stability
 end
 
+function make_ODEProb(p::Vector{Float64} = [1.4353350626245021e-5, 0.20705634097197367, 461.9447701768986, 0.6642156268695386, 15.902417897116093, 7.971443130885463e-5, 0.7016715934086192, 
+                                                1.5736952400326606e-5, 0.10411397662131976, 0.0007148707925785353, 0.05915700148314913, 0.8831745113213687, 1500.0], 
+                                                u0::Vector{Float64} = [0.0, 301.15000000000003, 240.92000000000004, 602.3000000000001, 903.45, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+                                                ;tspan = (0., 100.), rn = make_fullrn()
+                                        )
+        #? Create ODE problem
+        return ODEProblem(rn, u0, tspan, p) #TODO fix type stability
+end
+#> ^ Deprecate the functions above in favor of default values within the rn
+
+
 
 #< Plotting utilities
 """
@@ -39,11 +50,4 @@ function plotsol(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = colle
         plotsol(reprob; vars)        
 end
 
-function make_ODEProb(p::Vector{Float64} = [1.4353350626245021e-5, 0.20705634097197367, 461.9447701768986, 0.6642156268695386, 15.902417897116093, 7.971443130885463e-5, 0.7016715934086192, 
-                                                1.5736952400326606e-5, 0.10411397662131976, 0.0007148707925785353, 0.05915700148314913, 0.8831745113213687, 1500.0], 
-                                        u0::Vector{Float64} = [0.0, 301.15000000000003, 240.92000000000004, 602.3000000000001, 903.45, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-                                        ;tspan = (0., 100.), rn = make_fullrn()
-                                                )
-    #? Create ODE problem
-    return ODEProblem(rn, u0, tspan, p) #TODO fix type stability
-end
+
