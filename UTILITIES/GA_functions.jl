@@ -220,6 +220,8 @@ function make_fitness_function(evalfunc::Function, prob::ODEProblem)
 end
 #> END
 
+
+"""### Callback function that terminates the GA if the number of oscillations exceeds the threshold, and updates the progress bar"""
 function ga_callback(trace::Evolutionary.OptimizationTrace, progressbar::Progress, threshold::Int)
     #? Callback function for the GA, updating the progress bar
     num_oscillation = trace[end].metadata["num_oscillatory"]
