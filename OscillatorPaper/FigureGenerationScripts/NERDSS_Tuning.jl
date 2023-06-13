@@ -1,5 +1,5 @@
 begin 
-    using Plots; theme(:juno)
+    using Plots; #theme(:juno)
     using Catalyst
     using DifferentialEquations
     using Statistics
@@ -47,6 +47,7 @@ begin
     const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 end
 
+fullrn = make_fullrn()
 
 psym = [:ka1 => convert_to_macrorate(0.027267670545107203)#5.453534109021441e-05 #ka1, 1
     :kb1 => 0.0643048008980449 #kb1, 2
@@ -394,7 +395,9 @@ end
 
 DFs, concs, freqs, amps = getFreqvsGrid(ogprob, 4, 13, range(0.1, stop=100.0, length=500), range(10000, stop=100000.0, length=500))
 
-surface(DFs, concs, freqs, xlabel = "DF", ylabel = "AP2", zlabel = "Frequency (1/min)", title = "Frequency vs DF and AP2", color = :vik)
+surface(DFs, concs, freqs, xlabel = "AP2 (μM)", ylabel = "V/A (nm)", zlabel = "Frequency min⁻¹", title = "Frequency vs V/A and AP2", color = :vik)
+savefig("freqvsgrid.png")
+contour(DFs, concs, freqs, xlabel = "AP2 (μM)", ylabel = "V/A (nm)", zlabel = "Frequency min⁻¹", title = "Frequency vs V/A and AP2", color = :vik)
 
 
 
