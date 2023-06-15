@@ -35,6 +35,8 @@ begin
 
     # import the cost function and other evaluation functions
     include("../../UTILITIES/EvaluationFunctions.jl")
+    using .EvaluationFunctions
+
 
     # import the genetic algorithm and associated functions
     include("../../UTILITIES/GA_functions.jl")
@@ -46,7 +48,9 @@ end
 
 
 
-const fullprob = make_ODEProb()
+fullrn = make_fullrn()
+
+fullprob = ODEProblem(fullrn, [], (0.0,100.0), [])
 
 
 
@@ -76,42 +80,34 @@ function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEPr
     return fitness_function
 end
 
-#TODO Testing type stability
-# fitness_function = make_fitness_function_with_fixed_inputs(eval_ic_fitness, fullprob, ic_constraints.ranges[1:2], (1, 2))
-# @code_warntype fitness_function(rand(14))
-# @code_warntype fitness_function(u0[1:end-2])
-
-# @benchmark solve($fullprob, saveat=0.1, save_idxs=1)
-# @code_warntype ODEProblem(fullrn, u0, tspan, p)
-# @code_warntype solve(fullprob, saveat=0.1, save_idxs=1)
-# @code_warntype eval_ic_fitness(rand(14), fullprob)
 
 
 
 
-using LazySets, Polyhedra, CDDLib
-# Define the function to compute the result
-function compute_result(points::Vector{Vector{Float64}}, var_constraints::ConstraintType)
-    n = length(points)
-    S = Vector{LazySet}(undef, n)
 
-    @threads for i in 1:n
-        P = Singleton(points[i])
-        Q = HalfSpace(constraints[i].range[1].min, constraints[i].range[1].max)
-        R = Hyperrectangle(constraints[i].range[2].min, constraints[i].range[2].max)
-        S[i] = MinkowskiSum(Q, R)
-    end
+# using LazySets, Polyhedra, CDDLib
+# # Define the function to compute the result
+# function compute_result(points::Vector{Vector{Float64}}, var_constraints::ConstraintType)
+#     n = length(points)
+#     S = Vector{LazySet}(undef, n)
 
-    # Compute the result
-    result = Vector{Float64}(undef, n)
-    @threads for i in 1:n
-        result[i] = ρ(points[i], S[i])
-    end
+#     @threads for i in 1:n
+#         P = Singleton(points[i])
+#         Q = HalfSpace(constraints[i].range[1].min, constraints[i].range[1].max)
+#         R = Hyperrectangle(constraints[i].range[2].min, constraints[i].range[2].max)
+#         S[i] = MinkowskiSum(Q, R)
+#     end
 
-    return result
-end
-# Call the function
-result = compute_result(points, constraints)
+#     # Compute the result
+#     result = Vector{Float64}(undef, n)
+#     @threads for i in 1:n
+#         result[i] = ρ(points[i], S[i])
+#     end
+
+#     return result
+# end
+# # Call the function
+# result = compute_result(points, constraints)
 
 
 

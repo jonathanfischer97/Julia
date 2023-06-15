@@ -24,7 +24,7 @@ function make_ODEProb(p::Vector{Float64} = [1.4353350626245021e-5, 0.20705634097
         #? Create ODE problem
         return ODEProblem(rn, u0, tspan, p) #TODO fix type stability
 end
-#> ^ Deprecate the functions above in favor of default values within the rn
+#> TODO ^ Deprecate the functions above in favor of default values within the rn
 
 
 

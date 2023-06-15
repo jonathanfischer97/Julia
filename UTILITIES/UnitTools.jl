@@ -38,18 +38,18 @@ function calculate_waterbox(fixedvolume::Float64, DF::Float64)
     return [x,y,z]
 end
 
-@unit copies "copies" Copynumber (6.022e2)*(μM*μm^3) false
+# @unit copies "copies" Copynumber (6.022e2)*(μM*μm^3) false
 
-copies(1.0μM*μm^3)
+# copies(1.0μM*μm^3)
 
-uconvert(copies, 1.3μM*μm^3)
+# uconvert(copies, 1.3μM*μm^3)
 
-uconvert(µM, 7.35mM)
+# uconvert(µM, 7.35mM)
 
-uconvert(nm^3/μs, 5.1μM^-1*s^-1)
+# uconvert(nm^3/μs, 5.1μM^-1*s^-1)
 
-uconvert(L, 100nm^3)
+# uconvert(L, 100nm^3)
 
 
 
-concentration_to_copy_number(1.0, 1.0)
+# concentration_to_copy_number(1.0, 1.0)
