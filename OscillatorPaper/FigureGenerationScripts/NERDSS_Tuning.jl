@@ -26,7 +26,7 @@ begin
     # plotlyjs()
     # import CairoMakie as cm 
     # gr()
-    
+    push!(LOAD_PATH, "../../UTILITIES")
 
     include("../../UTILITIES/EvolutionaryOverloads.jl")
 
@@ -35,7 +35,7 @@ begin
 
     # import the cost function and other evaluation functions
     # include("../../UTILITIES/EvaluationFunctions.jl")
-    using .EvaluationFunctions
+    using EvaluationFunctions
 
     # import the genetic algorithm and associated functions
     include("../../UTILITIES/GA_functions.jl")
