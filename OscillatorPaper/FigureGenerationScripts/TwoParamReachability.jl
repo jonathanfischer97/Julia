@@ -35,7 +35,7 @@ begin
 
     # import the cost function and other evaluation functions
     include("../../UTILITIES/EvaluationFunctions.jl")
-    using .EvaluationFunctions
+    # using .EvaluationFunctions
 
 
     # import the genetic algorithm and associated functions
@@ -151,28 +151,21 @@ function monte_carlo_volume(points::Vector{Vector{Float64}}, var_constraints::Ve
 end
 #>End
 
-ic_constraints = define_initialcondition_constraints()
-var_constraints = ic_constraints.ranges[1:2]
-generate_population(var_constraints,10000)
-testvol = monte_carlo_volume([rand(2) for i in 1:10000], var_constraints)
+# ic_constraints = define_initialcondition_constraints()
+# var_constraints = ic_constraints.ranges[1:2]
+# generate_population(var_constraints,10000)
+# testvol = monte_carlo_volume([rand(2) for i in 1:10000], var_constraints)
 
 
 """Compare the allowed solution space for when each pair of inputs is fixed"""
 function reachability_analysis(constraints::ConstraintType, prob::ODEProblem) 
-
-    #* store the original number of BLAS threads
-    original_blas_threads = BLAS.get_num_threads()
-
-    #* set the number of BLAS threads to 1 to avoid multithreading issues
-    BLAS.set_num_threads(1)
-
     #* Get all combinations of fixed pairs
     fixed_pair_combos = combinations(constraints.ranges, 2)
 
     loopprogress = Progress(length(collect(fixed_pair_combos)), desc ="Looping thru fixed pairs: " , color=:blue)
 
     #* Make a results dictionary where fixedpair => (volume, avg_period, avg_amplitude, num_oscillatory_points)
-    results = Dict{Tuple{Symbol, Symbol}, NamedTuple{(:volume, :avg_period, :avg_amplitude, :num_oscillatory_points), Tuple{Float64, Float64, Float64, Int}}}() 
+    results = Dict{Tuple{Symbol, Symbol}, NamedTuple{(:volume, :periodstats, :amplitudestats, :num_oscillatory_points), Tuple{Float64, Vector{Float64}, Vector{Float64}, Int}}}() 
 
     for fixedpair in fixed_pair_combos
         @info "Fixed input pair: $(fixedpair[1].name), $(fixedpair[2].name)"
@@ -191,33 +184,31 @@ function reachability_analysis(constraints::ConstraintType, prob::ODEProblem)
         make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixedpair, fixedpair_idxs)
 
         #* Run the optimization function to get the evaluated points
-        oscillatory_points = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 8) #TODO: outputting the same number of points for multiple pairs
-    
+        oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 8) #TODO: outputting the same number of points for multiple pairs
+        # return oscillatory_points_df
         #* Compute convex hull volume of the oscillatory region in parameter space
-        volume = monte_carlo_volume([x.ind for x in oscillatory_points], variable_constraints.ranges) #TODO: computing the same volume for multiple pairs
+        volume = monte_carlo_volume(oscillatory_points_df.ind, variable_constraints.ranges) #TODO: computing the same volume for multiple pairs
         @info "Volume of oscillatory region: $volume"
  
-
         #* Calculate the number of oscillatory points
-        num_points = length(oscillatory_points)
+        num_points = length(oscillatory_points_df.ind)
         @info "Number of oscillatory points: $num_points"
 
         #* Calculate the average period and amplitude
-        avg_period = mean(x -> x.per, oscillatory_points)
-        @info "Average period: $avg_period"
+        periodstats = quantile(oscillatory_points_df.per, [0.0, 0.25, 0.5, 0.75, 1.0])
+        @info "Period quantiles: $periodstats"
 
-        avg_amplitude = mean(x -> x.amp, oscillatory_points)
-        @info "Average amplitude: $avg_amplitude"
+        amplitudestats = quantile(oscillatory_points_df.amp, [0.0, 0.25, 0.5, 0.75, 1.0])
+        @info "Amplitude quantile: $amplitudestats"
 
 
         #* Store the results for the given fixed parameter combination
-        results[(fixedpair[1].symbol, fixedpair[2].symbol)] = (volume = volume, avg_period = avg_period, avg_amplitude, num_oscillatory_points = num_points)
+        results[(fixedpair[1].symbol, fixedpair[2].symbol)] = (volume = volume, periodstats = periodstats, amplitudestats = amplitudestats, num_oscillatory_points = num_points)
 
         next!(loopprogress)
     end
-    #* restore the original number of BLAS threads
-    BLAS.set_num_threads(original_blas_threads)
-    # Convert results to DataFrame
+
+    #* Convert results to DataFrame
     # results_df = DataFrame(results)
     return results
 end
@@ -227,6 +218,71 @@ param_reach_results = reachability_analysis(param_constraints, fullprob)
 
 ic_constraints = define_initialcondition_constraints()
 reach_results = reachability_analysis(ic_constraints, fullprob)
+results_df = DataFrame(reach_results)
+
+using StatsPlots
+
+period_data = [v.periodstats for v in values(reach_results)]
+amplitude_data = [v.amplitudestats for v in values(reach_results)]
+labels = [string(k...) for k in keys(reach_results)]
+
+boxplot(period_data, labels, title="Distribution of Periods", ylabel="Period", legend=:none)
+boxplot!(labels, amplitude_data, title="Distribution of Amplitudes", ylabel="Amplitude", legend=:none)
+
+
+
+
+
+
+function reachability_analysisDF(constraints::ConstraintType, prob::ODEProblem) 
+    fixed_pair_combos = combinations(constraints.ranges, 2)
+
+    loopprogress = Progress(length(collect(fixed_pair_combos)), desc ="Looping thru fixed pairs: " , color=:blue)
+
+    # Initialize an empty DataFrame
+    results = DataFrame(SymbolPair = String[], Volume = Float64[], Periods = Vector{Float64}[], Amplitudes = Vector{Float64}[], NumOscillatoryPoints = Int[])
+
+    for fixedpair in fixed_pair_combos
+        @info "Fixed input pair: $(fixedpair[1].name), $(fixedpair[2].name)"
+
+        variable_constraints = deepcopy(constraints)
+        filter!(x -> x.name != fixedpair[1].name && x.name != fixedpair[2].name, variable_constraints.ranges)
+
+        fixed_ga_problem = GAProblem(variable_constraints, prob)
+        fixedpair_idxs = find_indices(fixedpair, constraints.ranges)
+
+        make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixedpair, fixedpair_idxs)
+
+        oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 8)
+
+        volume = monte_carlo_volume(oscillatory_points_df.ind, variable_constraints.ranges)
+        @info "Volume of oscillatory region: $volume"
+
+        num_points = length(oscillatory_points_df.ind)
+        @info "Number of oscillatory points: $num_points"
+
+        periodstats = oscillatory_points_df.per # Get the full distribution
+        @info "Period distribution collected"
+
+        amplitudestats = oscillatory_points_df.amp # Get the full distribution
+        @info "Amplitude distribution collected"
+
+        # Create a string for the symbol pair
+        symbol_pair_string = string(fixedpair[1].symbol, " ", fixedpair[2].symbol)
+
+        # Append to the DataFrame
+        push!(results, (SymbolPair = symbol_pair_string, Volume = volume, Periods = periodstats, Amplitudes = amplitudestats, NumOscillatoryPoints = num_points))
+
+        next!(loopprogress)
+    end
+
+    return results
+end
+
+
+results_df = reachability_analysisDF(ic_constraints, fullprob)
+
+@df results_df violin(string.(:Symbol1), :Periods, title="Distribution of Periods", ylabel="Period", legend=:none, yscale = :log10)
 
 
 
