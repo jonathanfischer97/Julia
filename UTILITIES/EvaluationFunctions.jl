@@ -23,14 +23,14 @@
 """
 # Module holding all evaluation functions for assesing oscillatory solutions
 """
-module EvaluationFunctions #< MODULE START
+# module EvaluationFunctions #< MODULE START
 
-using DifferentialEquations: ODEProblem, ODESolution, solve #* for ODESolution type
-using FFTW: rfft #* for FFT
+# using DifferentialEquations: ODEProblem, ODESolution, solve, remake #* for ODESolution type
+# using FFTW: rfft #* for FFT
 
-#* Exported functions #####
-export getPerAmp, CostFunction
-#*#######
+# #* Exported functions #####
+# export getPerAmp, CostFunction, eval_ic_fitness, eval_param_fitness
+# #*#######
 
 
 
@@ -147,4 +147,4 @@ end
 #     return fitness
 # end
 
-end; #>MODULE END
+# end; #>MODULE END
