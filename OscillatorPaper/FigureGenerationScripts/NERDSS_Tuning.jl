@@ -35,7 +35,7 @@ begin
 
     # import the cost function and other evaluation functions
     include("../../UTILITIES/EvaluationFunctions.jl")
-    using .EvaluationFunctions
+    # using .EvaluationFunctions
 
     # import the genetic algorithm and associated functions
     include("../../UTILITIES/GA_functions.jl")
@@ -73,7 +73,8 @@ usym = [:L => 2.0, :K => 0.05, :P => 0.55,  :A => 2.0, :Lp => 0.0, :LpA => 0.0, 
 u0 = [x[2] for x in usym]
 
 
-nerdssprob = make_ODEProb(psym, usym; tspan = (0., 10000.))
+# nerdssprob = make_ODEProb(psym, usym; tspan = (0., 10000.))
+nerdssprob = ODEProblem(fullrn, usym, (0., 1000.), psym)
 # nerdssprob = remake(nerdssprob, u0 = 3.0*[x[2] for x in usym])
 nerdsol = solve(nerdssprob, Rosenbrock23(), save_idxs = 1)
 getPerAmp(nerdsol)
@@ -97,7 +98,7 @@ function getFreqvsDF(nerdssprob, DFs=1000:100:1000000)
     return collect(DFs), freqs, amps
 end
 
-function getFreqvsDF_threaded(nerdssprob, DFs=1000:100:1000000)
+function getFreqvsDF_threaded(nerdssprob, DFs=1000:100:100000)
     freqs = Vector{Float64}(undef,length(collect(DFs)))
     amps = Vector{Float64}(undef,length(collect(DFs)))
     Threads.@threads for i in eachindex(DFs)
@@ -288,21 +289,10 @@ maxfreqind = minrow.ind
 minfreqind = maxrow.ind
 
 #< INTERPOLATE BETWEEN MIN AND MAX FREQUENCY SOLUTIONS
-intermediate_ics = interpolate_points(maxfreqind, minfreqind, 5)
-intermediate_ics = interpolate_points([1.25, 1.125, 0.856591382462083, 1.5], [1.440358036171343, 0.8507514631909991, 0.27735186553210145, 0.29092614167154873], 4)
+intermediate_ics = interpolate_points(maxfreqind, minfreqind, 4)
+# intermediate_ics = interpolate_points([1.25, 1.125, 0.856591382462083, 1.5], [1.440358036171343, 0.8507514631909991, 0.27735186553210145, 0.29092614167154873], 4)
 nerdss_copyarrays = [concentration_to_copy_number.(ic, 0.4) for ic in intermediate_ics] #* Ordered from max frequency to min frequency 
 
-function make_tunerplot(intermediate_ics)
-    tunerplot = plot(layout = (4,1), legend=:none, xlabel = "Time (s)", ylabel = "PIP (μM)", plot_title = "Tuning the frequency of the oscillator", size = (1000,800), plot_titlefontsize=18, guidefont = 14)
-    for i in eachindex(intermediate_ics)
-        interprob = remake(ogprob, u0 = [intermediate_ics[i]; zeros(12)], tspan = (0.,20.))
-        intersol = solve(interprob, saveat = 0.1, save_idxs=1)
-        interfreq = 60/getPerAmp(intersol)[1]
-        plot!(tunerplot[i], intersol, title= "Frequency = $(round(interfreq,digits = 3)) min⁻¹", xlabel = "Time (s)", ylabel = "PIP (μM)", color = :purple, label = "Lipid:Enzyme ratio = $(calc_concentration_ratio(intermediate_ics[i]))")
-    end
-    display(tunerplot)
-    return tunerplot
-end
 
 function make_tunerplot(intermediate_ics)
     tunerplot = plot(layout = (4,1), legend=:none, plot_title = "Tuning the frequency of the oscillator", size = (1000,800), plot_titlefontsize=18, guidefont = 14)
@@ -310,7 +300,7 @@ function make_tunerplot(intermediate_ics)
     
     for (i, ic) in enumerate(intermediate_ics)
         interprob = remake(ogprob, u0 = [ic; zeros(12)], tspan = (0.,20.))
-        intersol = solve(interprob, saveat = 0.1, save_idxs=1)
+        intersol = solve(interprob, save_idxs=1)
         interfreq = 60/getPerAmp(intersol)[1]
         plot!(tunerplot[i], intersol, title= "Frequency = $(round(interfreq,digits = 3)) min⁻¹", titlefontcolor = color_palette[i], titlelocation = :right, xlabel = "Time (s)", ylabel = "PIP (μM)", color = color_palette[i], label = "Lipid:Enzyme ratio = $(calc_concentration_ratio(ic))")
     end
@@ -324,7 +314,48 @@ end
 
 tunerplot = make_tunerplot(intermediate_ics)
 
-savefig(tunerplot, "OscillatorPaper/FigureGenerationScripts/ProgressReportFigures/tunerplot1.png")
+savefig(tunerplot, "OscillatorPaper/FigureGenerationScripts/Figures/tunerplot1.png")
+
+
+
+function extrapolate_points(start_point, end_point, num_points, extrapolate_factor=2.0)
+    if length(start_point) != length(end_point)
+        error("Start point and end point must have the same number of dimensions")
+    end
+
+    ranges = [range(start_point[i] - (end_point[i] - start_point[i]) * (extrapolate_factor - 1) / 2, 
+                    stop = end_point[i] + (end_point[i] - start_point[i]) * (extrapolate_factor - 1) / 2, 
+                    length = num_points) for i in eachindex(start_point)]
+
+    points = [ [r[i] for r in ranges] for i in 1:num_points]
+
+    return points
+end
+
+intermediate_ics = interpolate_points(maxfreqind, minfreqind, 100)
+extrapolated_ics = extrapolate_points(maxfreqind, minfreqind, 100, 2.0)
+
+#* Plot trend of concentrations vs frequency
+function plot_ic_vs_frequency(intermediate_ics)
+    freqs = []
+    for (i, ic) in enumerate(intermediate_ics)
+        interprob = remake(ogprob, u0 = [ic; zeros(12)], tspan = (0.,20.))
+        intersol = solve(interprob, save_idxs=1)
+        interfreq = 60/getPerAmp(intersol)[1]
+        push!(freqs, interfreq)
+    end
+    conc_ratios = [calc_concentration_ratio(ic) for ic in intermediate_ics]
+    plot(conc_ratios, freqs, xlabel = "Lipid:Enzyme Ratio", ylabel = "Frequency (min⁻¹)", legend = false, title = "Frequency vs Lipid:Enzyme ratio", titlefontsize=18, guidefont = 14)
+end
+
+icfreqplot = plot_ic_vs_frequency(extrapolated_ics)
+savefig(icfreqplot, "OscillatorPaper/FigureGenerationScripts/Figures/icratio_freq_trendline.png")
+
+
+
+
+
+
 
 # newpsym = [:ka1 => convert_to_macrorate(0.027267670545107203)#5.453534109021441e-05 #ka1, 1
 #     :kb1 => 0.0643048008980449 #kb1, 2

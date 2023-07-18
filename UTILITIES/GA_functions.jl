@@ -57,12 +57,12 @@ constraints = define_parameter_constraints(
 )
 ```
 """
-function define_parameter_constraints(; karange = (1e-3, 1e1), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e3, 1e5))
-
+function define_parameter_constraints(; karange = (1e-3, 1e1), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e3, 1e5),
     nominalvals = (;ka1 = 0.009433439939827041, kb1 = 2.3550169939427845, kcat1 = 832.7213093872278, ka2 = 12.993995997539924, kb2 = 6.150972501791291,
             ka3 = 1.3481451097940793, kb3 = 0.006201726090609513, ka4 = 0.006277294665474662, kb4 = 0.9250191811994848, ka7 = 57.36471615394549, 
             kb7 = 0.04411989797898752, kcat7 = 42.288085868394326, DF = 3631.050539219606)
-    # Define parameter constraint ranges
+            )
+    #* Define parameter constraint ranges
     ka_min, ka_max = karange  # uM^-1s^-1, log scale
     kb_min, kb_max = kbrange  # s^-1, log scale
     kcat_min, kcat_max = kcatrange # s^-1, log scale
@@ -88,6 +88,8 @@ function define_parameter_constraints(; karange = (1e-3, 1e1), kbrange = (1e-3, 
     )
 end
 
+define_parameter_constraints(prob::ODEProblem) = define_parameter_constraints(nominalvals = prob.p)
+
 
 """
     define_initialcondition_constraints(; kwargs...)
@@ -104,9 +106,9 @@ constraints = define_initialcondition_constraints(
 )
 ```
 """
-function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinaserange = (0.1, 5.0), phosphataserange = (0.1, 5.0), ap2range = (0.1, 10.0))
-
-    nominalvals = (;L = 3.0, K = 0.5, P = 0.3, A = 2.0)
+function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinaserange = (0.1, 5.0), phosphataserange = (0.1, 5.0), ap2range = (0.1, 10.0),
+                                                nominalvals = (;L = 3.0, K = 0.5, P = 0.3, A = 2.0)
+                                            )
     # Define parameter constraint ranges
     lipid_min, lipid_max = lipidrange  # uM
     kinase_min, kinase_max = kinaserange  # uM
@@ -122,6 +124,8 @@ function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinasera
         ]
     )
 end
+
+define_initialcondition_constraints(prob::ODEProblem) = define_initialcondition_constraints(nominalvals = prob.u0)
 #> END
 
 
@@ -239,7 +243,7 @@ end
 """
 Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 """
-function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; threshold=10000, population_size = 10000, abstol=1e-12, reltol=1e-10, successive_f_tol = 1, iterations=5, parallelization = :thread)
+function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; threshold=10000, population_size = 5000, abstol=1e-4, reltol=1e-2, successive_f_tol = 1, iterations=5, parallelization = :thread)
     blas_threads = BLAS.get_num_threads()
     BLAS.set_num_threads(1)
     # Generate the initial population.
