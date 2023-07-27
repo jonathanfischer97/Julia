@@ -119,7 +119,9 @@ function getFreqvsConc(nerdssprob, concid1, concid2, concs=0.01:0.01:100.0)
     return collect(concs), freqs, amps
 end
 
-concs, freqs, amps = getFreqvsConc(testnerdssprob, 2,3)
+concs, freqs, amps = getFreqvsConc(ratioprob, 2,3)
+conc_DF = DataFrame(conc = concs, freq = freqs, amp = amps)
+CSV.write("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/FigureGenerationScripts/ConcvsFreq.csv", conc_DF)
 plot_freqamp(concs, freqs, amps, "PIP + AP2 (uM)")
 
 testnerdssprob.p[13] = 1000000
