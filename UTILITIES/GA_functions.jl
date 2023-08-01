@@ -322,4 +322,13 @@ function find_indices(combination::Vector{ConstraintRange}, constraints::Vector{
     p2idx = findfirst(x -> x.name == combination[2].name, constraints)
     return p1idx, p2idx
 end
+
+"""Triplet version for 3FixedParamCSVMaker"""
+function find_indices(param1::String, param2::String, param3::String, constraints::Vector{ConstraintRange})::Tuple{Int,Int,Int}
+    p1idx = findfirst(x -> x.name == param1, constraints)
+    p2idx = findfirst(x -> x.name == param2, constraints)
+    p3idx = findfirst(x -> x.name == param3, constraints)
+
+    return p1idx, p2idx, p3idx
+end
 #> END
