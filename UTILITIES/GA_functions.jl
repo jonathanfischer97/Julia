@@ -244,8 +244,8 @@ end
 Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 """
 function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; threshold=10000, population_size = 5000, abstol=1e-4, reltol=1e-2, successive_f_tol = 1, iterations=5, parallelization = :thread)
-    blas_threads = BLAS.get_num_threads()
-    BLAS.set_num_threads(1)
+    # blas_threads = BLAS.get_num_threads()
+    # BLAS.set_num_threads(1)
     # Generate the initial population.
     pop = generate_population(ga_problem.constraints, population_size)
     # @info "Generated initial population"
@@ -283,7 +283,7 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     # Get the individual, fitness, and extradata of the population
     record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector{Float64},Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace[2:end]])
 
-    BLAS.set_num_threads(blas_threads)
+    # BLAS.set_num_threads(blas_threads)
     return DataFrame(record)
     # return record, result
 end
