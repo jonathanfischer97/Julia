@@ -248,7 +248,6 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     # BLAS.set_num_threads(1)
     # Generate the initial population.
     pop = generate_population(ga_problem.constraints, population_size)
-    # @info "Generated initial population"
 
     # Create constraints using the min and max values from param_values.
     boxconstraints = BoxConstraints([constraint.min for constraint in ga_problem.constraints.ranges], [constraint.max for constraint in ga_problem.constraints.ranges])
@@ -273,19 +272,15 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     # Make fitness function
     # @code_warntype fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem)
     fitness_function = fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem)
-    # @info "Created fitness function"
 
     # Run the optimization.
-    # @info "Starting optimization"
     result = Evolutionary.optimize(fitness_function, [0.0,0.0,0.0], boxconstraints, mthd, pop, opts)
-    # @info "Finished optimization"
-    # return result
+
     # Get the individual, fitness, and extradata of the population
     record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector{Float64},Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace[2:end]])
 
     # BLAS.set_num_threads(blas_threads)
     return DataFrame(record)
-    # return record, result
 end
 #> END
 

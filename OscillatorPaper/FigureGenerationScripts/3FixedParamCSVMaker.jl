@@ -51,7 +51,7 @@ end
 
 
 fullrn = make_fullrn()
-ogprob = ODEProblem(fullrn, [], (0.,100.0), [])
+ogprob = ODEProblem(fullrn, [], (0.,500.0), [])
 # @benchmark solve($ogprob, saveat = 0.1, save_idxs = 1)
 
 # ogsol = solve(ogprob, Rosenbrock23(), save_idxs = 1)
@@ -59,7 +59,7 @@ ogprob = ODEProblem(fullrn, [], (0.,100.0), [])
 
 
 #* Optimization of parameters to produce data for CSV
-param_constraints = define_parameter_constraints(karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 2e4))
+param_constraints = define_parameter_constraints(karange = (1e-2, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 2e4))
 
 
 # param_gaproblem = GAProblem(param_constraints,ogprob)
@@ -152,33 +152,47 @@ end
 # Modified make_fitness_function_with_fixed_inputs function
 function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int})
 
-    idx_map = [i for i in 1:(length(prob.p))]
-    j = 1
-    for i in eachindex(fixed_input_triplet)
-        while j in triplet_idxs
+    function fitness_function(input::Vector{Float64})
+        # Create a new input vector that includes the fixed inputs.
+        new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
+
+        # Pre-calculate the mappings of indices from `input` to `new_input`
+        idx_map = [i for i in 1:(length(input) + length(fixed_input_triplet))]
+        j = 1
+        for i in eachindex(fixed_input_triplet)
+            while j in triplet_idxs
+                j += 1
+            end
+            idx_map[j] = i
             j += 1
         end
-        idx_map[j] = input[i]
-        j += 1
-    end
 
-    function fitness_function(input::Vector{Float64})
-        new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
-        
+        # Keep track of the number of fixed inputs that have been inserted.
+        fixed_inputs_inserted = 0
+
         for i in eachindex(new_input)
             if i in triplet_idxs
-                new_input[i] = fixed_input_triplet[i]
+                # If the current index matches the index of a fixed input, insert the fixed input.
+                new_input[i] = fixed_input_triplet[fixed_inputs_inserted + 1]
+                fixed_inputs_inserted += 1
             else
+                # Otherwise, insert the next value from the input vector.
                 new_input[i] = input[idx_map[i]]
             end
         end
+
         return evalfunc(new_input, prob)
     end
     return fitness_function
 end
 
 
+"""Defines logspace function for sampling parameters"""
+logrange(start, length) = range(start; length=length, step=x->x*10)
 
+logrange(3.,5)
+
+#TODO logarithmic spacing for fixed values
 # Modification to fixed_triplet_csv_maker function
 function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem)
     variable_constraints = deepcopy(constraints)
@@ -188,11 +202,16 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
     fixed_ga_problem = GAProblem(variable_constraints, prob)
     fixedtrip_idxs = find_indices(param1, param2, param3, constraints.ranges) 
 
-    fixed_values1 = range(fixedtrip[1].min, stop = fixedtrip[1].max, length = 5)
-    fixed_values2 = range(fixedtrip[2].min, stop = fixedtrip[2].max, length = 5)
-    fixed_values3 = range(fixedtrip[3].min, stop = fixedtrip[3].max, length = 5)
+    # fixed_values1 = range(fixedtrip[1].min, stop = fixedtrip[1].max, length = 5)
+    fixed_values1 = logrange(fixedtrip[1].min, 5)
+    # fixed_values2 = range(fixedtrip[2].min, stop = fixedtrip[2].max, length = 5)
+    fixed_values2 = logrange(fixedtrip[2].min, 5)
+    # fixed_values3 = range(fixedtrip[3].min, stop = fixedtrip[3].max, length = 5)
+    fixed_values3 = logrange(fixedtrip[3].min, 5)
 
-    results_df = DataFrame(fixed_value1 = Float64[], fixed_value2 = Float64[], fixed_value3 = Float64[], average_period = Float64[], average_amplitude = Float64[])
+    results_df = DataFrame(fixed_value1 = Float64[], fixed_value2 = Float64[], fixed_value3 = Float64[], 
+                        average_period = Float64[], maximum_period=Float64[], minimum_period=Float64[],
+                        average_amplitude = Float64[], maximum_amplitude=Float64[], minimum_amplitude=Float64[])
 
     for val1 in fixed_values1
         for val2 in fixed_values2
@@ -200,20 +219,35 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 fixed_values = [val1, val2, val3]
                 @info fixed_values
                 make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs)
-                oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 1000, iterations = 5) 
+                oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 5000, iterations = 5) 
 
-                average_period::Float64 = mean(oscillatory_points_df.per)
-                average_amplitude::Float64 = mean(oscillatory_points_df.amp)
-
-                push!(results_df, (val1, val2, val3, average_period, average_amplitude))
+                if isempty(oscillatory_points_df)
+                    continue
+                else
+                    average_period::Float64 = mean(oscillatory_points_df.per)
+                    maximum_period::Float64 = maximum(oscillatory_points_df.per)
+                    minimum_period::Float64 = minimum(oscillatory_points_df.per)
+    
+                    average_amplitude::Float64 = mean(oscillatory_points_df.amp)
+                    maximum_amplitude::Float64 = maximum(oscillatory_points_df.amp)
+                    minimum_amplitude::Float64 = minimum(oscillatory_points_df.amp)
+    
+                    push!(results_df, (val1, val2, val3, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude))
+                end
             end
         end
     end
     return results_df
 end
 
-results_df = fixed_triplet_csv_maker("kcat1", "kcat7", "DF", param_constraints, ogprob)
-results_df = DataFrame(kcat1 = results_df.fixed_value1, kcat7 = results_df.fixed_value2, DF = results_df.fixed_value3, average_period = results_df.average_period, average_amplitude = results_df.average_amplitude)
-CSV.write("OscillatorPaper/FigureGenerationScripts/fixed_triplet_results.csv", results_df)
+param_triplet = ["kb1", "kb2", "kb7"]
+param_triplet_symbols = Symbol.(param_triplet)
+results_df = fixed_triplet_csv_maker(param_triplet..., param_constraints, ogprob)
+results_df = DataFrame(kb1 = results_df.kcat1, kb2 = results_df.kcat7, kb7 = results_df.DF, #TODO fix programmatic naming
+                            average_period = results_df.average_period, maximum_period = results_df.maximum_period, minimum_period = results_df.minimum_period, 
+                            average_amplitude = results_df.average_amplitude, maximum_amplitude = results_df.maximum_amplitude, minimum_amplitude = results_df.minimum_amplitude)
+CSV.write("OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-$(param_triplet[1]*param_triplet[2]*param_triplet[3]).csv", results_df)
+
+
 
 @code_warntype fixed_triplet_csv_maker("ka1", "ka2", "ka3", param_constraints, ogprob)
