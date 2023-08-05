@@ -100,7 +100,7 @@ function CostFunction(sol::ODESolution)::Vector{Float64}
     fftData = getFrequencies(trimsol[1,:])
     fft_peakindexes, fft_peakvals = findmaxima(fftData,1) #* get the indexes of the peaks in the fft
     time_peakindexes, time_peakvals = findmaxima(trimsol[1,:],1) #* get the times of the peaks in the fft
-    if length(fft_peakindexes) < 2 || length(time_peakindexes) < 2 #* if there are no peaks in either domain, return 0
+    if length(fft_peakindexes) < 3 || length(time_peakindexes) < 3 #* if there are no peaks in either domain, return 0
         return [0.0, 0.0, 0.0]
     end
     std = getSTD(fft_peakindexes, fftData) #* get the average standard deviation of the peaks in frequency domain
@@ -132,7 +132,7 @@ end
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
 function solve_for_fitness_peramp(prob)
 
-    sol = solve(prob, saveat=0.1, save_idxs=1, maxiters=10000, verbose=false)
+    sol = solve(prob, saveat=0.01, save_idxs=1)#, maxiters=10000, verbose=false)
 
     return CostFunction(sol)
 end

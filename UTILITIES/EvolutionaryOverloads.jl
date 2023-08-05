@@ -6,20 +6,21 @@ import Evolutionary
     - `IT` is the type of the individual\n
     - `TT` is the type of the additional data from the objective function\n"""
 mutable struct CustomGAState <: Evolutionary.AbstractOptimizerState  
-    const N::Int  
+    N::Int  
     eliteSize::Int  
     fitness::Float64  
     fitpop::Vector{Float64}  
-    extradata::Vector{Vector{Float64}}
     fittest::Vector{Float64}  
+    periods::Vector{Float64}
+    amplitudes::Vector{Float64}
 end  
 Evolutionary.value(s::CustomGAState) = s.fitness #return the fitness of the fittest individual
 Evolutionary.minimizer(s::CustomGAState) = s.fittest #return the fittest individual
 
 """Trace override function"""
 function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population::Vector{Vector{Float64}}, method::GA, options) 
-    oscillatory_population_idxs = findall(fit -> fit < -0.1, state.fitpop) #find the indices of the oscillatory individuals
-    record["staterecord"] = [(ind=population[i], fit=state.fitpop[i], per=state.extradata[i][1], amp=state.extradata[i][2]) for i in oscillatory_population_idxs]
+    oscillatory_population_idxs = findall(fit -> fit != 0.0, state.fitpop) #find the indices of the oscillatory individuals
+    record["staterecord"] = [(ind=population[i], fit=state.fitpop[i], per=state.periods[i], amp=state.amplitudes[i]) for i in oscillatory_population_idxs]
     record["num_oscillatory"] = length(oscillatory_population_idxs)
 end
 
@@ -60,21 +61,21 @@ end
 
 """Modified value! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
 function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}},
-                                F::AbstractVector, E::AbstractVector, xs::AbstractVector{TX}) where {TC,TF<:AbstractVector,TX}
+                                F::AbstractVector, xs::AbstractVector{TX},  P::AbstractVector, A::AbstractVector) where {TC,TF<:AbstractVector,TX}
     n = length(xs)
     # @info "Evaluating $(n) individuals in parallel"
     Threads.@threads for i in 1:n
-        F[i], E[i]... = Evolutionary.value(obj, xs[i])  # get the vector
+        F[i], P[i], A[i] = Evolutionary.value(obj, xs[i])  # get the vector
     end
     # F, E
 end
 
 function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:serial}},
-                                F::AbstractVector, E::AbstractVector, xs::AbstractVector{TX}) where {TC,TF<:AbstractVector,TX}
+                                F::AbstractVector, xs::AbstractVector{TX}, P::AbstractVector, A::AbstractVector) where {TC,TF<:AbstractVector,TX}
     n = length(xs)
     # @info "Evaluating $(n) individuals in serial"
     for i in 1:n
-        F[i], E[i]... = Evolutionary.value(obj, xs[i])  # get the vector
+        F[i], P[i], A[i] = Evolutionary.value(obj, xs[i])  # get the vector
     end
     # F, E
 end
@@ -91,7 +92,9 @@ function Evolutionary.initial_state(method::GA, options, objfun, population)
 
     N = length(first(population))
     fitness = zeros(Float64, method.populationSize)
-    extradata = Vector{Vector{Float64}}(undef, method.populationSize)
+    # extradata = Vector{Vector{Float64}}(undef, method.populationSize)
+    periods = zeros(Float64, method.populationSize)
+    amplitudes = zeros(Float64, method.populationSize)
 
 
     # setup state values
@@ -99,24 +102,24 @@ function Evolutionary.initial_state(method::GA, options, objfun, population)
 
     # Evaluate population fitness, extradata (period and amplitude)
     Threads.@threads for i in eachindex(population)
-        fitness[i], extradata[i]... = Evolutionary.value(objfun, population[i])
+        fitness[i], periods[i], amplitudes[i] = Evolutionary.value(objfun, population[i])
     end
     minfit, fitidx = findmin(fitness)
 
     # setup initial state
-    return CustomGAState(N, eliteSize, minfit, fitness, extradata, copy(population[fitidx]))
+    return CustomGAState(N, eliteSize, minfit, fitness, copy(population[fitidx]), periods, amplitudes,)
 end
 
 """Modified evaluate! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
-function Evolutionary.evaluate!(objfun, fitness, extradata, population::Vector{Vector{Float64}}, constraints)
+function Evolutionary.evaluate!(objfun, fitness, population::Vector{Vector{Float64}}, periods, amplitudes, constraints)
     # calculate fitness of the population
-    Evolutionary.value!(objfun, fitness, extradata, population)
+    Evolutionary.value!(objfun, fitness, population, periods, amplitudes)
     # apply penalty to fitness
     Evolutionary.penalty!(fitness, constraints, population)
 end
 
 """Update state function that captures additional data from the objective function"""
-function Evolutionary.update_state!(objfun, constraints, state::CustomGAState, parents::AbstractVector{IT}, method::GA, options, itr) where {IT}
+function Evolutionary.update_state!(objfun, constraints, state::CustomGAState, parents::Vector{Vector{Float64}}, method::GA, options, itr)
     populationSize = method.populationSize
     evaltype = options.parallelization
     rng = options.rng
@@ -139,7 +142,7 @@ function Evolutionary.update_state!(objfun, constraints, state::CustomGAState, p
     Evolutionary.mutate!(offspring, method, constraints, rng=rng)
 
     # calculate fitness and extradata of the population
-    Evolutionary.evaluate!(objfun, state.fitpop, state.extradata, offspring, constraints)
+    Evolutionary.evaluate!(objfun, state.fitpop, offspring, state.periods, state.amplitudes, constraints)
 
     # select the best individual
     minfit, fitidx = findmin(state.fitpop)

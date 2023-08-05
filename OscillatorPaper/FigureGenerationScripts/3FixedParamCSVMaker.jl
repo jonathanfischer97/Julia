@@ -51,7 +51,8 @@ end
 
 
 fullrn = make_fullrn()
-ogprob = ODEProblem(fullrn, [], (0.,500.0), [])
+ogprob = ODEProblem(fullrn, [], (0.,100.0), [])
+ogprob.u0[1] = 10.0
 # @benchmark solve($ogprob, saveat = 0.1, save_idxs = 1)
 
 # ogsol = solve(ogprob, Rosenbrock23(), save_idxs = 1)
@@ -188,13 +189,13 @@ end
 
 
 """Defines logspace function for sampling parameters"""
-logrange(start, length) = range(start; length=length, step=x->x*10)
+logrange(start, stop, length) = exp10.(collect(range(start=log10(start), stop=log10(stop), length=length)))
 
-logrange(3.,5)
+# logrange(start=1e-2, stop=1e2, length=10)
 
-#TODO logarithmic spacing for fixed values
-# Modification to fixed_triplet_csv_maker function
-function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem)
+
+#* Modification to fixed_triplet_csv_maker function
+function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; rangelength = 5)
     variable_constraints = deepcopy(constraints)
     fixedtrip = [x for x in variable_constraints.ranges if x.name == param1 || x.name == param2 || x.name == param3]
     filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.ranges)
@@ -203,16 +204,17 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
     fixedtrip_idxs = find_indices(param1, param2, param3, constraints.ranges) 
 
     # fixed_values1 = range(fixedtrip[1].min, stop = fixedtrip[1].max, length = 5)
-    fixed_values1 = logrange(fixedtrip[1].min, 5)
+    fixed_values1 = logrange(fixedtrip[1].min, fixedtrip[1].max, rangelength)
     # fixed_values2 = range(fixedtrip[2].min, stop = fixedtrip[2].max, length = 5)
-    fixed_values2 = logrange(fixedtrip[2].min, 5)
+    fixed_values2 = logrange(fixedtrip[2].min, fixedtrip[2].max, rangelength)
     # fixed_values3 = range(fixedtrip[3].min, stop = fixedtrip[3].max, length = 5)
-    fixed_values3 = logrange(fixedtrip[3].min, 5)
+    fixed_values3 = logrange(fixedtrip[3].min, fixedtrip[3].max, rangelength)
 
-    results_df = DataFrame(fixed_value1 = Float64[], fixed_value2 = Float64[], fixed_value3 = Float64[], 
-                        average_period = Float64[], maximum_period=Float64[], minimum_period=Float64[],
-                        average_amplitude = Float64[], maximum_amplitude=Float64[], minimum_amplitude=Float64[])
+    results_df = DataFrame(param1 => Vector{Float64}(undef, rangelength^3), param2 => Vector{Float64}(undef, rangelength^3), param3 => Vector{Float64}(undef, rangelength^3), 
+                        "average_period" => Vector{Float64}(undef, rangelength^3), "maximum_period"=>Vector{Float64}(undef, rangelength^3), "minimum_period"=>Vector{Float64}(undef, rangelength^3),
+                        "average_amplitude" => Vector{Float64}(undef, rangelength^3), "maximum_amplitude"=>Vector{Float64}(undef, rangelength^3), "minimum_amplitude"=>Vector{Float64}(undef, rangelength^3))
 
+    i = 1
     for val1 in fixed_values1
         for val2 in fixed_values2
             for val3 in fixed_values3
@@ -232,7 +234,9 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                     maximum_amplitude::Float64 = maximum(oscillatory_points_df.amp)
                     minimum_amplitude::Float64 = minimum(oscillatory_points_df.amp)
     
-                    push!(results_df, (val1, val2, val3, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude))
+                    # push!(results_df, (val1, val2, val3, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude))
+                    results_df[i, :] = (val1, val2, val3, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude)
+                    i += 1
                 end
             end
         end
@@ -240,10 +244,10 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
     return results_df
 end
 
-param_triplet = ["kb1", "kb2", "kb7"]
+param_triplet = ["kcat1", "kcat7", "DF"]
 param_triplet_symbols = Symbol.(param_triplet)
 results_df = fixed_triplet_csv_maker(param_triplet..., param_constraints, ogprob)
-results_df = DataFrame(kb1 = results_df.kcat1, kb2 = results_df.kcat7, kb7 = results_df.DF, #TODO fix programmatic naming
+results_df = DataFrame(kb1 = results_df.fixed_value1, kb2 = results_df.fixed_value2, kb7 = results_df.fixed_value3, #TODO fix programmatic naming
                             average_period = results_df.average_period, maximum_period = results_df.maximum_period, minimum_period = results_df.minimum_period, 
                             average_amplitude = results_df.average_amplitude, maximum_amplitude = results_df.maximum_amplitude, minimum_amplitude = results_df.minimum_amplitude)
 CSV.write("OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-$(param_triplet[1]*param_triplet[2]*param_triplet[3]).csv", results_df)
@@ -251,3 +255,45 @@ CSV.write("OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-$(param
 
 
 @code_warntype fixed_triplet_csv_maker("ka1", "ka2", "ka3", param_constraints, ogprob)
+
+
+
+#! TESTING GA PERFORMANCE
+test_gaproblem = GAProblem(param_constraints, ogprob)
+
+
+# @time "18 threads, 18 BLAS thread" run_GA(test_gaproblem)
+
+# @time "18 threads, 1 BLAS threads" run_GA(test_gaproblem)
+# "18 threads, 1 BLAS threads: 30.316618 seconds (19.58 M allocations: 19.422 GiB, 2.85% gc time)"
+
+# Threads.nthreads()
+# @time "36 threads, 1 BLAS thread" run_GA(test_gaproblem)
+# "36 threads, 1 BLAS thread: 21.726124 seconds (15.02 M allocations: 19.014 GiB, 2.25% gc time)"
+
+
+#! TESTING GA FUNCTIONALITY
+test_results = run_GA(test_gaproblem; population_size = 1000, iterations = 5)
+test_results = filter!(test_results -> test_results.fit < -0.1, test_results)
+plotsol(row) = plotsol(row, test_results, ogprob)
+
+plotsol(1960)
+
+sort!(test_results, :fit, rev=true)
+
+test_fitness(row) = eval_param_fitness(test_results.ind[row], ogprob)
+test_fitness(1)
+
+# reogprob = remake(ogprob, p=test_results.ind[1])
+# testsol = solve(reogprob, saveat = 0.1)
+testsol = solve(remake(ogprob, p=test_results.ind[1]), saveat=0.01, save_idxs=1)
+plot(testsol)
+CostFunction(testsol)
+
+
+
+
+
+
+
+oscillatory_idxs = findall(fit -> fit < -0.1, test_results.fit)
