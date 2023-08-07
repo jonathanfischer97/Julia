@@ -51,8 +51,9 @@ end
 
 
 fullrn = make_fullrn()
-ogprob = ODEProblem(fullrn, [], (0.,100.0), [])
-ogprob.u0[1] = 10.0
+ogprob = ODEProblem(fullrn, [], (0.,500.0), [])
+new_u0 = ogprob.u0 .* 10
+ogprob = remake(ogprob, u0 = new_u0)
 # @benchmark solve($ogprob, saveat = 0.1, save_idxs = 1)
 
 # ogsol = solve(ogprob, Rosenbrock23(), save_idxs = 1)
@@ -60,7 +61,7 @@ ogprob.u0[1] = 10.0
 
 
 #* Optimization of parameters to produce data for CSV
-param_constraints = define_parameter_constraints(karange = (1e-2, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 2e4))
+param_constraints = define_parameter_constraints(karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 2e4))
 
 
 # param_gaproblem = GAProblem(param_constraints,ogprob)
@@ -273,13 +274,14 @@ test_gaproblem = GAProblem(param_constraints, ogprob)
 
 
 #! TESTING GA FUNCTIONALITY
-test_results = run_GA(test_gaproblem; population_size = 1000, iterations = 5)
-test_results = filter!(test_results -> test_results.fit < -0.1, test_results)
+test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5)
+sort!(test_results, :fit, rev=false)
+
+
 plotsol(row) = plotsol(row, test_results, ogprob)
 
-plotsol(1960)
+plotsol(1)
 
-sort!(test_results, :fit, rev=true)
 
 test_fitness(row) = eval_param_fitness(test_results.ind[row], ogprob)
 test_fitness(1)
@@ -292,8 +294,30 @@ CostFunction(testsol)
 
 
 
+#Test the fitness function with scaled amplitudes
+testsolx10 = testsol.u .* 10
+
+CostFunction(testsolx10)
+
+function CostFunction(u)
+    norm_u = normalize_time_series(u) #* normalize the solution
+    #*get the fft of the solution
+    fftData = getFrequencies(norm_u)
+    fft_peakindexes, fft_peakvals = findmaxima(fftData,1) #* get the indexes of the peaks in the fft
+    time_peakindexes, time_peakvals = findmaxima(u,1) #* get the times of the peaks in the fft
+    if length(fft_peakindexes) < 3 || length(time_peakindexes) < 3 #* if there are no peaks in either domain, return 0
+        return [0.0, 0.0, 0.0]
+    end
+    std = getSTD(fft_peakindexes, fftData) #* get the average standard deviation of the peaks in frequency domain
+    diff = getDif(fft_peakvals) #* get the summed difference between the peaks in frequency domain
+
+    #* Compute the period and amplitude
+    # period, amplitude = getPerAmp(sol, time_peakindexes, time_peakvals)
+
+    #* Return cost, period, and amplitude as a vector
+    return -std - diff
+end
 
 
-
-
-oscillatory_idxs = findall(fit -> fit < -0.1, test_results.fit)
+getFrequencies(testsol.u)
+getFrequencies(testsolx10)
