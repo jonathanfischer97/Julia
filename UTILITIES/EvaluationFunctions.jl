@@ -91,15 +91,24 @@ function getPerAmp(sol::ODESolution)
     return mean(pers), mean(amps)
 end
 
+
+
+function normalize_time_series(ts::Vector{Float64})::Vector{Float64}
+    mu = mean(ts)
+    amplitude = maximum(ts) - minimum(ts)
+    return (ts .- mu) ./ amplitude
+end
+
+
 """Cost function to be plugged into eval_fitness wrapper"""
 function CostFunction(sol::ODESolution)::Vector{Float64}
-    tstart = 50 #iterations, = 5 seconds
-    trimsol = sol[tstart:end] #* get the solution from the clean start time to the end
-    # viewsol = sol.u #* get the view of the solution
+    # tstart = 50 #iterations, = 5 seconds
+    # trimsol = sol[tstart:end] #* get the solution from the clean start time to the end
+    normsol = normalize_time_series(sol.u) #* normalize the solution
     #*get the fft of the solution
-    fftData = getFrequencies(trimsol[1,:])
+    fftData = getFrequencies(normsol)
     fft_peakindexes, fft_peakvals = findmaxima(fftData,1) #* get the indexes of the peaks in the fft
-    time_peakindexes, time_peakvals = findmaxima(trimsol[1,:],1) #* get the times of the peaks in the fft
+    time_peakindexes, time_peakvals = findmaxima(sol.u,1) #* get the times of the peaks in the fft
     if length(fft_peakindexes) < 3 || length(time_peakindexes) < 3 #* if there are no peaks in either domain, return 0
         return [0.0, 0.0, 0.0]
     end
