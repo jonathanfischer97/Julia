@@ -63,7 +63,7 @@ function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Flo
     #* Find peaks of the minima too 
     indx_min, vals_min = findminima(sol[1,:], 1)
 
-    if length(indx_max) < 1 || length(indx_min) < 1 #todo need to fix this, either keep or move check into cost function
+    if length(indx_max) < 2 || length(indx_min) < 2 #todo need to fix this, either keep or move check into cost function
         return 0.0, 0.0
     end
 
@@ -104,11 +104,11 @@ end
 function CostFunction(sol::ODESolution)::Vector{Float64}
     # tstart = 50 #iterations, = 5 seconds
     # trimsol = sol[tstart:end] #* get the solution from the clean start time to the end
-    normsol = normalize_time_series(sol.u) #* normalize the solution
+    normsol = normalize_time_series(sol[1,:]) #* normalize the solution
     #*get the fft of the solution
     fftData = getFrequencies(normsol)
-    fft_peakindexes, fft_peakvals = findmaxima(fftData,1) #* get the indexes of the peaks in the fft
-    time_peakindexes, time_peakvals = findmaxima(sol.u,1) #* get the times of the peaks in the fft
+    fft_peakindexes, fft_peakvals = findmaxima(fftData,5) #* get the indexes of the peaks in the fft
+    time_peakindexes, time_peakvals = findmaxima(sol[1,:],5) #* get the times of the peaks in the fft
     if length(fft_peakindexes) < 3 || length(time_peakindexes) < 3 #* if there are no peaks in either domain, return 0
         return [0.0, 0.0, 0.0]
     end
@@ -126,14 +126,14 @@ end
 #! EVALUATION FUNCTIONS ## 
 """Evaluate the fitness of an individual with new parameters"""
 function eval_param_fitness(params::Vector{Float64},  prob::ODEProblem)
-    # remake with new parameters
+    #* remake with new parameters
     new_prob = remake(prob, p=params)
     return solve_for_fitness_peramp(new_prob)
 end
 
 """Evaluate the fitness of an individual with new initial conditions"""
 function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem)
-    # remake with new initial conditions
+    #* remake with new initial conditions
     new_prob = remake(prob, u0=[initial_conditions; zeros(length(prob.u0)-length(initial_conditions))])
     return solve_for_fitness_peramp(new_prob)
 end

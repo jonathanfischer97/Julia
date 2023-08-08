@@ -274,7 +274,7 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     fitness_function = fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem)
 
     # Run the optimization.
-    result = Evolutionary.optimize(fitness_function, [0.0,0.0,0.0], boxconstraints, mthd, pop, opts)
+    result = Evolutionary.optimize(fitness_function, boxconstraints, mthd, pop, opts)
 
     # Get the individual, fitness, and extradata of the population
     record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector{Float64},Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace])
