@@ -61,7 +61,7 @@ ogprob = remake(ogprob, u0 = new_u0)
 
 
 #* Optimization of parameters to produce data for CSV
-param_constraints = define_parameter_constraints(karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 2e4))
+param_constraints = define_parameter_constraints(karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
 
 
 # param_gaproblem = GAProblem(param_constraints,ogprob)
@@ -259,22 +259,12 @@ CSV.write("OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-$(param
 
 
 
-#! TESTING GA PERFORMANCE
-test_gaproblem = GAProblem(param_constraints, ogprob)
-
-
-# @time "18 threads, 18 BLAS thread" run_GA(test_gaproblem)
-
-# @time "18 threads, 1 BLAS threads" run_GA(test_gaproblem)
-# "18 threads, 1 BLAS threads: 30.316618 seconds (19.58 M allocations: 19.422 GiB, 2.85% gc time)"
-
-# Threads.nthreads()
-# @time "36 threads, 1 BLAS thread" run_GA(test_gaproblem)
-# "36 threads, 1 BLAS thread: 21.726124 seconds (15.02 M allocations: 19.014 GiB, 2.25% gc time)"
-
 
 #! TESTING GA FUNCTIONALITY
-test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5)
+test_gaproblem = GAProblem(param_constraints, ogprob)
+
+test_results = run_GA(test_gaproblem; population_size = 10000, iterations = 5)
+@time run_GA(test_gaproblem; population_size = 1000, iterations = 5)
 sort!(test_results, :fit, rev=false)
 
 
@@ -286,11 +276,11 @@ plotsol(1)
 test_fitness(row) = eval_param_fitness(test_results.ind[row], ogprob)
 test_fitness(1)
 
-# reogprob = remake(ogprob, p=test_results.ind[1])
-# testsol = solve(reogprob, saveat = 0.1)
-testsol = solve(remake(ogprob, p=test_results.ind[1]), saveat=0.01, save_idxs=1)
+reogprob = remake(ogprob, p=test_results.ind[1])
+testsol = solve(reogprob, saveat = 0.01, save_idxs = 1)
+
 plot(testsol)
-CostFunction(testsol)
+@code_warntype CostFunction(testsol)
 
 
 
@@ -318,6 +308,48 @@ function CostFunction(u)
     return -std - diff
 end
 
+function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Float64})
+    # Find peaks of the minima too
+    indx_min, vals_min = findminima(sol[1,:], 1)
+
+    if length(indx_max) < 2 || length(indx_min) < 2
+        return 0.0, 0.0
+    end
+
+    # Calculate amplitudes
+    @inbounds amps = ((vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min)))
+
+    # Calculate periods based on the maxima
+    @inbounds pers_max = (sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1))
+    
+    # Normalize periods by total time span
+    total_time_span = sol.t[end] - sol.t[1]
+    normalized_pers_max = [p / total_time_span for p in pers_max]
+
+    return mean(normalized_pers_max), mean(amps)
+end
+
 
 getFrequencies(testsol.u)
 getFrequencies(testsolx10)
+
+
+normsol = normalize_time_series(testsol[1,:]) #* normalize the solution
+normsol = normalize(testsol[1,:], 1) #* normalize the solution
+#*get the fft of the solution
+fftData = getFrequencies(normsol)
+fft_peakindexes, fft_peakvals = findmaxima(fftData,5) #* get the indexes of the peaks in the fft
+time_peakindexes, time_peakvals = findmaxima(testsol[1,:],5) #* get the times of the peaks in the fft
+# timeproms = peakproms(time_peakindexes, normsol)[2]
+# std(timeproms)
+if length(fft_peakindexes) < 3 || length(time_peakindexes) < 3 #* if there are no peaks in either domain, return 0
+    return [0.0, 0.0, 0.0]
+end
+standev = getSTD(fft_peakindexes, fftData) #* get the average standard deviation of the peaks in frequency domain
+peakdiff = getDif(fft_peakvals) #* get the summed difference between the peaks in frequency domain
+
+#* Compute the period and amplitude
+period, amplitude = getPerAmp(testsol, time_peakindexes, time_peakvals)
+
+
+
