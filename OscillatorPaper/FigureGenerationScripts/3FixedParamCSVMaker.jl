@@ -51,12 +51,13 @@ end
 
 
 fullrn = make_fullrn()
-ogprob = ODEProblem(fullrn, [], (0.,500.0), [])
+ogprob = ODEProblem(fullrn, [], (0.,1000.0), [])
 new_u0 = ogprob.u0 .* 10
 ogprob = remake(ogprob, u0 = new_u0)
 # @benchmark solve($ogprob, saveat = 0.1, save_idxs = 1)
 
-# ogsol = solve(ogprob, Rosenbrock23(), save_idxs = 1)
+@benchmark solve($ogprob, saveat=0.1, save_idxs = 1)
+ogsol = solve(ogprob, saveat=0.1, save_idxs = 1)
 # plot(ogsol)
 
 
@@ -352,4 +353,26 @@ peakdiff = getDif(fft_peakvals) #* get the summed difference between the peaks i
 period, amplitude = getPerAmp(testsol, time_peakindexes, time_peakvals)
 
 
+@benchmark getFrequencies(ogsol[1,:])
 
+
+
+#! Bugs to fix
+#* 1. The fitness function is not working properly. It is not returning the correct values for the period and amplitude.
+#* 2. Fix the "FFTW can't make plan" error 
+#* 3. Logscale projection isn't working, fix it. 
+#* 4. Save the optimized parameters, not just the evaluation values 
+#* 5. Run GA through debugger to see the sequence of selection, recombination
+#* 6. Print out the initial conditions in the CSV 
+
+
+
+newp = [0.001741312,	0.002189009,	218.8342196,	4.333715377,	383.0505446,	
+0.858290292,	19.19847775,	1.249452352,	0.045457933,	0.330913943,	0.007674134,	0.006808512,	75228.30051]
+
+newprob = remake(ogprob, p = newp)
+
+newsol = solve(newprob, saveat = 0.01, save_idxs = 1)
+plot(newsol)
+
+CostFunction(newsol)

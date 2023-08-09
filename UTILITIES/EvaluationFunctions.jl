@@ -50,7 +50,7 @@ function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; wind
     arrLen = length(fft_arrayData)
     sum_std = @inbounds sum(std(fft_arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in fft_peakindxs) #* sum rolling window of standard deviations
     return sum_std / length(fft_peakindxs) #* divide by number of peaks to get average std
-end
+end #TODO try just returning the sum, not the average
 
 """Return normalized FFT of solution vector"""
 function getFrequencies(timeseries::Vector{Float64}) #todo fix normalization or something 
@@ -80,9 +80,9 @@ function getPerAmp(sol::ODESolution)
     indx_max, vals_max = findmaxima(sol[1,:], 5)
     indx_min, vals_min = findminima(sol[1,:], 5)
 
-    if length(indx_max) < 2 || length(indx_min) < 2
-        return 0.0, 0.0
-    end
+    # if length(indx_max) < 2 || length(indx_min) < 2
+    #     return 0.0, 0.0
+    # end
     #* Calculate amplitudes and periods
     @inbounds pers = (sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1))
     @inbounds amps = ((vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min)))
@@ -102,24 +102,29 @@ end
 
 """Cost function to be plugged into eval_fitness wrapper"""
 function CostFunction(sol::ODESolution)::Vector{Float64}
-    # tstart = 50 #iterations, = 5 seconds
+    # tstart = 50 #iterations, = 5 seconds #TODO look if last half of sol is constant, if so, cut it off
     # trimsol = sol[tstart:end] #* get the solution from the clean start time to the end
     normsol = normalize_time_series(sol[1,:]) #* normalize the solution
     #*get the fft of the solution
     fftData = getFrequencies(normsol)
     fft_peakindexes, fft_peakvals = findmaxima(fftData,5) #* get the indexes of the peaks in the fft
     time_peakindexes, time_peakvals = findmaxima(sol[1,:],5) #* get the times of the peaks in the fft
-    if length(fft_peakindexes) < 3 || length(time_peakindexes) < 3 #* if there are no peaks in either domain, return 0
-        return [0.0, 0.0, 0.0]
-    end
+    # if length(fft_peakindexes) < 3 || length(time_peakindexes) < 3 #* if there are no peaks in either domain, return 0
+    #     return [0.0, 0.0, 0.0]
+    # end
     std = getSTD(fft_peakindexes, fftData) #* get the average standard deviation of the peaks in frequency domain
     diff = getDif(fft_peakvals) #* get the summed difference between the peaks in frequency domain
 
     #* Compute the period and amplitude
-    period, amplitude = getPerAmp(sol, time_peakindexes, time_peakvals)
+    # period, amplitude = getPerAmp(sol, time_peakindexes, time_peakvals)
 
-    #* Return cost, period, and amplitude as a vector
-    return [-std - diff, period, amplitude]
+    #* if cost is too high, return 0, no oscillations
+    if -std-diff > -0.1
+        return [0.0, 0.0, 0.0]
+    else 
+        period, amplitude = getPerAmp(sol, time_peakindexes, time_peakvals)
+        return [-std - diff, period, amplitude]
+    end
 end
 
 
