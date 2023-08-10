@@ -487,4 +487,4 @@ for angle in angles
 end
 
 
-create_3d_scatter_with_shadows(30, log_kcat1, log_kcat7, log_DF, sizes, colors)
+create_3d_scatter_with_shadows(30, df.kcat1, df.kcat7, df.DF, sizes, colors)
