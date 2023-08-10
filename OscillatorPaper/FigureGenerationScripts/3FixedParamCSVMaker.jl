@@ -233,7 +233,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                             end
                         end
                     end
-                    @assert length(oscillatory_points_df.ind[1]) == 13
+            
                     return oscillatory_points_df
                     #* split parameter values into separate columns and add initial conditions
                     split_dataframe!(oscillatory_points_df, prob)
@@ -420,7 +420,7 @@ testfft = getFrequencies(testarray)
 
 
 # load CSV into DataFrame 
-testdf = CSV.read("/Users/jonathanfischer/Desktop/PhD_ThesisWork/Julia/OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-kcat1kcat7DF.csv", DataFrame)
+df = CSV.read("OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-kcat1kcat7DF.csv", DataFrame)
 
 # exclude rows with extreme values 
 testdf = testdf[.!isnan.(testdf.average_period), :]
@@ -431,10 +431,22 @@ plot(testdf.kcat1, testdf.kcat7, testdf.DF, st = :scatter, xlabel = "kcat1", yla
 
 
 
-# Clean the data by removing extreme values
-df = filter(row -> !any(isinf.(row)) && !any(isnan.(row)), testdf)
+# Tolerance for considering a value as uninitialized or close to zero
+tolerance = 1e-300
 
-df = testdf
+# Clean the data by removing rows with values close to zero
+function clean_data(row)
+    for value in row
+        if abs(value) < tolerance
+            return false
+        end
+    end
+    return true
+end
+
+df = filter(clean_data, df)
+
+# df = testdf
 # Convert to log scale
 log_kcat1 = log10.(df.kcat1)
 log_kcat7 = log10.(df.kcat7)
@@ -443,34 +455,36 @@ sizes = df.average_amplitude .+ 1 # Add 1 to avoid zero size
 colors = df.average_period
 
 # Plotting function
-function create_3d_scatter_with_shadows(angle, x, y, z, sizes, colors)
+function create_3d_scatter_with_shadows(angle=30, x, y, z, sizes, colors)
     p = scatter3d(x, y, z, markersize=sizes, color=cgrad(:viridis, colors, rev=true), legend=false, alpha=0.4, markerstrokewidth=0)
-    display(p)
     # Project the points onto each plane and connect them with lines
     for (xi, yi, zi, si, ci) in zip(x, y, z, sizes, colors)
-        scatter3d!([xi], [yi], [z[begin]], markersize=[si], color=cgrad(:viridis, [ci], rev=true), alpha=0.4)
-        scatter3d!([xi], [y[begin]], [zi], markersize=[si], color=cgrad(:viridis, [ci], rev=true), alpha=0.4)
-        scatter3d!([x[begin]], [yi], [zi], markersize=[si], color=cgrad(:viridis, [ci], rev=true), alpha=0.4)
+        scatter3d!(p,[xi], [yi], [z[begin]], markersize=[si], color=cgrad(:viridis, [ci], rev=true), alpha=0.4)
+        scatter3d!(p,[xi], [y[begin]], [zi], markersize=[si], color=cgrad(:viridis, [ci], rev=true), alpha=0.4)
+        scatter3d!(p,[x[begin]], [yi], [zi], markersize=[si], color=cgrad(:viridis, [ci], rev=true), alpha=0.4)
     end
 
     # Set axis labels
-    xlabel!("log10(kcat1)")
-    ylabel!("log10(kcat7)")
-    zlabel!("log10(DF)")
+    xlabel!(p,"log10(kcat1)")
+    ylabel!(p,"log10(kcat7)")
+    zlabel!(p,"log10(DF)")
 
     # Set view angle
-    plot!(camera=(10, angle))
+    plot!(p,camera=(10, angle))
 
     # Set title
-    title!("Log-Scaled Parameters with Projections & Shadows (Angle: ) - Size & Color: Average Amplitude & Period")
+    title!(p,"Log-Scaled Parameters with Projections & Shadows (Angle: $angle) - Size & Color: Average Amplitude & Period")
 
     # Display the plot
     # display(current())
-    
+    display(p)
 end
 
 # Plot from different angles with log scaling and projections
 angles = [0, 30, 60, 90, 120, 150]
-for ang in angles
-    create_3d_scatter_with_shadows(ang, log_kcat1, log_kcat7, log_DF, sizes, colors)
+for angle in angles
+    create_3d_scatter_with_shadows(angle, log_kcat1, log_kcat7, log_DF, sizes, colors)
 end
+
+
+create_3d_scatter_with_shadows(30, log_kcat1, log_kcat7, log_DF, sizes, colors)
