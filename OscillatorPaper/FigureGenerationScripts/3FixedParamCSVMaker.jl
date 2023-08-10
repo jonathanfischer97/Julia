@@ -417,3 +417,60 @@ CostFunction(newsol)
 testarray = rand(10000)
 testfft = getFrequencies(testarray)
 @benchmark getFrequencies($testarray)
+
+
+# load CSV into DataFrame 
+testdf = CSV.read("/Users/jonathanfischer/Desktop/PhD_ThesisWork/Julia/OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-kcat1kcat7DF.csv", DataFrame)
+
+# exclude rows with extreme values 
+testdf = testdf[.!isnan.(testdf.average_period), :]
+
+plot(testdf.kcat1, testdf.kcat7, testdf.DF, st = :scatter, xlabel = "kcat1", ylabel = "kcat7", zlabel="DF", title = "Average Period vs. Average Amplitude", legend = false)
+
+
+
+
+
+# Clean the data by removing extreme values
+df = filter(row -> !any(isinf.(row)) && !any(isnan.(row)), testdf)
+
+df = testdf
+# Convert to log scale
+log_kcat1 = log10.(df.kcat1)
+log_kcat7 = log10.(df.kcat7)
+log_DF = log10.(df.DF)
+sizes = df.average_amplitude .+ 1 # Add 1 to avoid zero size
+colors = df.average_period
+
+# Plotting function
+function create_3d_scatter_with_shadows(angle, x, y, z, sizes, colors)
+    p = scatter3d(x, y, z, markersize=sizes, color=cgrad(:viridis, colors, rev=true), legend=false, alpha=0.4, markerstrokewidth=0)
+    display(p)
+    # Project the points onto each plane and connect them with lines
+    for (xi, yi, zi, si, ci) in zip(x, y, z, sizes, colors)
+        scatter3d!([xi], [yi], [z[begin]], markersize=[si], color=cgrad(:viridis, [ci], rev=true), alpha=0.4)
+        scatter3d!([xi], [y[begin]], [zi], markersize=[si], color=cgrad(:viridis, [ci], rev=true), alpha=0.4)
+        scatter3d!([x[begin]], [yi], [zi], markersize=[si], color=cgrad(:viridis, [ci], rev=true), alpha=0.4)
+    end
+
+    # Set axis labels
+    xlabel!("log10(kcat1)")
+    ylabel!("log10(kcat7)")
+    zlabel!("log10(DF)")
+
+    # Set view angle
+    plot!(camera=(10, angle))
+
+    # Set title
+    title!("Log-Scaled Parameters with Projections & Shadows (Angle: ) - Size & Color: Average Amplitude & Period")
+
+    # Display the plot
+    # display(current())
+    
+end
+
+# Plot from different angles with log scaling and projections
+angles = [0, 30, 60, 90, 120, 150]
+for ang in angles
+    create_3d_scatter_with_shadows(ang, log_kcat1, log_kcat7, log_DF, sizes, colors)
+end
