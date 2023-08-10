@@ -201,7 +201,7 @@ logrange(start, stop, length) = exp10.(collect(range(start=log10(start), stop=lo
 
 
 #* Modification to fixed_triplet_csv_maker function
-function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; rangelength = 5)
+function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; rangelength = 5) #TODO add progress bar
     variable_constraints = deepcopy(constraints)
     fixedtrip = [x for x in variable_constraints.ranges if x.name == param1 || x.name == param2 || x.name == param3]
     filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.ranges)
