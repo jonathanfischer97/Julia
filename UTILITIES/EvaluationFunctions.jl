@@ -46,13 +46,15 @@ function getDif(peakvals::Vector{Float64})
 end
 
 """Get summed average standard deviation of peaks in the frequency domain"""
-function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; window::Int = 1)#, window_ratio::Float64) #get average standard deviation of fft peak indexes
+function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; window_ratio::Int=100) #get average standard deviation of fft peak indexes
     arrLen = length(fft_arrayData)
+    window = max(1,cld(arrLen,window_ratio)) #* window size is 1% of array length, or 1 if array length is less than 100
     sum_std = @inbounds sum(std(fft_arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in fft_peakindxs) #* sum rolling window of standard deviations
-    return sum_std / length(fft_peakindxs) #* divide by number of peaks to get average std
+    return sum_std
+    # return sum_std / length(fft_peakindxs) #* divide by number of peaks to get average std
 end #TODO try just returning the sum, not the average
 
-"""Return normalized FFT of solution vector"""
+"""Return normalized FFT of solution vector. Modifies the solution vector in place"""
 function getFrequencies(timeseries::Vector{Float64}) #todo fix normalization or something 
     res = abs.(rfft(timeseries))
     return res ./ cld(length(timeseries), 2) #* normalize amplitudes
@@ -61,16 +63,11 @@ end
 """Calculates the period and amplitude of each individual in the population"""
 function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Float64})
     #* Find peaks of the minima too 
-    indx_min, vals_min = findminima(sol[1,:], 1)
-
-    if length(indx_max) < 2 || length(indx_min) < 2 #todo need to fix this, either keep or move check into cost function
-        return 0.0, 0.0
-    end
+    indx_min, vals_min = findminima(sol[1,:], 5)
 
     #* Calculate amplitudes and periods
     @inbounds pers = (sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1))
     @inbounds amps = ((vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min)))
-    # @inbounds amps = 0.5 .* (vals_max .- vals_min)[1:min(length(indx_max), length(indx_min))]
 
     return mean(pers), mean(amps)
 end
@@ -80,9 +77,9 @@ function getPerAmp(sol::ODESolution)
     indx_max, vals_max = findmaxima(sol[1,:], 5)
     indx_min, vals_min = findminima(sol[1,:], 5)
 
-    # if length(indx_max) < 2 || length(indx_min) < 2
-    #     return 0.0, 0.0
-    # end
+    if length(indx_max) < 2 || length(indx_min) < 2
+        return 0.0, 0.0
+    end
     #* Calculate amplitudes and periods
     @inbounds pers = (sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1))
     @inbounds amps = ((vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min)))
@@ -93,36 +90,38 @@ end
 
 
 
-function normalize_time_series(ts::Vector{Float64})::Vector{Float64}
+function normalize_time_series!(ts::Vector{Float64})::Vector{Float64}
     mu = mean(ts)
     amplitude = maximum(ts) - minimum(ts)
-    return (ts .- mu) ./ amplitude
+    ts .= (ts .- mu) ./ amplitude
 end
 
 
 """Cost function to be plugged into eval_fitness wrapper"""
 function CostFunction(sol::ODESolution)::Vector{Float64}
-    # tstart = 50 #iterations, = 5 seconds #TODO look if last half of sol is constant, if so, cut it off
-    # trimsol = sol[tstart:end] #* get the solution from the clean start time to the end
-    normsol = normalize_time_series(sol[1,:]) #* normalize the solution
+    tstart = cld(length(sol.t),10) #iterations, = 5 seconds #TODO look if last half of sol is constant, if so, cut it off
+    trimsol = sol[tstart:end] #* get the solution from the clean start time to the end
+
+    solarray = trimsol[1,:] #* get the solution array
+    time_peakindexes, time_peakvals = findmaxima(solarray,5) #* get the times of the peaks in the fft
+    peakproms!(time_peakindexes, solarray; minprom = 0.1) #* get the peak prominences (amplitude of peak above surrounding valleys
+    if length(time_peakindexes) < 2 #* if there are less than 2 prominent peaks in the time domain, return 0
+        return [0.0, 0.0, 0.0]
+    end
+    #* normalize the solution array. WARNING: solarray is modified after this line
+    normsol = normalize_time_series!(solarray)
     #*get the fft of the solution
     fftData = getFrequencies(normsol)
     fft_peakindexes, fft_peakvals = findmaxima(fftData,5) #* get the indexes of the peaks in the fft
-    time_peakindexes, time_peakvals = findmaxima(sol[1,:],5) #* get the times of the peaks in the fft
-    # if length(fft_peakindexes) < 3 || length(time_peakindexes) < 3 #* if there are no peaks in either domain, return 0
-    #     return [0.0, 0.0, 0.0]
-    # end
-    std = getSTD(fft_peakindexes, fftData) #* get the average standard deviation of the peaks in frequency domain
-    diff = getDif(fft_peakvals) #* get the summed difference between the peaks in frequency domain
-
-    #* Compute the period and amplitude
-    # period, amplitude = getPerAmp(sol, time_peakindexes, time_peakvals)
-
-    #* if cost is too high, return 0, no oscillations
-    if -std-diff > -0.1
+    if length(fft_peakindexes) < 1 #* if there are no peaks in either domain, return 0
         return [0.0, 0.0, 0.0]
-    else 
-        period, amplitude = getPerAmp(sol, time_peakindexes, time_peakvals)
+    else
+        std = getSTD(fft_peakindexes, fftData) #* get the average standard deviation of the peaks in frequency domain
+        diff = getDif(fft_peakvals) #* get the summed difference between the peaks in frequency domain
+    
+        #* Compute the period and amplitude
+        period, amplitude = getPerAmp(trimsol, time_peakindexes, time_peakvals)
+    
         return [-std - diff, period, amplitude]
     end
 end
@@ -146,7 +145,7 @@ end
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
 function solve_for_fitness_peramp(prob)
 
-    sol = solve(prob, saveat=0.01, save_idxs=1)#, maxiters=10000, verbose=false)
+    sol = solve(prob, saveat=0.1, save_idxs=1)#, maxiters=10000, verbose=false)
 
     return CostFunction(sol)
 end
