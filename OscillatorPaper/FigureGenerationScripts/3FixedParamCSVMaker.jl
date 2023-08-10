@@ -50,9 +50,9 @@ begin
 end
 
 
-debuglogger = ConsoleLogger(stderr, Logging.Debug)
-infologger = ConsoleLogger(stderr, Logging.Info)
-global_logger(infologger)
+# debuglogger = ConsoleLogger(stderr, Logging.Debug)
+# infologger = ConsoleLogger(stderr, Logging.Info)
+# global_logger(infologger)
 
 fullrn = make_fullrn()
 ogprob = ODEProblem(fullrn, [], (0.,1000.0), [])
@@ -62,7 +62,19 @@ ogprob = remake(ogprob, u0 = new_u0)
 
 @benchmark solve($ogprob, saveat=0.1, save_idxs = 1)
 ogsol = solve(ogprob, saveat=0.1, save_idxs = 1)
+testfunc(ogprob) = solve(ogprob, saveat=0.1, save_idxs = 1)
+
+using Cthulhu
+using ProfileView
+descend_code_warntype(testfunc, (ODEProblem,))
+@code_warntype solve(ogprob, saveat=0.1, save_idxs = 1)
 # plot(ogsol)
+@code_warntype solve_for_fitness_peramp(ogprob)
+
+@benchmark solve_for_fitness_peramp($ogprob)
+
+@code_warntype CostFunction(ogsol)
+
 
 
 #* Optimization of parameters to produce data for CSV
