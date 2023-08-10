@@ -243,8 +243,8 @@ end
 """
 Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 """
-function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; threshold=10000, population_size = 5000, abstol=1e-4, reltol=1e-2, successive_f_tol = 1, iterations=5, parallelization = :thread)
-    blas_threads = BLAS.get_num_threads() #TODO: check if this is necessary
+function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; threshold=10000, population_size = 5000, abstol=1e-4, reltol=1e-2, successive_f_tol = 2, iterations=5, parallelization = :thread)
+    blas_threads = BLAS.get_num_threads()
     BLAS.set_num_threads(1)
     # Generate the initial population.
     pop = generate_population(ga_problem.constraints, population_size)
@@ -292,7 +292,17 @@ function extract_solution(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int
 end
 
 
+"""Splits ind column into separate columns for each parameter, adds initial conditions"""
+function split_dataframe!(df, prob)
 
+    transform!(test_results, :ind =>  [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka4,:kb4,:ka7,:kb7,:kcat7,:DF])
+    select!(df, Not(:ind))
+
+    df.L .= prob.u0[1]
+    df.K .= prob.u0[2]
+    df.P .= prob.u0[3]
+    df.A .= prob.u0[4]
+end
 
 
 
