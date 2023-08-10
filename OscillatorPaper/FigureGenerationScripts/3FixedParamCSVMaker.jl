@@ -168,52 +168,15 @@ function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEPr
     return fitness_function
 end
 
-# Modified make_fitness_function_with_fixed_inputs function
-function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int})
-
-    function fitness_function(input::Vector{Float64})
-        # Create a new input vector that includes the fixed inputs.
-        new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
-
-        # Pre-calculate the mappings of indices from `input` to `new_input`
-        idx_map = [i for i in 1:(length(input) + length(fixed_input_triplet))]
-        j = 1
-        for i in eachindex(fixed_input_triplet)
-            while j in triplet_idxs
-                j += 1
-            end
-            idx_map[j] = i
-            j += 1
-        end
-
-        # Keep track of the number of fixed inputs that have been inserted.
-        fixed_inputs_inserted = 0
-
-        for i in eachindex(new_input)
-            if i in triplet_idxs
-                # If the current index matches the index of a fixed input, insert the fixed input.
-                new_input[i] = fixed_input_triplet[fixed_inputs_inserted + 1]
-                fixed_inputs_inserted += 1
-            else
-                # Otherwise, insert the next value from the input vector.
-                new_input[i] = input[idx_map[i]]
-            end
-        end
-
-        return evalfunc(new_input, prob)
-    end
-    return fitness_function
-end
 
 
 """Defines logspace function for sampling parameters"""
 logrange(start, stop, length) = exp10.(collect(range(start=log10(start), stop=log10(stop), length=length)))
 
-# logrange(start=1e-2, stop=1e2, length=10)
 
 
 #* Modification to fixed_triplet_csv_maker function
-function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; rangelength = 5) #TODO add progress bar
+function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; rangelength = 4) #TODO add progress bar
     variable_constraints = deepcopy(constraints)
     fixedtrip = [x for x in variable_constraints.ranges if x.name == param1 || x.name == param2 || x.name == param3]
     filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.ranges)
@@ -245,6 +208,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5) 
 
                 if isempty(oscillatory_points_df)
+                    results_df[i, :] = (val1, val2, val3, NaN, NaN, NaN, NaN, NaN, NaN)
                     continue
                 else
                     average_period::Float64 = mean(oscillatory_points_df.per)
@@ -258,20 +222,22 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                     # push!(results_df, (val1, val2, val3, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude))
                     results_df[i, :] = (val1, val2, val3, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude)
                     i += 1
-                end
-                #* insert the fixed params into each ind of oscillatory_points_df
-                for ind in oscillatory_points_df.ind
-                    for (j,idx) in enumerate(fixedtrip_idxs)
-                        if idx <= length(ind)
-                            insert!(ind, fixedtrip_idxs[j], fixed_values[j])
-                        else
-                            push!(ind, fixed_values[j])
+                
+                    #* insert the fixed params into each ind of oscillatory_points_df
+                    for ind in oscillatory_points_df.ind
+                        for (j,idx) in enumerate(fixedtrip_idxs)
+                            if idx <= length(ind)
+                                insert!(ind, fixedtrip_idxs[j], fixed_values[j])
+                            else
+                                push!(ind, fixed_values[j])
+                            end
                         end
                     end
+                    return oscillatory_points_df
+                    #* split parameter values into separate columns and add initial conditions
+                    split_dataframe!(oscillatory_points_df, prob)
+                    CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
                 end
-                #* split parameter values into separate columns and add initial conditions
-                split_dataframe!(oscillatory_points_df, prob)
-                CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
             end
         end
     end
@@ -281,9 +247,8 @@ end
 param_triplet = ["kcat1", "kcat7", "DF"]
 
 results_df = fixed_triplet_csv_maker(param_triplet..., param_constraints, ogprob)
-# results_df = DataFrame(kb1 = results_df.fixed_value1, kb2 = results_df.fixed_value2, kb7 = results_df.fixed_value3, #TODO fix programmatic naming
-#                             average_period = results_df.average_period, maximum_period = results_df.maximum_period, minimum_period = results_df.minimum_period, 
-#                             average_amplitude = results_df.average_amplitude, maximum_amplitude = results_df.maximum_amplitude, minimum_amplitude = results_df.minimum_amplitude)
+
+
 CSV.write("OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-$(param_triplet[1]*param_triplet[2]*param_triplet[3]).csv", results_df)
 
 
@@ -297,6 +262,10 @@ CSV.write("OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-$(param
 test_gaproblem = GAProblem(param_constraints, ogprob)
 
 test_results = run_GA(test_gaproblem; population_size = 1000, iterations = 5)
+
+split_dataframe!(test_results, ogprob)
+
+test_results
 
 @time run_GA(test_gaproblem; population_size = 1000, iterations = 5)
 sort!(test_results, :fit, rev=false)
@@ -418,13 +387,14 @@ plot(fftData)
 plot(testsol)
 
 #< Bugs to fix
-#* 1. The fitness function is not working properly
-#* 2. Fix the "FFTW can't make plan" error 
-#* 3. Logscale projection isn't working, fix it. 
+#* 1. The fitness function is not working properly. Optimize, reduce fine tuning, and test it for edge cases against expected results
+#! * 2. Fix the "FFTW can't make plan" error 
+#! * 3. Logscale projection isn't working, fix it. 
 #! 4. Save the optimized parameters, not just the evaluation values 
 #* 5. Run GA through debugger to see the sequence of selection, recombination
 #! 6. Print out the initial conditions in the CSV 
 #* 7. Make test suite for the fitness function. Orthogonal tests will run through all optimized solutions and classify them as correct, false negative, false positive.
+#* 8. Save all variables for selected solutions. IDK Maggie mentioned it 
 
 
 
