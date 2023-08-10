@@ -224,15 +224,16 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                     i += 1
                 
                     #* insert the fixed params into each ind of oscillatory_points_df
-                    for ind in oscillatory_points_df.ind
-                        for (j,idx) in enumerate(fixedtrip_idxs)
-                            if idx <= length(ind)
-                                insert!(ind, fixedtrip_idxs[j], fixed_values[j])
+                    for (rowid,row) in enumerate(eachrow(oscillatory_points_df))
+                        for (j,fixedidx) in enumerate(fixedtrip_idxs)
+                            if fixedidx <= length(row.ind)
+                                insert!(oscillatory_points_df[rowid,:ind], fixedtrip_idxs[j], fixed_values[j])
                             else
-                                push!(ind, fixed_values[j])
+                                push!(oscillatory_points_df[rowid,:ind], fixed_values[j])
                             end
                         end
                     end
+                    @assert length(oscillatory_points_df.ind[1]) == 13
                     return oscillatory_points_df
                     #* split parameter values into separate columns and add initial conditions
                     split_dataframe!(oscillatory_points_df, prob)
@@ -247,11 +248,15 @@ end
 param_triplet = ["kcat1", "kcat7", "DF"]
 
 results_df = fixed_triplet_csv_maker(param_triplet..., param_constraints, ogprob)
+testdf = deepcopy(results_df)
 
+split_dataframe!(testdf, ogprob)
 
 CSV.write("OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-$(param_triplet[1]*param_triplet[2]*param_triplet[3]).csv", results_df)
 
-
+for rowid in eachrow(testdf)
+    println(rowid)
+end
 
 @code_warntype fixed_triplet_csv_maker("ka1", "ka2", "ka3", param_constraints, ogprob)
 
@@ -261,9 +266,9 @@ CSV.write("OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-$(param
 #! TESTING GA FUNCTIONALITY
 test_gaproblem = GAProblem(param_constraints, ogprob)
 
-test_results = run_GA(test_gaproblem; population_size = 1000, iterations = 5)
+ga_results = run_GA(test_gaproblem; population_size = 1000, iterations = 5)
 
-split_dataframe!(test_results, ogprob)
+split_dataframe!(ga_results, ogprob)
 
 test_results
 
