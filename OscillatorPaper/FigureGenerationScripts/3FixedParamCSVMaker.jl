@@ -455,7 +455,7 @@ sizes = df.average_amplitude .+ 1 # Add 1 to avoid zero size
 colors = df.average_period
 
 # Plotting function
-function create_3d_scatter_with_shadows(angle=30, x, y, z, sizes, colors)
+function create_3d_scatter_with_shadows(angle, x, y, z, sizes, colors)
     p = scatter3d(x, y, z, markersize=sizes, color=cgrad(:viridis, colors, rev=true), legend=false, alpha=0.4, markerstrokewidth=0)
     # Project the points onto each plane and connect them with lines
     for (xi, yi, zi, si, ci) in zip(x, y, z, sizes, colors)
@@ -488,3 +488,5 @@ end
 
 
 create_3d_scatter_with_shadows(30, df.kcat1, df.kcat7, df.DF, sizes, colors)
+
+scatter3d(df.kcat1, df.kcat7, df.DF, color=cgrad(:viridis, colors, rev=true), xscale = :log10, yscale = :log10, zscale= :log10)
