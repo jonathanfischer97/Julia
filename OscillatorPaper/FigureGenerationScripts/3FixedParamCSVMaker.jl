@@ -50,6 +50,10 @@ begin
 end
 
 
+debuglogger = ConsoleLogger(stderr, Logging.Debug)
+infologger = ConsoleLogger(stderr, Logging.Info)
+global_logger(infologger)
+
 fullrn = make_fullrn()
 ogprob = ODEProblem(fullrn, [], (0.,1000.0), [])
 new_u0 = ogprob.u0 .* 10
@@ -216,6 +220,9 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                         "average_period" => Vector{Float64}(undef, rangelength^3), "maximum_period"=>Vector{Float64}(undef, rangelength^3), "minimum_period"=>Vector{Float64}(undef, rangelength^3),
                         "average_amplitude" => Vector{Float64}(undef, rangelength^3), "maximum_amplitude"=>Vector{Float64}(undef, rangelength^3), "minimum_amplitude"=>Vector{Float64}(undef, rangelength^3))
 
+    
+    #* make folder to hold all the csv files 
+    path = mkpath("OscillatorPaper/FigureGenerationScripts/3FixedCSVs/$(param1)_$(param2)_$(param3)")
     i = 1
     for val1 in fixed_values1
         for val2 in fixed_values2
@@ -223,7 +230,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 fixed_values = [val1, val2, val3]
                 @info fixed_values
                 make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs)
-                oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 5000, iterations = 5) 
+                oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5) 
 
                 if isempty(oscillatory_points_df)
                     continue
@@ -240,6 +247,19 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                     results_df[i, :] = (val1, val2, val3, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude)
                     i += 1
                 end
+                #* insert the fixed params into each ind of oscillatory_points_df
+                for ind in oscillatory_points_df.ind
+                    for (j,idx) in enumerate(fixedtrip_idxs)
+                        if idx <= length(ind)
+                            insert!(ind, fixedtrip_idxs[j], fixed_values[j])
+                        else
+                            push!(ind, fixed_values[j])
+                        end
+                    end
+                end
+                #* split parameter values into separate columns and add initial conditions
+                split_dataframe!(oscillatory_points_df, prob)
+                CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
             end
         end
     end
@@ -247,11 +267,11 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
 end
 
 param_triplet = ["kcat1", "kcat7", "DF"]
-param_triplet_symbols = Symbol.(param_triplet)
+
 results_df = fixed_triplet_csv_maker(param_triplet..., param_constraints, ogprob)
-results_df = DataFrame(kb1 = results_df.fixed_value1, kb2 = results_df.fixed_value2, kb7 = results_df.fixed_value3, #TODO fix programmatic naming
-                            average_period = results_df.average_period, maximum_period = results_df.maximum_period, minimum_period = results_df.minimum_period, 
-                            average_amplitude = results_df.average_amplitude, maximum_amplitude = results_df.maximum_amplitude, minimum_amplitude = results_df.minimum_amplitude)
+# results_df = DataFrame(kb1 = results_df.fixed_value1, kb2 = results_df.fixed_value2, kb7 = results_df.fixed_value3, #TODO fix programmatic naming
+#                             average_period = results_df.average_period, maximum_period = results_df.maximum_period, minimum_period = results_df.minimum_period, 
+#                             average_amplitude = results_df.average_amplitude, maximum_amplitude = results_df.maximum_amplitude, minimum_amplitude = results_df.minimum_amplitude)
 CSV.write("OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-$(param_triplet[1]*param_triplet[2]*param_triplet[3]).csv", results_df)
 
 
@@ -264,7 +284,8 @@ CSV.write("OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-$(param
 #! TESTING GA FUNCTIONALITY
 test_gaproblem = GAProblem(param_constraints, ogprob)
 
-test_results = run_GA(test_gaproblem; population_size = 10000, iterations = 5)
+test_results = run_GA(test_gaproblem; population_size = 1000, iterations = 5)
+
 @time run_GA(test_gaproblem; population_size = 1000, iterations = 5)
 sort!(test_results, :fit, rev=false)
 
@@ -279,34 +300,59 @@ test_fitness(1)
 
 reogprob = remake(ogprob, p=test_results.ind[1])
 testsol = solve(reogprob, saveat = 0.01, save_idxs = 1)
+CostFunctionTest(testsol)
 
 plot(testsol)
-@code_warntype CostFunction(testsol)
+CostFunction(testsol)
+@benchmark CostFunction($testsol)
 
 
-
+ 
 #Test the fitness function with scaled amplitudes
 testsolx10 = testsol.u .* 10
 
 CostFunction(testsolx10)
 
-function CostFunction(u)
-    norm_u = normalize_time_series(u) #* normalize the solution
+"""Cost function to be plugged into eval_fitness wrapper"""
+function CostFunctionTest(sol::ODESolution)::Vector{Float64}
+    # tstart = 50 #iterations, = 5 seconds #TODO look if last half of sol is constant, if so, cut it off
+    # trimsol = sol[tstart:end] #* get the solution from the clean start time to the end
+    normsol = normalize_time_series(sol[1,:]) #* normalize the solution
     #*get the fft of the solution
-    fftData = getFrequencies(norm_u)
-    fft_peakindexes, fft_peakvals = findmaxima(fftData,1) #* get the indexes of the peaks in the fft
-    time_peakindexes, time_peakvals = findmaxima(u,1) #* get the times of the peaks in the fft
-    if length(fft_peakindexes) < 3 || length(time_peakindexes) < 3 #* if there are no peaks in either domain, return 0
+    fftData = getFrequencies(normsol)
+    fft_peakindexes, fft_peakvals = findmaxima(fftData,5) #* get the indexes of the peaks in the fft
+    time_peakindexes, time_peakvals = findmaxima(sol[1,:],5) #* get the times of the peaks in the fft
+    @debug "FFT peak values: $fft_peakvals"
+    @debug "Time Peak indexes: $time_peakindexes"
+    @debug "Time Peak values: $time_peakvals"
+    if length(fft_peakindexes) < 1 #* if there are no peaks in either domain, return 0
+        @debug "No peaks found in FFT"
         return [0.0, 0.0, 0.0]
+    elseif length(time_peakindexes) < 3
+        @debug "Not enough peaks found in time domain"
+        return [0.0, 0.0, 0.0]
+    elseif maximum(peakproms(time_peakindexes,sol[1,:])[2]) < 0.1
+        @debug "No peaks found in time domain with prominence > 0.1"
+        return [0.0, 0.0, 0.0]
+    else
+        std = getSTD(fft_peakindexes, fftData) #* get the average standard deviation of the peaks in frequency domain
+        @debug "std = $std"
+        diff = getDif(fft_peakvals) #* get the summed difference between the peaks in frequency domain
+        @debug "diff = $diff"
+
+        #* Compute the period and amplitude
+        period, amplitude = getPerAmp(sol, time_peakindexes, time_peakvals)
+
+        return [-std - diff, period, amplitude]
     end
-    std = getSTD(fft_peakindexes, fftData) #* get the average standard deviation of the peaks in frequency domain
-    diff = getDif(fft_peakvals) #* get the summed difference between the peaks in frequency domain
 
-    #* Compute the period and amplitude
-    # period, amplitude = getPerAmp(sol, time_peakindexes, time_peakvals)
-
-    #* Return cost, period, and amplitude as a vector
-    return -std - diff
+    #* if cost is too high, return 0, no oscillations
+    # if -std-diff > -0.1
+    #     return [0.0, 0.0, 0.0]
+    # else 
+    #     period, amplitude = getPerAmp(sol, time_peakindexes, time_peakvals)
+    #     return [-std - diff, period, amplitude]
+    # end
 end
 
 function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Float64})
@@ -336,6 +382,7 @@ getFrequencies(testsolx10)
 
 
 normsol = normalize_time_series(testsol[1,:]) #* normalize the solution
+@benchmark normalize_time_series!($testsol[1,:])
 normsol = normalize(testsol[1,:], 1) #* normalize the solution
 #*get the fft of the solution
 fftData = getFrequencies(normsol)
@@ -355,15 +402,17 @@ period, amplitude = getPerAmp(testsol, time_peakindexes, time_peakvals)
 
 @benchmark getFrequencies(ogsol[1,:])
 
+plot(fftData)
+plot(testsol)
 
-
-#! Bugs to fix
-#* 1. The fitness function is not working properly. It is not returning the correct values for the period and amplitude.
+#< Bugs to fix
+#* 1. The fitness function is not working properly
 #* 2. Fix the "FFTW can't make plan" error 
 #* 3. Logscale projection isn't working, fix it. 
-#* 4. Save the optimized parameters, not just the evaluation values 
+#! 4. Save the optimized parameters, not just the evaluation values 
 #* 5. Run GA through debugger to see the sequence of selection, recombination
-#* 6. Print out the initial conditions in the CSV 
+#! 6. Print out the initial conditions in the CSV 
+#* 7. Make test suite for the fitness function. Orthogonal tests will run through all optimized solutions and classify them as correct, false negative, false positive.
 
 
 
@@ -376,3 +425,8 @@ newsol = solve(newprob, saveat = 0.01, save_idxs = 1)
 plot(newsol)
 
 CostFunction(newsol)
+
+
+testarray = rand(10000)
+testfft = getFrequencies(testarray)
+@benchmark getFrequencies($testarray)
