@@ -120,7 +120,7 @@ end
 function CostFunction(sol::ODESolution)::Vector{Float64}
     #* check if last half is steady state
     lasthalfsol = sol[cld(length(sol.t),2):end]
-    if std(lasthalfsol[1,:]) < 0.01
+    if std(lasthalfsol[1,:]) < 0.01 #TODO normalize mean
         return [0.0, 0.0, 0.0]
     end 
 
