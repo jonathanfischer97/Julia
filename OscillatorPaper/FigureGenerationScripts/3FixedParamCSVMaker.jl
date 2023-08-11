@@ -62,6 +62,7 @@ ogprob = remake(ogprob, u0 = new_u0)
 
 @benchmark solve($ogprob, saveat=0.1, save_idxs = 1)
 ogsol = solve(ogprob, saveat=0.1, save_idxs = 1)
+plot(ogsol)
 testfunc(ogprob) = solve(ogprob, saveat=0.1, save_idxs = 1)
 
 using Cthulhu
@@ -224,17 +225,18 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                     i += 1
                 
                     #* insert the fixed params into each ind of oscillatory_points_df
-                    for (rowid,row) in enumerate(eachrow(oscillatory_points_df))
+                    for ind in oscillatory_points_df.ind
+                        copyind = deepcopy(ind)
                         for (j,fixedidx) in enumerate(fixedtrip_idxs)
-                            if fixedidx <= length(row.ind)
-                                insert!(oscillatory_points_df[rowid,:ind], fixedtrip_idxs[j], fixed_values[j])
+                            if fixedidx <= length(ind)
+                                insert!(copyind, fixedtrip_idxs[j], fixed_values[j])
                             else
-                                push!(oscillatory_points_df[rowid,:ind], fixed_values[j])
+                                push!(copyind, fixed_values[j])
                             end
                         end
                     end
-            
-                    return oscillatory_points_df
+                    oscillatory_points_df.ind = copyind
+                    # return oscillatory_points_df
                     #* split parameter values into separate columns and add initial conditions
                     split_dataframe!(oscillatory_points_df, prob)
                     CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
@@ -266,9 +268,9 @@ end
 #! TESTING GA FUNCTIONALITY
 test_gaproblem = GAProblem(param_constraints, ogprob)
 
-ga_results = run_GA(test_gaproblem; population_size = 1000, iterations = 5)
+test_results = run_GA(test_gaproblem; population_size = 1000, iterations = 5)
 
-split_dataframe!(ga_results, ogprob)
+split_dataframe!(test_results, ogprob)
 
 test_results
 
@@ -292,8 +294,13 @@ plot(testsol)
 CostFunction(testsol)
 @benchmark CostFunction($testsol)
 
-
+peakidxs, peakvals = findmaxima(testsol[1,:],5)
+peakproms!(peakidxs, testsol[1,:]; minprom=  0.1)
  
+lasthalfsol = ogsol[cld(length(ogsol.t),2):end]
+std(lasthalfsol)
+
+
 #Test the fitness function with scaled amplitudes
 testsolx10 = testsol.u .* 10
 
