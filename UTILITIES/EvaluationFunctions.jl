@@ -61,6 +61,25 @@ function getFrequencies(timeseries::Vector{Float64}) #todo fix normalization or 
 end
 
 """Calculates the period and amplitude of each individual in the population"""
+function getPerAmp(sol::ODESolution)
+    solu = sol[1,:]
+    indx_max, _ = findmaxima(solu, 5)
+    peakproms!(indx_max, solu)
+    indx_min, _ = findminima(solu, 5)
+    peakproms!(indx_min, solu)
+
+    if length(indx_max) < 2 || length(indx_min) < 2
+        return 0.0, 0.0
+    end
+
+    #* Calculate amplitudes and periods
+    @inbounds pers = (sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1))
+    @inbounds amps = ((solu[i] - solu[j])/2 for (i,j) in zip(indx_max,indx_min))
+
+    return mean(pers), mean(amps)
+end
+
+"""Calculates the period and amplitude of each individual in the population"""
 function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Float64})
     #* Find peaks of the minima too 
     indx_min, vals_min = findminima(sol[1,:], 5)
@@ -72,21 +91,21 @@ function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Flo
     return mean(pers), mean(amps)
 end
 
-function getPerAmp(sol::ODESolution)
-    #* Find peaks of the minima too 
-    indx_max, vals_max = findmaxima(sol[1,:], 5)
-    indx_min, vals_min = findminima(sol[1,:], 5)
+# function getPerAmp(sol::ODESolution)
+#     #* Find peaks of the minima too 
+#     indx_max, vals_max = findmaxima(sol[1,:], 5)
+#     indx_min, vals_min = findminima(sol[1,:], 5)
 
-    if length(indx_max) < 2 || length(indx_min) < 2
-        return 0.0, 0.0
-    end
-    #* Calculate amplitudes and periods
-    @inbounds pers = (sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1))
-    @inbounds amps = ((vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min)))
-    # @inbounds amps = 0.5 .* (vals_max .- vals_min)[1:min(length(indx_max), length(indx_min))]
+#     if length(indx_max) < 2 || length(indx_min) < 2
+#         return 0.0, 0.0
+#     end
+#     #* Calculate amplitudes and periods
+#     @inbounds pers = (sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1))
+#     @inbounds amps = ((vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min)))
+#     # @inbounds amps = 0.5 .* (vals_max .- vals_min)[1:min(length(indx_max), length(indx_min))]
 
-    return mean(pers), mean(amps)
-end
+#     return mean(pers), mean(amps)
+# end
 
 
 
@@ -99,15 +118,21 @@ end
 
 """Cost function to be plugged into eval_fitness wrapper"""
 function CostFunction(sol::ODESolution)::Vector{Float64}
+    #* check if last half is steady state
+    lasthalfsol = sol[cld(length(sol.t),2):end]
+    if std(lasthalfsol[1,:]) < 0.01
+        return [0.0, 0.0, 0.0]
+    end 
+
     tstart = cld(length(sol.t),10) #iterations, = 5 seconds #TODO look if last half of sol is constant, if so, cut it off
     trimsol = sol[tstart:end] #* get the solution from the clean start time to the end
 
     solarray = trimsol[1,:] #* get the solution array
-    time_peakindexes, time_peakvals = findmaxima(solarray,5) #* get the times of the peaks in the fft
-    peakproms!(time_peakindexes, solarray; minprom = 0.1) #* get the peak prominences (amplitude of peak above surrounding valleys
-    if length(time_peakindexes) < 2 #* if there are less than 2 prominent peaks in the time domain, return 0
-        return [0.0, 0.0, 0.0]
-    end
+    # time_peakindexes, time_peakvals = findmaxima(solarray,5) #* get the times of the peaks in the fft
+    # time_peakproms = peakproms(time_peakindexes, solarray; minprom = 0.1)[1] #* get the peak prominences (amplitude of peak above surrounding valleys
+    # if length(time_peakproms) < 2 #* if there are less than 2 prominent peaks in the time domain, return 0
+    #     return [0.0, 0.0, 0.0]
+    # end
     #* normalize the solution array. WARNING: solarray is modified after this line
     normsol = normalize_time_series!(solarray)
     #*get the fft of the solution
@@ -116,13 +141,13 @@ function CostFunction(sol::ODESolution)::Vector{Float64}
     if length(fft_peakindexes) < 1 #* if there are no peaks in either domain, return 0
         return [0.0, 0.0, 0.0]
     else
-        std = getSTD(fft_peakindexes, fftData) #* get the average standard deviation of the peaks in frequency domain
-        diff = getDif(fft_peakvals) #* get the summed difference between the peaks in frequency domain
+        standard_deviation = getSTD(fft_peakindexes, fftData) #* get the average standard deviation of the peaks in frequency domain
+        sum_diff = getDif(fft_peakvals) #* get the summed difference between the peaks in frequency domain
     
         #* Compute the period and amplitude
-        period, amplitude = getPerAmp(trimsol, time_peakindexes, time_peakvals)
+        period, amplitude = getPerAmp(trimsol)
     
-        return [-std - diff, period, amplitude]
+        return [-standard_deviation - sum_diff, period, amplitude]
     end
 end
 
