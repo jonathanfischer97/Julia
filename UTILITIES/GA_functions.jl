@@ -292,10 +292,11 @@ function extract_solution(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int
 end
 
 
+
 """Splits ind column into separate columns for each parameter, adds initial conditions"""
 function split_dataframe!(df, prob)
 
-    transform!(df, :ind =>  [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka4,:kb4,:ka7,:kb7,:kcat7,:DF])
+    transform!(df, :ind => [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka4,:kb4,:ka7,:kb7,:kcat7,:DF])
     select!(df, Not(:ind))
 
     df.L .= prob.u0[1]
