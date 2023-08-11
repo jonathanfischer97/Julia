@@ -234,8 +234,8 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                                 push!(copyind, fixed_values[j])
                             end
                         end
+                        oscillatory_points_df.ind = copyind
                     end
-                    oscillatory_points_df.ind = copyind
                     # return oscillatory_points_df
                     #* split parameter values into separate columns and add initial conditions
                     split_dataframe!(oscillatory_points_df, prob)
