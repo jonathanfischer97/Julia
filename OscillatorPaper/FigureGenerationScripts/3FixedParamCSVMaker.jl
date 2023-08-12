@@ -209,7 +209,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 oscillatory_points_df, num_oscillatory_points = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 5000, iterations = 5) 
 
                 if isempty(oscillatory_points_df)
-                    results_df[i, :] = (val1, val2, val3, NaN, NaN, NaN, NaN, NaN, NaN)
+                    results_df[i, :] = (val1, val2, val3, 0, NaN, NaN, NaN, NaN, NaN, NaN)
                     continue
                 else
                     average_period::Float64 = mean(oscillatory_points_df.per)
