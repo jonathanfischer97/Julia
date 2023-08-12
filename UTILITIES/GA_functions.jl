@@ -278,10 +278,11 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     # return result
 
     # Get the individual, fitness, and extradata of the population
-    record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector{Float64},Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace])
+    record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector{Float64},Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace[2:end]])
+    num_oscillatory = sum([gen.metadata["num_oscillatory"] for gen in result.trace[2:end]])
 
     BLAS.set_num_threads(blas_threads)
-    return DataFrame(record)
+    return DataFrame(record), num_oscillatory
 end
 #> END
 
