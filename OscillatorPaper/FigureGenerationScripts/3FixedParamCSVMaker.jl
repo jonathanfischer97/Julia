@@ -55,7 +55,7 @@ end
 # global_logger(infologger)
 
 fullrn = make_fullrn()
-ogprob = ODEProblem(fullrn, [], (0.,1000.0), [])
+ogprob = ODEProblem(fullrn, [], (0.,2000.0), [])
 new_u0 = ogprob.u0 .* 10
 ogprob = remake(ogprob, u0 = new_u0)
 # @benchmark solve($ogprob, saveat = 0.1, save_idxs = 1)
@@ -192,7 +192,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
     # fixed_values3 = range(fixedtrip[3].min, stop = fixedtrip[3].max, length = 5)
     fixed_values3 = logrange(fixedtrip[3].min, fixedtrip[3].max, rangelength)
 
-    results_df = DataFrame(param1 => Vector{Float64}(undef, rangelength^3), param2 => Vector{Float64}(undef, rangelength^3), param3 => Vector{Float64}(undef, rangelength^3), 
+    results_df = DataFrame(param1 => Vector{Float64}(undef, rangelength^3), param2 => Vector{Float64}(undef, rangelength^3), param3 => Vector{Float64}(undef, rangelength^3), "num_oscillatory_points" => Vector{Int}(undef, rangelength^3), 
                         "average_period" => Vector{Float64}(undef, rangelength^3), "maximum_period"=>Vector{Float64}(undef, rangelength^3), "minimum_period"=>Vector{Float64}(undef, rangelength^3),
                         "average_amplitude" => Vector{Float64}(undef, rangelength^3), "maximum_amplitude"=>Vector{Float64}(undef, rangelength^3), "minimum_amplitude"=>Vector{Float64}(undef, rangelength^3))
 
@@ -206,7 +206,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 fixed_values = [val1, val2, val3]
                 @info fixed_values
                 make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs)
-                oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 5000, iterations = 5) 
+                oscillatory_points_df, num_oscillatory_points = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 5000, iterations = 5) 
 
                 if isempty(oscillatory_points_df)
                     results_df[i, :] = (val1, val2, val3, NaN, NaN, NaN, NaN, NaN, NaN)
@@ -221,12 +221,11 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                     minimum_amplitude::Float64 = minimum(oscillatory_points_df.amp)
     
                     # push!(results_df, (val1, val2, val3, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude))
-                    results_df[i, :] = (val1, val2, val3, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude)
+                    results_df[i, :] = (val1, val2, val3, num_oscillatory_points, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude)
                     i += 1
                 
                     #* insert the fixed params into each ind of oscillatory_points_df
                     for ind in oscillatory_points_df.ind
-                        # copyind = deepcopy(ind)
                         for (j,fixedidx) in enumerate(fixedtrip_idxs)
                             if fixedidx <= length(ind)
                                 insert!(ind, fixedtrip_idxs[j], fixed_values[j])
@@ -234,9 +233,8 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                                 push!(ind, fixed_values[j])
                             end
                         end
-                        # oscillatory_points_df.ind .= copyind
                     end
-                    return oscillatory_points_df
+                    # return oscillatory_points_df
                     #* split parameter values into separate columns and add initial conditions
                     split_dataframe!(oscillatory_points_df, prob)
                     CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
@@ -259,11 +257,17 @@ split_dataframe!(testdf, ogprob)
 
 CSV.write("OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-$(param_triplet[1]*param_triplet[2]*param_triplet[3]).csv", results_df)
 
-for rowid in eachrow(testdf)
-    println(rowid)
-end
 
-@code_warntype fixed_triplet_csv_maker("ka1", "ka2", "ka3", param_constraints, ogprob)
+#< loop through combinations of parameters and run the function of each triplet
+param_names = ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "DF"]
+using Combinatorics
+param_triplets = collect(combinations(param_names, 3))
+
+for triplet in param_triplets
+    @info triplet
+    results_df = fixed_triplet_csv_maker(triplet..., param_constraints, ogprob)
+    CSV.write("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVs/fixed_triplet_results-$(triplet[1]*triplet[2]*triplet[3]).csv", results_df)
+end
 
 
 
@@ -271,7 +275,7 @@ end
 #! TESTING GA FUNCTIONALITY
 test_gaproblem = GAProblem(param_constraints, ogprob)
 
-test_results = run_GA(test_gaproblem; population_size = 10000, iterations = 1)
+test_results, num = run_GA(test_gaproblem; population_size = 10000, iterations = 1)
 
 split_dataframe!(test_results, ogprob)
 
