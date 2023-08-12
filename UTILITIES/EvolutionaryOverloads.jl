@@ -20,6 +20,7 @@ Evolutionary.minimizer(s::CustomGAState) = s.fittest #return the fittest individ
 """Trace override function"""
 function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population::Vector{Vector{Float64}}, method::GA, options) 
     oscillatory_population_idxs = findall(fit -> fit != 0.0, state.fitpop) #find the indices of the oscillatory individuals
+    @assert length(population) == length(state.fitpop)
     record["staterecord"] = [(ind=population[i], fit=state.fitpop[i], per=state.periods[i], amp=state.amplitudes[i]) for i in oscillatory_population_idxs]
     record["num_oscillatory"] = length(oscillatory_population_idxs)
 end
@@ -59,11 +60,12 @@ function Evolutionary.EvolutionaryObjective(f::TC, x::AbstractArray, F::Vector{F
     EvolutionaryObjective{TN,TF,typeof(x),Val{eval}}(fn, F, defval, 0)
 end
 
+Evolutionary.ismultiobjective(obj) = false
+
 """Modified value! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
 function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}},
                                 F::AbstractVector, xs::AbstractVector{TX},  P::AbstractVector, A::AbstractVector) where {TC,TF<:AbstractVector,TX}
     n = length(xs)
-    # @info "Evaluating $(n) individuals in parallel"
     Threads.@threads for i in 1:n
         F[i], P[i], A[i] = Evolutionary.value(obj, xs[i])  # get the vector
     end
@@ -73,7 +75,6 @@ end
 function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:serial}},
                                 F::AbstractVector, xs::AbstractVector{TX}, P::AbstractVector, A::AbstractVector) where {TC,TF<:AbstractVector,TX}
     n = length(xs)
-    # @info "Evaluating $(n) individuals in serial"
     for i in 1:n
         F[i], P[i], A[i] = Evolutionary.value(obj, xs[i])  # get the vector
     end
@@ -87,35 +88,37 @@ end
     - `population` is the initial population, specifically a Vector for dispatch\n
     - `extradata` is the additional data from the objective function\n
     - `fittest` is the fittest individual\n"""
-function Evolutionary.initial_state(method::GA, options, objfun, population) 
+function Evolutionary.initial_state(method::GA, options, objfun, population) #TODO something wrong with the fitness assignment in the first gen
     # @show T = typeof(value(objfun))
 
     N = length(first(population))
-    fitness = zeros(Float64, method.populationSize)
-    # extradata = Vector{Vector{Float64}}(undef, method.populationSize)
+    fitvals = zeros(Float64, method.populationSize)
+    
     periods = zeros(Float64, method.populationSize)
     amplitudes = zeros(Float64, method.populationSize)
-
+    # @info "Initializing GA state"
 
     # setup state values
     eliteSize = isa(method.ɛ, Int) ? method.ɛ : round(Int, method.ɛ * method.populationSize)
 
     # Evaluate population fitness, extradata (period and amplitude)
-    Threads.@threads for i in eachindex(population)
-        fitness[i], periods[i], amplitudes[i] = Evolutionary.value(objfun, population[i])
-    end
-    minfit, fitidx = findmin(fitness)
+    # Threads.@threads for i in eachindex(population)
+    #     fitvals[i], periods[i], amplitudes[i] = Evolutionary.value(objfun, population[i])
+    # end
+    Evolutionary.value!(objfun, fitvals, population, periods, amplitudes)
+
+    minfit, fitidx = findmin(fitvals)
 
     # setup initial state
-    return CustomGAState(N, eliteSize, minfit, fitness, copy(population[fitidx]), periods, amplitudes,)
+    return CustomGAState(N, eliteSize, minfit, fitvals, copy(population[fitidx]), periods, amplitudes)
 end
 
 """Modified evaluate! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
-function Evolutionary.evaluate!(objfun, fitness, population::Vector{Vector{Float64}}, periods, amplitudes, constraints)
+function Evolutionary.evaluate!(objfun, fitvals, population::Vector{Vector{Float64}}, periods, amplitudes, constraints)
     # calculate fitness of the population
-    Evolutionary.value!(objfun, fitness, population, periods, amplitudes)
+    Evolutionary.value!(objfun, fitvals, population, periods, amplitudes)
     # apply penalty to fitness
-    Evolutionary.penalty!(fitness, constraints, population)
+    Evolutionary.penalty!(fitvals, constraints, population)
 end
 
 """Update state function that captures additional data from the objective function"""

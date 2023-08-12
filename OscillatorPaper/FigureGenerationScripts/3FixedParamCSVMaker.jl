@@ -7,7 +7,7 @@ begin
     using Evolutionary, FFTW
     using Random
     using Distributions
-    using DataFrames
+    using DataFrames, DataFrameMacros
     using CSV
     # using Unitful
     # using Unitful: µM, M, nm, µm, s, μs, Na, L, 𝐍
@@ -79,7 +79,7 @@ descend_code_warntype(testfunc, (ODEProblem,))
 
 
 #* Optimization of parameters to produce data for CSV
-param_constraints = define_parameter_constraints(karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
+param_constraints = define_parameter_constraints(karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
 
 
 # param_gaproblem = GAProblem(param_constraints,ogprob)
@@ -206,7 +206,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 fixed_values = [val1, val2, val3]
                 @info fixed_values
                 make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs)
-                oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5) 
+                oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 5000, iterations = 5) 
 
                 if isempty(oscillatory_points_df)
                     results_df[i, :] = (val1, val2, val3, NaN, NaN, NaN, NaN, NaN, NaN)
@@ -226,17 +226,17 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 
                     #* insert the fixed params into each ind of oscillatory_points_df
                     for ind in oscillatory_points_df.ind
-                        copyind = deepcopy(ind)
+                        # copyind = deepcopy(ind)
                         for (j,fixedidx) in enumerate(fixedtrip_idxs)
                             if fixedidx <= length(ind)
-                                insert!(copyind, fixedtrip_idxs[j], fixed_values[j])
+                                insert!(ind, fixedtrip_idxs[j], fixed_values[j])
                             else
-                                push!(copyind, fixed_values[j])
+                                push!(ind, fixed_values[j])
                             end
                         end
-                        oscillatory_points_df.ind = copyind
+                        # oscillatory_points_df.ind .= copyind
                     end
-                    # return oscillatory_points_df
+                    return oscillatory_points_df
                     #* split parameter values into separate columns and add initial conditions
                     split_dataframe!(oscillatory_points_df, prob)
                     CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
@@ -251,6 +251,9 @@ param_triplet = ["kcat1", "kcat7", "DF"]
 
 results_df = fixed_triplet_csv_maker(param_triplet..., param_constraints, ogprob)
 testdf = deepcopy(results_df)
+
+testdf.ka1 = [x[1] for x in testdf.ind]
+
 
 split_dataframe!(testdf, ogprob)
 
@@ -268,7 +271,7 @@ end
 #! TESTING GA FUNCTIONALITY
 test_gaproblem = GAProblem(param_constraints, ogprob)
 
-test_results = run_GA(test_gaproblem; population_size = 1000, iterations = 5)
+test_results = run_GA(test_gaproblem; population_size = 10000, iterations = 1)
 
 split_dataframe!(test_results, ogprob)
 
@@ -284,7 +287,7 @@ plotsol(1)
 
 
 test_fitness(row) = eval_param_fitness(test_results.ind[row], ogprob)
-test_fitness(1)
+test_fitness(116)
 
 reogprob = remake(ogprob, p=test_results.ind[1])
 testsol = solve(reogprob, saveat = 0.01, save_idxs = 1)
@@ -407,6 +410,7 @@ plot(testsol)
 #! 6. Print out the initial conditions in the CSV 
 #* 7. Make test suite for the fitness function. Orthogonal tests will run through all optimized solutions and classify them as correct, false negative, false positive.
 #* 8. Save all variables for selected solutions. IDK Maggie mentioned it 
+#* Run longer sims 
 
 
 

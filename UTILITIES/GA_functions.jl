@@ -274,7 +274,8 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     fitness_function = fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem)
 
     # Run the optimization.
-    result = Evolutionary.optimize(fitness_function, boxconstraints, mthd, pop, opts)
+    result = Evolutionary.optimize(fitness_function, [0.0,0.0,0.0], boxconstraints, mthd, pop, opts)
+    # return result
 
     # Get the individual, fitness, and extradata of the population
     record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector{Float64},Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace])
@@ -292,11 +293,32 @@ function extract_solution(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int
 end
 
 
-
 """Splits ind column into separate columns for each parameter, adds initial conditions"""
 function split_dataframe!(df, prob)
 
-    transform!(df, :ind => [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka4,:kb4,:ka7,:kb7,:kcat7,:DF])
+    paramsymbols = [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka4,:kb4,:ka7,:kb7,:kcat7,:DF]
+    # df[:, paramsymbols] .= df.ind
+    # @transform! begin
+    #     :ka1 = :ind[1]
+    #     :kb1 = :ind[2]
+    #     :kcat1 = :ind[3]
+    #     :ka2 = :ind[4]
+    #     :kb2 = :ind[5]
+    #     :ka3 = :ind[6]
+    #     :kb3 = :ind[7]
+    #     :ka4 = :ind[8]
+    #     :kb4 = :ind[9]
+    #     :ka7 = :ind[10]
+    #     :kb7 = :ind[11]
+    #     :kcat7 = :ind[12]
+    #     :DF = :ind[13]
+    # end
+
+    # @transform!(df, @byrow(:ind), [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka4,:kb4,:ka7,:kb7,:kcat7,:DF])
+    for (i,param) in enumerate(paramsymbols)
+        df[!, param] .= [x[i] for x in df.ind]
+    end
+    # df[!, paramsymbols] = hcat(eachcol(df.ind)...)
     select!(df, Not(:ind))
 
     df.L .= prob.u0[1]
