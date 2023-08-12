@@ -30,9 +30,8 @@ sizes = (df.average_amplitude .- minimum(df.average_amplitude)) ./ (maximum(df.a
 colors = df.average_period
 norm_colors = (colors .- minimum(colors)) ./ (maximum(colors) - minimum(colors))
 
-colormap = cgrad(:viridis, colors, rev=true)
 
-# Plotting function
+#* Plotting function
 function create_3d_scatter_with_shadows(angle, x, y, z, sizes, norm_colors)
     # Colormap
     colormap = cgrad(:viridis, norm_colors, rev=true)
@@ -69,39 +68,7 @@ create_3d_scatter_with_shadows(30, log_kcat1, log_kcat7, log_DF, sizes, norm_col
 
 
 
-df = testdf
-# Convert to log scale
-log_kcat1 = log10.(df.kcat1)
-log_kcat7 = log10.(df.kcat7)
-log_DF = log10.(df.DF)
-sizes = (df.average_amplitude .+ 1) # Add 1 to avoid zero size
-colors = df.average_period
 
-# Plotting function
-function create_3d_scatter_with_shadows(angle, x, y, z, sizes, colors)
-    p = scatter3d(x, y, z, markersize=sizes, color=cgrad(:viridis, colors, rev=true), legend=false, alpha=0.4, markerstrokewidth=0)
-    # Project the points onto each plane and connect them with lines
-    for (xi, yi, zi, si, ci) in zip(x, y, z, sizes, colors)
-        scatter3d!(p,[xi], [yi], [z[begin]], markersize=[si], color=cgrad(:viridis, [ci], rev=true), alpha=0.4)
-        scatter3d!(p,[xi], [y[begin]], [zi], markersize=[si], color=cgrad(:viridis, [ci], rev=true), alpha=0.4)
-        scatter3d!(p,[x[begin]], [yi], [zi], markersize=[si], color=cgrad(:viridis, [ci], rev=true), alpha=0.4)
-    end
-
-    # Set axis labels
-    xlabel!(p,"log10(kcat1)")
-    ylabel!(p,"log10(kcat7)")
-    zlabel!(p,"log10(DF)")
-
-    # Set view angle
-    plot!(p,camera=(30, angle))
-
-    # Set title
-    title!(p,"Log-Scaled Parameters with Projections & Shadows (Angle: $angle) - Size & Color: Average Amplitude & Period")
-
-    display(p)
-end
-
-create_3d_scatter_with_shadows(30, df.kcat1, df.kcat7, df.DF, sizes, colors)
 
 # Plot from different angles with log scaling and projections
 angles = [0, 30, 60, 90, 120, 150]
@@ -111,4 +78,4 @@ end
 
 
 
-scatter3d(df.kcat1, df.kcat7, df.DF, color=cgrad(:viridis, colors, rev=true), xscale = :log10, yscale = :log10, zscale= :log10)
+testplot = scatter3d(df.kcat1, df.kcat7, df.DF, color=cgrad(:viridis, colors, rev=true)[colors], xscale = :log10, yscale = :log10)
