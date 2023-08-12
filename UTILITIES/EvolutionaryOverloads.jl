@@ -20,7 +20,7 @@ Evolutionary.minimizer(s::CustomGAState) = s.fittest #return the fittest individ
 """Trace override function"""
 function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population::Vector{Vector{Float64}}, method::GA, options) 
     oscillatory_population_idxs = findall(fit -> fit != 0.0, state.fitpop) #find the indices of the oscillatory individuals
-    @assert length(population) == length(state.fitpop)
+    @assert length(population) == length(state.fitpop) "$(length(population)) != $(length(state.fitpop))"
     record["staterecord"] = [(ind=population[i], fit=state.fitpop[i], per=state.periods[i], amp=state.amplitudes[i]) for i in oscillatory_population_idxs]
     record["num_oscillatory"] = length(oscillatory_population_idxs)
 end
@@ -101,13 +101,24 @@ function Evolutionary.initial_state(method::GA, options, objfun, population) #TO
     # setup state values
     eliteSize = isa(method.ɛ, Int) ? method.ɛ : round(Int, method.ɛ * method.populationSize)
 
-    # Evaluate population fitness, extradata (period and amplitude)
-    # Threads.@threads for i in eachindex(population)
-    #     fitvals[i], periods[i], amplitudes[i] = Evolutionary.value(objfun, population[i])
-    # end
-    Evolutionary.value!(objfun, fitvals, population, periods, amplitudes)
+    # Evaluate population fitness, period and amplitude
+    if options.parallelization == :serial
+        for i in eachindex(population)
+            fitvals[i], periods[i], amplitudes[i] = Evolutionary.value(objfun, population[i])
+        end
+    else
+        Threads.@threads for i in eachindex(population)
+            fitvals[i], periods[i], amplitudes[i] = Evolutionary.value(objfun, population[i])
+        end
+    end
+    # Evolutionary.value!(objfun, fitvals, population, periods, amplitudes)
+    # fitvals = map(i -> value(objfun, i)[1], population)
 
-    minfit, fitidx = findmin(fitvals)
+    # for (i,ind) in enumerate(population)
+    #     fitvals[i], periods[i], amplitudes[i] = value(objfun, ind)
+    # end
+
+    @show minfit, fitidx = findmin(fitvals)
 
     # setup initial state
     return CustomGAState(N, eliteSize, minfit, fitvals, copy(population[fitidx]), periods, amplitudes)
