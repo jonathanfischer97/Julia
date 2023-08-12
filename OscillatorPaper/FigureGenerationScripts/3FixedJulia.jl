@@ -1,7 +1,8 @@
 using CSV 
 using DataFrames 
 using DataFrameMacros
-using Plots 
+using GLMakie
+# using Plots 
 # using CairoMakie
 
 
@@ -31,6 +32,33 @@ colors = df.average_period
 norm_colors = (colors .- minimum(colors)) ./ (maximum(colors) - minimum(colors))
 
 colormap = cgrad(:viridis, colors, rev=true)
+
+
+#< GLMakie plots
+GLMakie.activate!()
+
+function scatters_in_3D()
+    n = 10
+    x, y, z = randn(n), randn(n), randn(n)
+    aspect=(1, 1, 1)
+    perspectiveness=0.5
+    # the figure
+    fig = Figure(; resolution=(1200, 400))
+    ax1 = Axis3(fig[1, 1]; aspect, perspectiveness)
+    ax2 = Axis3(fig[1, 2]; aspect, perspectiveness)
+    ax3 = Axis3(fig[1, 3]; aspect=:data, perspectiveness)
+    scatter!(ax1, x, y, z; markersize=15)
+    meshscatter!(ax2, x, y, z; markersize=0.25)
+    hm = meshscatter!(ax3, x, y, z; markersize=0.25,
+        marker=Rect3f(Vec3f(0), Vec3f(1)), color=1:n,
+        colormap=:plasma, transparency=false)
+    Colorbar(fig[1, 4], hm, label="values", height=Relative(0.5))
+    colgap!(fig.layout, 5)
+    fig
+end
+
+scatters_in_3D()
+
 
 # Plotting function
 function create_3d_scatter_with_shadows(angle, x, y, z, sizes, norm_colors)
