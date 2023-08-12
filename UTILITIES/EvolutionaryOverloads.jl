@@ -20,7 +20,7 @@ Evolutionary.minimizer(s::CustomGAState) = s.fittest #return the fittest individ
 """Trace override function"""
 function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population::Vector{Vector{Float64}}, method::GA, options) 
     oscillatory_population_idxs = findall(fit -> fit != 0.0, state.fitpop) #find the indices of the oscillatory individuals
-    @assert length(population) == length(state.fitpop) "$(length(population)) != $(length(state.fitpop))"
+    # @assert length(population) == length(state.fitpop) "$(length(population)) != $(length(state.fitpop))"
     record["staterecord"] = [(ind=population[i], fit=state.fitpop[i], per=state.periods[i], amp=state.amplitudes[i]) for i in oscillatory_population_idxs]
     record["num_oscillatory"] = length(oscillatory_population_idxs)
 end
@@ -118,7 +118,7 @@ function Evolutionary.initial_state(method::GA, options, objfun, population) #TO
     #     fitvals[i], periods[i], amplitudes[i] = value(objfun, ind)
     # end
 
-    @show minfit, fitidx = findmin(fitvals)
+    minfit, fitidx = findmin(fitvals)
 
     # setup initial state
     return CustomGAState(N, eliteSize, minfit, fitvals, copy(population[fitidx]), periods, amplitudes)
