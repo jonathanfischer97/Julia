@@ -9,8 +9,10 @@ Struct for defining parameter ranges. Each instance contains a name, and a range
 
 # Fields
 - `name::String`: Name of the parameter.
+- `symbol::Symbol`: Symbol of the parameter.
 - `min::Float64`: Minimum value for the parameter.
 - `max::Float64`: Maximum value for the parameter.
+- `nominal::Float64`: Nominal value for the parameter.
 """
 struct ConstraintRange
     name::String
@@ -88,7 +90,8 @@ function define_parameter_constraints(; karange = (1e-3, 1e1), kbrange = (1e-3, 
     )
 end
 
-define_parameter_constraints(prob::ODEProblem) = define_parameter_constraints(nominalvals = prob.p)
+define_parameter_constraints(prob::ODEProblem; karange = (1e-3, 1e1), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e3, 1e5)) = 
+                        define_parameter_constraints(; karange=karange, kbrange=kbrange, kcatrange=kcatrange, dfrange=dfrange, nominalvals = prob.p)
 
 
 """
@@ -125,7 +128,8 @@ function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinasera
     )
 end
 
-define_initialcondition_constraints(prob::ODEProblem) = define_initialcondition_constraints(nominalvals = prob.u0)
+define_initialcondition_constraints(prob::ODEProblem; lipidrange = (0.1, 10.0), kinaserange = (0.1, 5.0), phosphataserange = (0.1, 5.0), ap2range = (0.1, 10.0)) = 
+                                    define_initialcondition_constraints(;lipidrange=lipidrange, kinaserange=kinaserange, phosphataserange= phosphataserange, ap2range=ap2range, nominalvals = prob.u0)
 #> END
 
 
@@ -204,7 +208,7 @@ function generate_population(constraint::InitialConditionConstraints, n::Int)
     return [population[:, i] for i in 1:n]
 end
 
-"""For calculating volume"""
+"""For calculating volume when optimizing for NERDSS solutions"""
 function generate_population(constraint::Vector{ConstraintRange}, n::Int)
     population = [rand(Uniform(conrange.min, conrange.max), n) for conrange in constraint]
     population = transpose(hcat(population...))
@@ -246,47 +250,47 @@ Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; threshold=10000, population_size = 5000, abstol=1e-4, reltol=1e-2, successive_f_tol = 2, iterations=5, parallelization = :thread)
     blas_threads = BLAS.get_num_threads()
     BLAS.set_num_threads(1)
-    # Generate the initial population.
+
+    #* Generate the initial population.
     pop = generate_population(ga_problem.constraints, population_size)
 
-    # Create constraints using the min and max values from param_values.
+    #* Create constraints using the min and max values from param_values.
     boxconstraints = BoxConstraints([constraint.min for constraint in ga_problem.constraints.ranges], [constraint.max for constraint in ga_problem.constraints.ranges])
-    # @info "Created box constraints"
 
-    # Create Progress bar and callback function
+    # *Create Progress bar and callback function
     # ga_progress = Progress(threshold; desc = "GA Progress")
     # callback_func = (trace) -> ga_callback(trace, ga_progress, threshold)
 
-    # Define options for the GA.
+    #* Define options for the GA.
     opts = Evolutionary.Options(abstol=abstol, reltol=reltol, successive_f_tol = successive_f_tol, iterations=iterations, 
                         store_trace = true, show_trace=true, show_every=1, parallelization=parallelization)#, callback=callback_func)
 
-    # Define the range of possible values for each parameter.
+    #* Define the range of possible values for each parameter when mutated, and the mutation scalar.
     mutation_scalar = 0.5; mutation_range = fill(mutation_scalar, length(ga_problem.constraints.ranges))
 
-    # Define the GA method.
+    #* Define the GA method.
     mthd = GA(populationSize = population_size, selection = tournament(Int(population_size/10)),
-    crossover = TPX, crossoverRate = 0.5,
+    crossover = TPX, crossoverRate = 0.5, # Two-point crossover event
     mutation  = BGA(mutation_range, 2), mutationRate = 0.7)
 
-    # Make fitness function
-    # @code_warntype fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem)
+    #* Make fitness function. Makes closure of evaluation function and ODE problem
     fitness_function = fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem)
 
-    # Run the optimization.
+    #* Run the optimization.
     result = Evolutionary.optimize(fitness_function, [0.0,0.0,0.0], boxconstraints, mthd, pop, opts)
     # return result
 
-    # Get the individual, fitness, and extradata of the population
+    #* Get the individual, fitness, period/amplitude, for each oscillatory individual evaluated
     record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector{Float64},Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace[2:end]])
-    num_oscillatory = sum([gen.metadata["num_oscillatory"] for gen in result.trace[2:end]])
+    # num_oscillatory = sum([gen.metadata["num_oscillatory"] for gen in result.trace[2:end]])
 
     BLAS.set_num_threads(blas_threads)
-    return DataFrame(record), num_oscillatory
+    return DataFrame(record)
 end
 #> END
 
 
+#< MISCELLANEOUS FUNCTIONS ##
 """Extract solution of a row from the dataframe"""
 function extract_solution(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)), tspan = (0.0, 100.0))
     reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row], tspan = tspan) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))], tspan = tspan)
@@ -294,34 +298,19 @@ function extract_solution(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int
 end
 
 
-"""Splits ind column into separate columns for each parameter, adds initial conditions"""
+"""Splits ind column into separate columns for each parameter, adds initial conditions for writing DataFrame to CSV"""
 function split_dataframe!(df, prob)
 
     paramsymbols = [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka4,:kb4,:ka7,:kb7,:kcat7,:DF]
-    # df[:, paramsymbols] .= df.ind
-    # @transform! begin
-    #     :ka1 = :ind[1]
-    #     :kb1 = :ind[2]
-    #     :kcat1 = :ind[3]
-    #     :ka2 = :ind[4]
-    #     :kb2 = :ind[5]
-    #     :ka3 = :ind[6]
-    #     :kb3 = :ind[7]
-    #     :ka4 = :ind[8]
-    #     :kb4 = :ind[9]
-    #     :ka7 = :ind[10]
-    #     :kb7 = :ind[11]
-    #     :kcat7 = :ind[12]
-    #     :DF = :ind[13]
-    # end
 
-    # @transform!(df, @byrow(:ind), [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka4,:kb4,:ka7,:kb7,:kcat7,:DF])
+    #* Split ind column into separate columns for each parameter
     for (i,param) in enumerate(paramsymbols)
         df[!, param] .= [x[i] for x in df.ind]
     end
-    # df[!, paramsymbols] = hcat(eachcol(df.ind)...)
+
     select!(df, Not(:ind))
 
+    #* Add initial conditions
     df.L .= prob.u0[1]
     df.K .= prob.u0[2]
     df.P .= prob.u0[3]
@@ -329,9 +318,6 @@ function split_dataframe!(df, prob)
 end
 
 
-
-
-#< MISCELLANEOUS FUNCTIONS ##
 """Find the indices of the inputs in a `NAME` array"""
 function find_indices(combination::Vector{String}, NAMES::Vector{String})
     p1idx = findfirst(isequal(combination[1]), NAMES)

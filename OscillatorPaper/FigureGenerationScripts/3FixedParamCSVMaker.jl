@@ -61,7 +61,7 @@ ogprob = remake(ogprob, u0 = new_u0)
 # @benchmark solve($ogprob, saveat = 0.1, save_idxs = 1)
 
 @benchmark solve($ogprob, saveat=0.1, save_idxs = 1)
-ogsol = solve(ogprob, saveat=0.1, save_idxs = 1)
+ogsol = solve(ogprob, saveat=0.01, save_idxs = 1)
 plot(ogsol)
 testfunc(ogprob) = solve(ogprob, saveat=0.1, save_idxs = 1)
 
@@ -75,11 +75,13 @@ descend_code_warntype(testfunc, (ODEProblem,))
 @benchmark solve_for_fitness_peramp($ogprob)
 
 @code_warntype CostFunction(ogsol)
+@benchmark CostFunction($ogsol)
+@benchmark getPerAmp($ogsol)
 
 
 
 #* Optimization of parameters to produce data for CSV
-param_constraints = define_parameter_constraints(karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
+param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
 
 
 # param_gaproblem = GAProblem(param_constraints,ogprob)
@@ -198,31 +200,36 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
 
     
     #* make folder to hold all the csv files 
-    path = mkpath("OscillatorPaper/FigureGenerationScripts/3FixedCSVs/$(param1)_$(param2)_$(param3)")
+    path = mkpath("OscillatorPaper/FigureGenerationScripts/3FixedCSVRawSets/$(param1)_$(param2)_$(param3)")
     i = 1
+
+    #* make progress bar 
+    # loopprogress = Progress(rangelength^3, desc ="Looping thru fixed triplets: " , color=:blue)
     for val1 in fixed_values1
         for val2 in fixed_values2
             for val3 in fixed_values3
                 fixed_values = [val1, val2, val3]
                 @info fixed_values
                 make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs)
-                oscillatory_points_df, num_oscillatory_points = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 5000, iterations = 5) 
+                oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 5000, iterations = 5) 
+                num_oscillatory_points = length(oscillatory_points_df.ind)
 
-                if isempty(oscillatory_points_df)
+                if iszero(num_oscillatory_points)
                     results_df[i, :] = (val1, val2, val3, 0, NaN, NaN, NaN, NaN, NaN, NaN)
                     continue
                 else
+                    filteredper = filter(x -> x > 0.0, oscillatory_points_df.per)
                     average_period::Float64 = mean(oscillatory_points_df.per)
-                    maximum_period::Float64 = maximum(oscillatory_points_df.per)
-                    minimum_period::Float64 = minimum(oscillatory_points_df.per)
-    
+                    maximum_period::Float64 = maximum(filteredper)
+                    minimum_period::Float64 = minimum(filteredper)
+
+
+                    filteredamp = filter(x -> x > 0.0, oscillatory_points_df.amp)
                     average_amplitude::Float64 = mean(oscillatory_points_df.amp)
-                    maximum_amplitude::Float64 = maximum(oscillatory_points_df.amp)
-                    minimum_amplitude::Float64 = minimum(oscillatory_points_df.amp)
+                    maximum_amplitude::Float64 = maximum(filteredamp)
+                    minimum_amplitude::Float64 = minimum(filteredamp)
     
-                    # push!(results_df, (val1, val2, val3, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude))
                     results_df[i, :] = (val1, val2, val3, num_oscillatory_points, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude)
-                    i += 1
                 
                     #* insert the fixed params into each ind of oscillatory_points_df
                     for ind in oscillatory_points_df.ind
@@ -239,6 +246,9 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                     split_dataframe!(oscillatory_points_df, prob)
                     CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
                 end
+                # next!(loopprogress)
+                i += 1
+                # println(i)
             end
         end
     end
@@ -248,14 +258,9 @@ end
 param_triplet = ["kcat1", "kcat7", "DF"]
 
 results_df = fixed_triplet_csv_maker(param_triplet..., param_constraints, ogprob)
-testdf = deepcopy(results_df)
-
-testdf.ka1 = [x[1] for x in testdf.ind]
 
 
-split_dataframe!(testdf, ogprob)
-
-CSV.write("OscillatorPaper/FigureGenerationScripts/fixed_triplet_results-$(param_triplet[1]*param_triplet[2]*param_triplet[3]).csv", results_df)
+CSV.write("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVs/fixed_triplet_results-$(param_triplet[1]*param_triplet[2]*param_triplet[3]).csv", results_df)
 
 
 #< loop through combinations of parameters and run the function of each triplet

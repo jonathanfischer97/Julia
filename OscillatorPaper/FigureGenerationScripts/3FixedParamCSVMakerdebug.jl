@@ -8,7 +8,7 @@ begin
     using Random
     using Distributions
     using DataFrames
-    # using CSV
+    using CSV
     # using Unitful
     # using Unitful: µM, M, nm, µm, s, μs, Na, L, 𝐍
     # using StaticArrays
@@ -52,12 +52,125 @@ end
 fullrn = make_fullrn()
 ogprob = ODEProblem(fullrn, [], (0.,100.0), [])
 
-param_constraints = define_parameter_constraints(karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
+param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
+
+# Modification to make_fitness_function_with_fixed_inputs function
+function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int})
+    function fitness_function(input::Vector{Float64})
+        # Create a new input vector that includes the fixed inputs.
+        new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
+
+        # Keep track of the number of fixed inputs that have been inserted.
+        fixed_inputs_inserted = 0
+
+        for i in eachindex(new_input)
+            if i in triplet_idxs
+                # If the current index matches the index of a fixed input, insert the fixed input.
+                new_input[i] = fixed_input_triplet[fixed_inputs_inserted + 1]
+                fixed_inputs_inserted += 1
+            else
+                # Otherwise, insert the next value from the input vector.
+                new_input[i] = input[i - fixed_inputs_inserted]
+            end
+        end
+
+        return evalfunc(new_input, prob)
+    end
+    return fitness_function
+end
+
+
+
+"""Defines logspace function for sampling parameters"""
+logrange(start, stop, length) = exp10.(collect(range(start=log10(start), stop=log10(stop), length=length)))
+
+
+
+#* Modification to fixed_triplet_csv_maker function
+function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; rangelength = 4) #TODO add progress bar
+    variable_constraints = deepcopy(constraints)
+    fixedtrip = [x for x in variable_constraints.ranges if x.name == param1 || x.name == param2 || x.name == param3]
+    filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.ranges)
+
+    fixed_ga_problem = GAProblem(variable_constraints, prob)
+    fixedtrip_idxs = find_indices(param1, param2, param3, constraints.ranges) 
+
+    # fixed_values1 = range(fixedtrip[1].min, stop = fixedtrip[1].max, length = 5)
+    fixed_values1 = logrange(fixedtrip[1].min, fixedtrip[1].max, rangelength)
+    # fixed_values2 = range(fixedtrip[2].min, stop = fixedtrip[2].max, length = 5)
+    fixed_values2 = logrange(fixedtrip[2].min, fixedtrip[2].max, rangelength)
+    # fixed_values3 = range(fixedtrip[3].min, stop = fixedtrip[3].max, length = 5)
+    fixed_values3 = logrange(fixedtrip[3].min, fixedtrip[3].max, rangelength)
+
+    results_df = DataFrame(param1 => Vector{Float64}(undef, rangelength^3), param2 => Vector{Float64}(undef, rangelength^3), param3 => Vector{Float64}(undef, rangelength^3), "num_oscillatory_points" => Vector{Int}(undef, rangelength^3), 
+                        "average_period" => Vector{Float64}(undef, rangelength^3), "maximum_period"=>Vector{Float64}(undef, rangelength^3), "minimum_period"=>Vector{Float64}(undef, rangelength^3),
+                        "average_amplitude" => Vector{Float64}(undef, rangelength^3), "maximum_amplitude"=>Vector{Float64}(undef, rangelength^3), "minimum_amplitude"=>Vector{Float64}(undef, rangelength^3))
+
+    
+    #* make folder to hold all the csv files 
+    path = mkpath("OscillatorPaper/FigureGenerationScripts/3FixedCSVRawSets/$(param1)_$(param2)_$(param3)")
+    i = 1
+
+    #* make progress bar 
+    # loopprogress = Progress(rangelength^3, desc ="Looping thru fixed triplets: " , color=:blue)
+    for val1 in fixed_values1
+        for val2 in fixed_values2
+            for val3 in fixed_values3
+                fixed_values = [val1, val2, val3]
+                # @info fixed_values
+                make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs)
+                oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 100, iterations = 1) 
+                num_oscillatory_points = length(oscillatory_points_df.ind)
+
+                if iszero(num_oscillatory_points)
+                    results_df[i, :] = (val1, val2, val3, 0, NaN, NaN, NaN, NaN, NaN, NaN)
+                else
+                    average_period::Float64 = mean(oscillatory_points_df.per)
+                    maximum_period::Float64 = maximum(oscillatory_points_df.per)
+                    minimum_period::Float64 = minimum(oscillatory_points_df.per)
+    
+                    average_amplitude::Float64 = mean(oscillatory_points_df.amp)
+                    maximum_amplitude::Float64 = maximum(oscillatory_points_df.amp)
+                    minimum_amplitude::Float64 = minimum(oscillatory_points_df.amp)
+    
+                    results_df[i, :] = (val1, val2, val3, num_oscillatory_points, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude)
+                
+                    #* insert the fixed params into each ind of oscillatory_points_df
+                    for ind in oscillatory_points_df.ind
+                        for (j,fixedidx) in enumerate(fixedtrip_idxs)
+                            if fixedidx <= length(ind)
+                                insert!(ind, fixedtrip_idxs[j], fixed_values[j])
+                            else
+                                push!(ind, fixed_values[j])
+                            end
+                        end
+                    end
+                    # return oscillatory_points_df
+                    #* split parameter values into separate columns and add initial conditions
+                    split_dataframe!(oscillatory_points_df, prob)
+                    CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
+                end
+                # next!(loopprogress)
+                i += 1
+                println(i)
+            end
+        end
+    end
+    return results_df
+end
+
+param_triplet = ["kcat1", "kcat7", "DF"]
+
+results_df = fixed_triplet_csv_maker(param_triplet..., param_constraints, ogprob)
+
+
+
 
 #! TESTING GA FUNCTIONALITY
 test_gaproblem = GAProblem(param_constraints, ogprob)
 
-test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 1, parallelization=:serial)
+test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5)
+
 
 testind = test_results.trace[2].metadata["staterecord"][1].ind
 testsol = solve(remake(ogprob, p=testind), saveat = 0.01, save_idxs = 1)

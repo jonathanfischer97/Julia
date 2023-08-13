@@ -1,34 +1,31 @@
 
 import Evolutionary
-#! OVERRIDES FOR Evolutionary.jl ##
+
+#< OVERRIDES FOR Evolutionary.jl ##
 """Custom GA state type that captures additional data from the objective function in the extradata field\n
     - `T` is the type of the fitness value\n
     - `IT` is the type of the individual\n
     - `TT` is the type of the additional data from the objective function\n"""
 mutable struct CustomGAState <: Evolutionary.AbstractOptimizerState  
-    N::Int  
-    eliteSize::Int  
-    fitness::Float64  
-    fitpop::Vector{Float64}  
-    fittest::Vector{Float64}  
-    periods::Vector{Float64}
-    amplitudes::Vector{Float64}
+    N::Int  #* number of individuals in the population
+    eliteSize::Int  #* number of individuals that are copied to the next generation
+    fittestValue::Float64  #* fitness of the fittest individual
+    fitvals::Vector{Float64}  #* fitness values of the population
+    fittestInd::Vector{Float64}  #* fittest individual
+    periods::Vector{Float64} #* periods of the individuals
+    amplitudes::Vector{Float64} #* amplitudes of the individuals
 end  
-Evolutionary.value(s::CustomGAState) = s.fitness #return the fitness of the fittest individual
-Evolutionary.minimizer(s::CustomGAState) = s.fittest #return the fittest individual
+Evolutionary.value(s::CustomGAState) = s.fittestValue #return the fitness of the fittest individual
+Evolutionary.minimizer(s::CustomGAState) = s.fittestInd #return the fittest individual
 
 """Trace override function"""
 function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population::Vector{Vector{Float64}}, method::GA, options) 
-    oscillatory_population_idxs = findall(fit -> fit != 0.0, state.fitpop) #find the indices of the oscillatory individuals
-    # @assert length(population) == length(state.fitpop) "$(length(population)) != $(length(state.fitpop))"
-    record["staterecord"] = [(ind=population[i], fit=state.fitpop[i], per=state.periods[i], amp=state.amplitudes[i]) for i in oscillatory_population_idxs]
-    record["num_oscillatory"] = length(oscillatory_population_idxs)
+    oscillatory_population_idxs = findall(fit -> fit != 0.0, state.fitvals) #find the indices of the oscillatory individuals
+    # @assert length(population) == length(state.fitvals) "$(length(population)) != $(length(state.fitvals))"
+    record["staterecord"] = [(ind=population[i], fit=state.fitvals[i], per=state.periods[i], amp=state.amplitudes[i]) for i in oscillatory_population_idxs]
+    # record["num_oscillatory"] = length(oscillatory_population_idxs)
 end
 
-function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population, method::GA, options)
-    @info "WRONG trace override function called"
-    record["staterecord"] = [(ind=population[i], fit=state.fitpop[i]) for i in eachindex(population)]
-end
 
 """Show override function to prevent printing large arrays"""
 function Evolutionary.show(io::IO, t::Evolutionary.OptimizationTraceRecord)
@@ -40,6 +37,7 @@ function Evolutionary.show(io::IO, t::Evolutionary.OptimizationTraceRecord)
             print(io, "\n * $key: $value")
         end
     end
+    print(io, "\n * num_oscillatory: $(length(t.metadata["staterecord"]))")
     return
 end
 
@@ -53,13 +51,15 @@ function Evolutionary.EvolutionaryObjective(f::TC, x::AbstractArray, F::Vector{F
                                eval::Symbol = :serial) where {TC}
     # @info "Using custom EvolutionaryObjective constructor"
     defval = Evolutionary.default_values(x)
-    # convert function into the in-place one
+
+    #* convert function into the in-place one
     TF = typeof(F)
     fn = (Fv,xv) -> (Fv .= f(xv))
     TN = typeof(fn)
     EvolutionaryObjective{TN,TF,typeof(x),Val{eval}}(fn, F, defval, 0)
 end
 
+"""Override of the multiobjective check"""
 Evolutionary.ismultiobjective(obj) = false
 
 """Modified value! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
@@ -67,7 +67,7 @@ function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}},
                                 F::AbstractVector, xs::AbstractVector{TX},  P::AbstractVector, A::AbstractVector) where {TC,TF<:AbstractVector,TX}
     n = length(xs)
     Threads.@threads for i in 1:n
-        F[i], P[i], A[i] = Evolutionary.value(obj, xs[i])  # get the vector
+        F[i], P[i], A[i] = Evolutionary.value(obj, xs[i])  #* evaluate the fitness, period, and amplitude for each individual
     end
     # F, E
 end
@@ -76,7 +76,7 @@ function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:serial}},
                                 F::AbstractVector, xs::AbstractVector{TX}, P::AbstractVector, A::AbstractVector) where {TC,TF<:AbstractVector,TX}
     n = length(xs)
     for i in 1:n
-        F[i], P[i], A[i] = Evolutionary.value(obj, xs[i])  # get the vector
+        F[i], P[i], A[i] = Evolutionary.value(obj, xs[i])  #* evaluate the fitness, period, and amplitude for each individual
     end
     # F, E
 end
@@ -89,7 +89,6 @@ end
     - `extradata` is the additional data from the objective function\n
     - `fittest` is the fittest individual\n"""
 function Evolutionary.initial_state(method::GA, options, objfun, population) #TODO something wrong with the fitness assignment in the first gen
-    # @show T = typeof(value(objfun))
 
     N = length(first(population))
     fitvals = zeros(Float64, method.populationSize)
@@ -98,10 +97,10 @@ function Evolutionary.initial_state(method::GA, options, objfun, population) #TO
     amplitudes = zeros(Float64, method.populationSize)
     # @info "Initializing GA state"
 
-    # setup state values
+    #* setup state values
     eliteSize = isa(method.ɛ, Int) ? method.ɛ : round(Int, method.ɛ * method.populationSize)
 
-    # Evaluate population fitness, period and amplitude
+    #* Evaluate population fitness, period and amplitude
     if options.parallelization == :serial
         for i in eachindex(population)
             fitvals[i], periods[i], amplitudes[i] = Evolutionary.value(objfun, population[i])
@@ -120,15 +119,17 @@ function Evolutionary.initial_state(method::GA, options, objfun, population) #TO
 
     minfit, fitidx = findmin(fitvals)
 
-    # setup initial state
+    #* setup initial state
     return CustomGAState(N, eliteSize, minfit, fitvals, copy(population[fitidx]), periods, amplitudes)
 end
 
 """Modified evaluate! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
 function Evolutionary.evaluate!(objfun, fitvals, population::Vector{Vector{Float64}}, periods, amplitudes, constraints)
-    # calculate fitness of the population
+
+    #* calculate fitness of the population
     Evolutionary.value!(objfun, fitvals, population, periods, amplitudes)
-    # apply penalty to fitness
+
+    #* apply penalty to fitness
     Evolutionary.penalty!(fitvals, constraints, population)
 end
 
@@ -139,31 +140,32 @@ function Evolutionary.update_state!(objfun, constraints, state::CustomGAState, p
     rng = options.rng
     offspring = similar(parents)
 
-    # select offspring
-    selected = method.selection(state.fitpop, populationSize, rng=rng)
+    #* select offspring
+    selected = method.selection(state.fitvals, populationSize, rng=rng)
 
-    # perform mating
+    #* perform mating
     offspringSize = populationSize - state.eliteSize
     Evolutionary.recombine!(offspring, parents, selected, method, offspringSize, rng=rng)
 
-    # Elitism (copy population individuals before they pass to the offspring & get mutated)
-    fitidxs = sortperm(state.fitpop)
+    #* Elitism (copy population individuals before they pass to the offspring & get mutated)
+    fitidxs = sortperm(state.fitvals)
     for i in 1:state.eliteSize
         subs = offspringSize+i
         offspring[subs] = copy(parents[fitidxs[i]])
     end
-    # perform mutation
+
+    #* perform mutation
     Evolutionary.mutate!(offspring, method, constraints, rng=rng)
 
-    # calculate fitness and extradata of the population
-    Evolutionary.evaluate!(objfun, state.fitpop, offspring, state.periods, state.amplitudes, constraints)
+    #* calculate fitness and extradata of the population
+    Evolutionary.evaluate!(objfun, state.fitvals, offspring, state.periods, state.amplitudes, constraints)
 
-    # select the best individual
-    minfit, fitidx = findmin(state.fitpop)
-    state.fittest = offspring[fitidx]
-    state.fitness = state.fitpop[fitidx]
+    #* select the best individual
+    minfit, fitidx = findmin(state.fitvals)
+    state.fittestInd = offspring[fitidx]
+    state.fittestValue = state.fitvals[fitidx]
     
-    # replace population
+    #* replace population
     parents .= offspring
 
     return false
