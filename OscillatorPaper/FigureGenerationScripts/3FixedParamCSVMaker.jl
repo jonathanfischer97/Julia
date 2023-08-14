@@ -280,7 +280,7 @@ end
 #! TESTING GA FUNCTIONALITY
 test_gaproblem = GAProblem(param_constraints, ogprob)
 
-test_results, num = run_GA(test_gaproblem; population_size = 10000, iterations = 1)
+test_results, num = run_GA(test_gaproblem; population_size = 5000, iterations = 5)
 
 split_dataframe!(test_results, ogprob)
 
@@ -420,6 +420,7 @@ plot(testsol)
 #* 7. Make test suite for the fitness function. Orthogonal tests will run through all optimized solutions and classify them as correct, false negative, false positive.
 #* 8. Save all variables for selected solutions. IDK Maggie mentioned it 
 #* Run longer sims 
+#* Duplicates 
 
 
 
