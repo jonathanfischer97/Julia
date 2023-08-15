@@ -281,13 +281,26 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     # return result
 
     #* Get the individual, fitness, period/amplitude, for each oscillatory individual evaluated
-    record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector{Float64},Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace[2:end]])
+    # record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector{Float64},Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace[2:end]])
     # num_oscillatory = sum([gen.metadata["num_oscillatory"] for gen in result.trace[2:end]])
 
     BLAS.set_num_threads(blas_threads)
-    return DataFrame(record)
+    return trace_to_df(result)
 end
 #> END
+
+
+function trace_to_df(results)
+    #* make a dataframe from the trace
+    df = DataFrame(ind = [], fit = [], per = [], amp = [])
+    for gen in results.trace
+        push!(df.ind, gen.metadata["population"]...)
+        push!(df.fit, gen.metadata["fitvals"]...)
+        push!(df.per, gen.metadata["periods"]...)
+        push!(df.amp, gen.metadata["amplitudes"]...)
+    end
+    return df
+end
 
 
 #< MISCELLANEOUS FUNCTIONS ##

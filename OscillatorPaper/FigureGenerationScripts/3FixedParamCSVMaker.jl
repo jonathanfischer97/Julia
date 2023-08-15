@@ -216,18 +216,17 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
 
                 if iszero(num_oscillatory_points)
                     results_df[i, :] = (val1, val2, val3, 0, NaN, NaN, NaN, NaN, NaN, NaN)
-                    continue
                 else
                     filteredper = filter(x -> x > 0.0, oscillatory_points_df.per)
                     average_period::Float64 = mean(oscillatory_points_df.per)
-                    maximum_period::Float64 = maximum(filteredper)
-                    minimum_period::Float64 = minimum(filteredper)
+                    maximum_period::Float64 = maximum(filteredper; init=0.0)
+                    minimum_period::Float64 = minimum(filteredper; init=0.0)
 
 
                     filteredamp = filter(x -> x > 0.0, oscillatory_points_df.amp)
                     average_amplitude::Float64 = mean(oscillatory_points_df.amp)
-                    maximum_amplitude::Float64 = maximum(filteredamp)
-                    minimum_amplitude::Float64 = minimum(filteredamp)
+                    maximum_amplitude::Float64 = maximum(filteredamp; init=0.0)
+                    minimum_amplitude::Float64 = minimum(filteredamp; init=0.0)
     
                     results_df[i, :] = (val1, val2, val3, num_oscillatory_points, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude)
                 
@@ -245,6 +244,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                     #* split parameter values into separate columns and add initial conditions
                     split_dataframe!(oscillatory_points_df, prob)
                     CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
+                    # return oscillatory_points_df
                 end
                 # next!(loopprogress)
                 i += 1
@@ -258,7 +258,7 @@ end
 param_triplet = ["kcat1", "kcat7", "DF"]
 
 results_df = fixed_triplet_csv_maker(param_triplet..., param_constraints, ogprob)
-
+unique(results_df, :fit)
 
 CSV.write("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVs/fixed_triplet_results-$(param_triplet[1]*param_triplet[2]*param_triplet[3]).csv", results_df)
 
@@ -276,11 +276,60 @@ end
 
 
 
+testvec = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+testvec2 = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+testvec == testvec2
+filter!(x -> x != 0.0, testvec)
+mean(testvec)
+maximum(testvec; init=0.0)
+
 
 #! TESTING GA FUNCTIONALITY
 test_gaproblem = GAProblem(param_constraints, ogprob)
 
-test_results, num = run_GA(test_gaproblem; population_size = 5000, iterations = 5)
+test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5)
+
+pops = [gen.metadata["population"] for gen in test_results.trace[1:end]]
+
+meta = [gen.metadata for gen in test_results.trace]
+
+popvector = []
+fitvector = []
+pervector = []
+ampvector = []
+for gen in test_results.trace
+    push!(popvector, gen.metadata["population"]...)
+    push!(fitvector, gen.metadata["fitvals"]...)
+    push!(pervector, gen.metadata["periods"]...)
+    push!(ampvector, gen.metadata["amplitudes"]...)
+
+end
+
+
+
+test_results_df = trace_to_df(test_results)
+
+unique(test_results_df)
+
+unique(pops[1])
+
+nonunique_df = test_results_df[findall(nonunique(test_results_df)), :]
+
+
+test_results_df[findall(x -> x == nonunique_df[1,:]), :]
+
+findall(nonunique(test_results_df.ind))
+
+findfirst(x -> x == nonunique_df[1,:], test_results)
+
+test_results.ind[1] == test_results.ind[2]
+
+for row in eachrow(test_results)
+    if row == nonunique_df[3,:]
+        println(row.ind)
+    end
+end
+
 
 split_dataframe!(test_results, ogprob)
 
@@ -420,7 +469,8 @@ plot(testsol)
 #* 7. Make test suite for the fitness function. Orthogonal tests will run through all optimized solutions and classify them as correct, false negative, false positive.
 #* 8. Save all variables for selected solutions. IDK Maggie mentioned it 
 #* Run longer sims 
-#* Duplicates 
+#* Duplicates in raw 
+#* Validate solutions from raw df, then see it written to csv correctly  
 
 
 

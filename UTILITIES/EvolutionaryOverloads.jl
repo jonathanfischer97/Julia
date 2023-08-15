@@ -7,7 +7,7 @@ import Evolutionary
     - `IT` is the type of the individual\n
     - `TT` is the type of the additional data from the objective function\n"""
 mutable struct CustomGAState <: Evolutionary.AbstractOptimizerState  
-    N::Int  #* number of individuals in the population
+    N::Int  #* number of elements in an individual
     eliteSize::Int  #* number of individuals that are copied to the next generation
     fittestValue::Float64  #* fitness of the fittest individual
     fitvals::Vector{Float64}  #* fitness values of the population
@@ -18,11 +18,23 @@ end
 Evolutionary.value(s::CustomGAState) = s.fittestValue #return the fitness of the fittest individual
 Evolutionary.minimizer(s::CustomGAState) = s.fittestInd #return the fittest individual
 
+# """Trace override function"""
+# function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population::Vector{Vector{Float64}}, method::GA, options) 
+#     oscillatory_population_idxs = findall(fit -> fit != 0.0, state.fitvals) #find the indices of the oscillatory individuals
+#     # @assert length(population) == length(state.fitvals) "$(length(population)) != $(length(state.fitvals))"
+#     record["staterecord"] = [(ind=population[i], fit=state.fitvals[i], per=state.periods[i], amp=state.amplitudes[i]) for i in oscillatory_population_idxs]
+#     # record["num_oscillatory"] = length(oscillatory_population_idxs)
+# end
+
 """Trace override function"""
 function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population::Vector{Vector{Float64}}, method::GA, options) 
     oscillatory_population_idxs = findall(fit -> fit != 0.0, state.fitvals) #find the indices of the oscillatory individuals
     # @assert length(population) == length(state.fitvals) "$(length(population)) != $(length(state.fitvals))"
-    record["staterecord"] = [(ind=population[i], fit=state.fitvals[i], per=state.periods[i], amp=state.amplitudes[i]) for i in oscillatory_population_idxs]
+    # record["staterecord"] = [(ind=population[i], fit=state.fitvals[i], per=state.periods[i], amp=state.amplitudes[i]) for i in oscillatory_population_idxs]
+    record["population"] = deepcopy(population[oscillatory_population_idxs])
+    record["fitvals"] = deepcopy(state.fitvals[oscillatory_population_idxs])
+    record["periods"] = deepcopy(state.periods[oscillatory_population_idxs])
+    record["amplitudes"] = deepcopy(state.amplitudes[oscillatory_population_idxs])
     # record["num_oscillatory"] = length(oscillatory_population_idxs)
 end
 
@@ -37,7 +49,7 @@ function Evolutionary.show(io::IO, t::Evolutionary.OptimizationTraceRecord)
             print(io, "\n * $key: $value")
         end
     end
-    print(io, "\n * num_oscillatory: $(length(t.metadata["staterecord"]))")
+    print(io, "\n * num_oscillatory: $(length(t.metadata["fitvals"]))")
     return
 end
 
