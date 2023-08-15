@@ -84,66 +84,6 @@ descend_code_warntype(testfunc, (ODEProblem,))
 param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
 
 
-# param_gaproblem = GAProblem(param_constraints,ogprob)
-
-# param_record = run_GA(param_gaproblem)
-# CSV.write("OscillatorPaper/FigureGenerationScripts/initialconditions.csv", param_record)
-
-
-
-
-# """Compare the allowed solution space for when each triplet of parameters is fixed"""
-# function reachability_analysis(constraints::ConstraintType, prob::ODEProblem) 
-#     #* Get all combinations of fixed pairs
-#     fixed_triple_combos = combinations(constraints.ranges, 3)
-
-#     combos_length = length(collect(fixed_triple_combos))
-#     combos_names = [string(triplet[1].name, "_", triplet[2].name, "_", triplet[3].name) for triplet in fixed_triple_combos]
-
-#     loopprogress = Progress(length(combos_length), desc ="Looping thru fixed pairs: " , color=:blue)
-
-#     #* Make a results DataFrame where fixedpair => (volume, avg_period, avg_amplitude, num_oscillatory_points)
-#     results_df = DataFrame(FixedTriplet = combos_names, volume = Vector{Float64}(undef, combos_length), periodstats = Vector{Vector{Float64}}(undef, combos_length), amplitudestats = Vector{Vector{Float64}}(undef, combos_length), num_oscillatory_points = Vector{Int}(undef, combos_length))
-
-#     for (i,fixedpair) in enumerate(fixed_triple_combos)
-#         @info "Fixed input pair: $(fixedpair[1].name), $(fixedpair[2].name)"
-
-#         #* Make a copy of the constraints to modify
-#         variable_constraints = deepcopy(constraints)
-
-#         #* Remove the fixed parameters from the variable constraints
-#         filter!(x -> x.name != fixedpair[1].name && x.name != fixedpair[2].name, variable_constraints.ranges)
-
-#         fixed_ga_problem = GAProblem(variable_constraints, prob)
-
-#         fixedpair_idxs = find_indices(fixedpair, constraints.ranges) # Get the indices of the fixed inputs.
-
-#         #* Create a closure for the fitness function that includes the fixed inputs
-#         make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixedpair, fixedpair_idxs)
-
-#         #* Run the optimization function to get the evaluated points
-#         oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 8) #TODO: outputting the same number of points for multiple pairs
-
- 
-#         #* Calculate the number of oscillatory points
-#         num_points = length(oscillatory_points_df.ind)
-       
-
-#         # #* Calculate the average period and amplitude
-#         # periodstats = quantile(oscillatory_points_df.per, [0.0, 0.25, 0.5, 0.75, 1.0])
-        
-
-#         # amplitudestats = quantile(oscillatory_points_df.amp, [0.0, 0.25, 0.5, 0.75, 1.0])
-        
-
-#         #* Store the results for the given fixed parameter combination
-#         results_df[i, 2:end] .= (volume, oscillatory_points_df.per, oscillatory_points_df.amp, num_points)
-
-#         next!(loopprogress)
-#     end
-#     return results_df
-# end
-
 
 
 # Modification to make_fitness_function_with_fixed_inputs function
@@ -179,7 +119,7 @@ logrange(start, stop, length) = exp10.(collect(range(start=log10(start), stop=lo
 
 
 #* Modification to fixed_triplet_csv_maker function
-function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; rangelength = 4) #TODO add progress bar
+function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; rangelength = 4) 
     variable_constraints = deepcopy(constraints)
     fixedtrip = [x for x in variable_constraints.ranges if x.name == param1 || x.name == param2 || x.name == param3]
     filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.ranges)
@@ -187,11 +127,11 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
     fixed_ga_problem = GAProblem(variable_constraints, prob)
     fixedtrip_idxs = find_indices(param1, param2, param3, constraints.ranges) 
 
-    # fixed_values1 = range(fixedtrip[1].min, stop = fixedtrip[1].max, length = 5)
+    
     fixed_values1 = logrange(fixedtrip[1].min, fixedtrip[1].max, rangelength)
-    # fixed_values2 = range(fixedtrip[2].min, stop = fixedtrip[2].max, length = 5)
+    
     fixed_values2 = logrange(fixedtrip[2].min, fixedtrip[2].max, rangelength)
-    # fixed_values3 = range(fixedtrip[3].min, stop = fixedtrip[3].max, length = 5)
+    
     fixed_values3 = logrange(fixedtrip[3].min, fixedtrip[3].max, rangelength)
 
     results_df = DataFrame(param1 => Vector{Float64}(undef, rangelength^3), param2 => Vector{Float64}(undef, rangelength^3), param3 => Vector{Float64}(undef, rangelength^3), "num_oscillatory_points" => Vector{Int}(undef, rangelength^3), 
@@ -204,7 +144,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
     i = 1
 
     #* make progress bar 
-    # loopprogress = Progress(rangelength^3, desc ="Looping thru fixed triplets: " , color=:blue)
+    loopprogress = Progress(rangelength^3, desc ="Looping thru fixed triplets: " , color=:blue)
     for val1 in fixed_values1
         for val2 in fixed_values2
             for val3 in fixed_values3
@@ -244,9 +184,8 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                     #* split parameter values into separate columns and add initial conditions
                     split_dataframe!(oscillatory_points_df, prob)
                     CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
-                    # return oscillatory_points_df
                 end
-                # next!(loopprogress)
+                next!(loopprogress)
                 i += 1
                 # println(i)
             end
@@ -471,6 +410,7 @@ plot(testsol)
 #* Run longer sims 
 #* Duplicates in raw 
 #* Validate solutions from raw df, then see it written to csv correctly  
+#* Idea for FFT: downsampling, or smoothing
 
 
 

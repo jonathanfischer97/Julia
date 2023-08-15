@@ -1,6 +1,6 @@
 begin 
     using Plots
-    using GLMakie
+    using GLMakie; GLMakie.activate!()
     using Catalyst
     using DifferentialEquations
     using Statistics
