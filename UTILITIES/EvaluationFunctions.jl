@@ -56,7 +56,7 @@ end
 
 """Return normalized FFT of solution vector. Modifies the solution vector in place"""
 function getFrequencies(timeseries::Vector{Float64}) 
-    res = abs.(rfft(timeseries[begin:2:end]))
+    res = abs.(rfft(timeseries))
     return res ./ cld(length(timeseries), 2) #* normalize by length of timeseries
 end
 
@@ -160,8 +160,9 @@ end
 function solve_for_fitness_peramp(prob::ODEProblem)
 
     sol = solve(prob,saveat=0.1, save_idxs=1, verbose=false)
+    # return CostFunction(sol)
     
-    if sol.retcode == :Success
+    if sol.retcode == ReturnCode.Success
         return CostFunction(sol)
     else
         return [0.0, 0.0, 0.0]

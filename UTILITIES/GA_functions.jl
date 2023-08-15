@@ -270,8 +270,8 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
 
     #* Define the GA method.
     mthd = GA(populationSize = population_size, selection = tournament(Int(population_size/10)),
-    crossover = TPX, crossoverRate = 0.5, # Two-point crossover event
-    mutation  = BGA(mutation_range, 2), mutationRate = 0.7)
+    crossover = TPX, crossoverRate = 1.0, # Two-point crossover event
+    mutation  = BGA(mutation_range, 2), mutationRate = 1.0)
 
     #* Make fitness function. Makes closure of evaluation function and ODE problem
     fitness_function = fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem)

@@ -55,7 +55,7 @@ end
 # global_logger(infologger)
 
 fullrn = make_fullrn()
-ogprob = ODEProblem(fullrn, [], (0.,2000.0), [])
+ogprob = ODEProblem(fullrn, [], (0.,1000.0), [])
 new_u0 = ogprob.u0 .* 10
 ogprob = remake(ogprob, u0 = new_u0)
 # @benchmark solve($ogprob, saveat = 0.1, save_idxs = 1)
@@ -180,7 +180,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                             end
                         end
                     end
-                    # return oscillatory_points_df
+                    return oscillatory_points_df
                     #* split parameter values into separate columns and add initial conditions
                     split_dataframe!(oscillatory_points_df, prob)
                     CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
@@ -228,6 +228,8 @@ test_gaproblem = GAProblem(param_constraints, ogprob)
 
 test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5)
 
+CSV.write("OscillatorPaper/FigureGenerationScripts/test_results.csv", test_results)
+
 pops = [gen.metadata["population"] for gen in test_results.trace[1:end]]
 
 meta = [gen.metadata for gen in test_results.trace]
@@ -252,7 +254,7 @@ unique(test_results_df)
 
 unique(pops[1])
 
-nonunique_df = test_results_df[findall(nonunique(test_results_df)), :]
+nonunique_df = test_results[findall(nonunique(test_results)), :]
 
 
 test_results_df[findall(x -> x == nonunique_df[1,:]), :]
@@ -264,13 +266,15 @@ findfirst(x -> x == nonunique_df[1,:], test_results)
 test_results.ind[1] == test_results.ind[2]
 
 for row in eachrow(test_results)
-    if row == nonunique_df[3,:]
-        println(row.ind)
+    if row == nonunique_df[1,:]
+        println(row)
     end
 end
 
 
 split_dataframe!(test_results, ogprob)
+
+
 
 test_results
 
@@ -411,6 +415,7 @@ plot(testsol)
 #* Duplicates in raw 
 #* Validate solutions from raw df, then see it written to csv correctly  
 #* Idea for FFT: downsampling, or smoothing
+#* Look into the recombine, duplicates. More duplicates with each generation 
 
 
 
