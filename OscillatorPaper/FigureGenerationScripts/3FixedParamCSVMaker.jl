@@ -289,6 +289,14 @@ plotsol(row) = plotsol(row, test_results, ogprob)
 for i in 1:50:nrow(test_results)
     plotsol(i)
 end
+
+testp = [0.001446235	,12.57362226	,141.654639,	0.001,	0.01,	75.60589547,	0.412100526,
+	0.001,	214.1700694,	92.11680262,	0.549807548,	0.656318131,	78752.98443]
+reogprob = remake(ogprob, p=testp)
+testsol = solve(reogprob, Rosenbrock23(), saveat = 0.01, save_idxs = 1)
+plot(testsol)
+    
+CostFunction(testsol)
 plotsol(1)
 
 
