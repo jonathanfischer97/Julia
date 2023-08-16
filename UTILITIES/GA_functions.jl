@@ -218,10 +218,10 @@ end
 
 
 #< DEFAULT FITNESS FUNCTION FACTORY
-"""Returns the `fitness function(input)` for the cost function, referencing the ODE problem and tracker with closure"""
+"""Returns the `fitness function(input)` for the cost function, referencing the ODE problem with closure"""
 function make_fitness_function(evalfunc::Function, prob::ODEProblem)
     function fitness_function(input::Vector{Float64})
-        #? Returns a cost function method that takes in just a vector of parameters/ICs and references the ODE problem and tracker
+        #? Returns a cost function method that takes in just a vector of parameters/ICs and references the ODE problem 
         return evalfunc(input, prob)
     end
     return fitness_function

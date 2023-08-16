@@ -55,7 +55,7 @@ end
 # global_logger(infologger)
 
 fullrn = make_fullrn()
-ogprob = ODEProblem(fullrn, [], (0.,1000.0), [])
+ogprob = ODEProblem(fullrn, [], (0.,2000.0), [])
 new_u0 = ogprob.u0 .* 10
 ogprob = remake(ogprob, u0 = new_u0)
 # @benchmark solve($ogprob, saveat = 0.1, save_idxs = 1)
@@ -180,7 +180,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                             end
                         end
                     end
-                    return oscillatory_points_df
+                    # return oscillatory_points_df
                     #* split parameter values into separate columns and add initial conditions
                     split_dataframe!(oscillatory_points_df, prob)
                     CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
@@ -207,7 +207,7 @@ param_names = ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", 
 using Combinatorics
 param_triplets = collect(combinations(param_names, 3))
 
-for triplet in param_triplets
+for triplet in param_triplets[169:end]
     @info triplet
     results_df = fixed_triplet_csv_maker(triplet..., param_constraints, ogprob)
     CSV.write("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVs/fixed_triplet_results-$(triplet[1]*triplet[2]*triplet[3]).csv", results_df)
@@ -229,6 +229,8 @@ test_gaproblem = GAProblem(param_constraints, ogprob)
 test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5)
 
 CSV.write("OscillatorPaper/FigureGenerationScripts/test_results.csv", test_results)
+
+
 
 pops = [gen.metadata["population"] for gen in test_results.trace[1:end]]
 
@@ -284,11 +286,14 @@ sort!(test_results, :fit, rev=false)
 
 plotsol(row) = plotsol(row, test_results, ogprob)
 
+for i in 1:50:nrow(test_results)
+    plotsol(i)
+end
 plotsol(1)
 
 
 test_fitness(row) = eval_param_fitness(test_results.ind[row], ogprob)
-test_fitness(116)
+test_fitness(1)
 
 reogprob = remake(ogprob, p=test_results.ind[1])
 testsol = solve(reogprob, saveat = 0.01, save_idxs = 1)

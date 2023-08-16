@@ -47,7 +47,7 @@ Plot the solution from a row of the DataFrame
 function plotsol(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)))
 
         reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row]) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
-        plotsol(reprob; vars)        
+        plotsol(reprob; vars, title = "Period = $(df.per[row]) s")        
 end
 
 

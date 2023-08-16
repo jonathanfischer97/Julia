@@ -31,15 +31,15 @@ function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population
     oscillatory_population_idxs = findall(fit -> fit != 0.0, state.fitvals) #find the indices of the oscillatory individuals
     # @assert length(population) == length(state.fitvals) "$(length(population)) != $(length(state.fitvals))"
     # record["staterecord"] = [(ind=population[i], fit=state.fitvals[i], per=state.periods[i], amp=state.amplitudes[i]) for i in oscillatory_population_idxs]
-    # record["population"] = deepcopy(population[oscillatory_population_idxs])
-    # record["fitvals"] = deepcopy(state.fitvals[oscillatory_population_idxs])
-    # record["periods"] = deepcopy(state.periods[oscillatory_population_idxs])
-    # record["amplitudes"] = deepcopy(state.amplitudes[oscillatory_population_idxs])
+    record["population"] = deepcopy(population[oscillatory_population_idxs])
+    record["fitvals"] = deepcopy(state.fitvals[oscillatory_population_idxs])
+    record["periods"] = deepcopy(state.periods[oscillatory_population_idxs])
+    record["amplitudes"] = deepcopy(state.amplitudes[oscillatory_population_idxs])
 
-    record["population"] = deepcopy(population)
-    record["fitvals"] = deepcopy(state.fitvals)
-    record["periods"] = deepcopy(state.periods)
-    record["amplitudes"] = deepcopy(state.amplitudes)
+    # record["population"] = deepcopy(population)
+    # record["fitvals"] = deepcopy(state.fitvals)
+    # record["periods"] = deepcopy(state.periods)
+    # record["amplitudes"] = deepcopy(state.amplitudes)
 
 end
 
@@ -86,7 +86,7 @@ function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}},
     Threads.@threads for i in 1:n
         F[i], P[i], A[i] = Evolutionary.value(obj, xs[i])  #* evaluate the fitness, period, and amplitude for each individual
     end
-    # F, E
+    F, P, A
 end
 
 function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:serial}},
@@ -96,7 +96,7 @@ function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:serial}},
         F[i], P[i], A[i] = Evolutionary.value(obj, xs[i])  #* evaluate the fitness, period, and amplitude for each individual
         println("Ind: $(xs[i]) fit: $(F[i]) per: $(P[i]) amp: $(A[i])")
     end
-    # F, E
+    F, P, A
 end
 
 """Initialization of my custom GA algorithm state that captures additional data from the objective function\n
@@ -122,7 +122,7 @@ function Evolutionary.initial_state(method::GA, options, objfun, population) #TO
     if options.parallelization == :serial
         for i in eachindex(population)
             fitvals[i], periods[i], amplitudes[i] = Evolutionary.value(objfun, population[i])
-            println("Ind: $(population[i]) fit: $(fitvals[i]) per: $(periods[i]) amp: $(amplitudes[i])")
+            # println("Ind: $(population[i]) fit: $(fitvals[i]) per: $(periods[i]) amp: $(amplitudes[i])")
         end
     else
         Threads.@threads for i in eachindex(population)
@@ -190,4 +190,33 @@ function Evolutionary.update_state!(objfun, constraints, state::CustomGAState, p
 
     return false
 end
+
+
+# """
+#     BGA(valrange, m = 20)
+
+# Returns an in-place real valued mutation function that performs the BGA mutation scheme with the mutation range `valrange` and the mutation probability `1/m` [^1].
+# """
+# function Evolutionary.BGA(valrange::Vector, m::Int = 20)
+#     prob = 1.0 / m
+#     function mutation(recombinant::T;
+#                       rng::AbstractRNG=Random.default_rng()
+#                      ) where {T <: AbstractVector}
+#         d = length(recombinant)
+#         @assert length(valrange) == d "Range matrix must have $(d) columns"
+#         δ = zeros(m)
+#         for i in 1:length(recombinant)
+#             for j in 1:m
+#                 δ[j] = (rand(rng) < prob) ? δ[j] = 2.0^(-j) : 0.0
+#             end
+#             if rand(rng, Bool)
+#                 recombinant[i] += sum(δ)*valrange[i]
+#             else
+#                 recombinant[i] -= sum(δ)*valrange[i]
+#             end
+#         end
+#         return recombinant
+#     end
+#     return mutation
+# end
 
