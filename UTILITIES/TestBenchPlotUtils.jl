@@ -14,7 +14,7 @@
 """
 Plot the solution from a row of the DataFrame
 """
-function plotsol(sol::ODESolution; vars::Vector{Int} = collect(1:length(prob.u0)), fitidx = 1)
+function plotsol(sol::ODESolution; vars::Vector{Int} = collect(1:length(prob.u0)))
 
         cost, per, amp = CostFunction(sol)
         p = plot(sol, title = "Fit = $cost\nPeriod = $per s", xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600))
@@ -28,7 +28,7 @@ end
 """
 Plot the FFT of a solution from a row of the DataFrame
 """
-function plotfft(sol::ODESolution; vars::Vector{Int} = collect(1:length(prob.u0)))
+function plotfft(sol::ODESolution; fitidx=1)
 
         normsol = normalize_time_series!(sol[1,:])
         # normsol = sol[1,:]
@@ -56,9 +56,9 @@ Plot both the solution and the FFT of a solution from a row of the DataFrame
 """
 function plotboth(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)), fitidx = 1)
         reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row]) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
-        sol = solve(reprob, saveat=0.1, save_idxs=vars[1:5])
+        sol = solve(reprob, saveat=0.1, save_idxs=vars)
 
-        solplot = plotsol(sol; vars)
+        solplot = plotsol(sol; vars=vars)
         fftplot = plotfft(sol; vars)
 
         bothplot = plot(solplot, fftplot, layout = (2,1), size = (1000, 600))
