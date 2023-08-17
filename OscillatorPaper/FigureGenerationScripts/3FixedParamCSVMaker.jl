@@ -42,7 +42,7 @@ begin
     # import the genetic algorithm and associated functions
     include("../../UTILITIES/GA_functions.jl")
 
-    include("../../UTILITIES/ODEProbMaker.jl")
+    include("../../UTILITIES/TestBenchPlotUtils.jl")
 
     include("../../UTILITIES/UnitTools.jl")
 

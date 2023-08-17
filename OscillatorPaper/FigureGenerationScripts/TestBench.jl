@@ -43,7 +43,7 @@ begin
     # import the genetic algorithm and associated functions
     include("../../UTILITIES/GA_functions.jl")
 
-    include("../../UTILITIES/ODEProbMaker.jl")
+    include("../../UTILITIES/TestBenchPlotUtils.jl")
 
     include("../../UTILITIES/UnitTools.jl")
 
@@ -155,3 +155,15 @@ test_fitness(2)
 #* Tune the STD window and peakfinding to discriminate better
 #* Add back in trimsol maybe 
 #* Verify that normalization isn't messing up evals, signal strength
+
+
+#< Regular GA testbench
+
+test_gaproblem = GAProblem(param_constraints, ogprob)
+
+Random.seed!(1234)
+test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, idx = 4)
+
+plot_everything(test_results, ogprob)
+
+CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", test_results)
