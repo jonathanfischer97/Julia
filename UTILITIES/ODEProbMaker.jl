@@ -47,7 +47,42 @@ Plot the solution from a row of the DataFrame
 function plotsol(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)))
 
         reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row]) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
-        plotsol(reprob; vars, title = "Period = $(df.per[row]) s")        
+        plotsol(reprob; vars, title = "Period = $(df.per[row]) s; Fitness = $(df.fit[row])")        
 end
 
 
+"""
+Plot the FFT of a solution from a row of the DataFrame
+"""
+function plotfft(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)))
+
+        reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row]) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
+        sol = solve(reprob, Rosenbrock23(), saveat = 0.1, save_idxs=vars)
+        normsol = normalize_time_series!(sol[1,:])
+        # normsol = sol[1,:]
+        solfft = getFrequencies(normsol)
+        # fft_peakindexes, fft_peakvals = findmaxima(solfft,5) #* get the indexes of the peaks in the fft
+        fft_peakindexes, peakprops = findpeaks1d(solfft; height = 1e-2) #* get the indexes of the peaks in the fft
+        fft_peakvals = peakprops["peak_heights"]
+        diffs = getDif(fft_peakvals)
+        standevs = getSTD(fft_peakindexes, solfft)
+        cost, per, amp = CostFunction(sol)
+        p = plot(solfft, title = "Fit = $(cost)", xlabel = "Frequency (Hz)", ylabel = "Amplitude", lw = 2, size = (1000, 600), xlims = (0, 1000), label="")
+        scatter!(p, fft_peakindexes, fft_peakvals, label = "getDif: $(diffs)\nPeakvals: $(round.(fft_peakvals; digits=7))\ngetSTD: $(standevs)\nSumFitness: $(-standevs-diffs)\nPeriod: $per", color = :red, markersize = 5)
+        
+        display(p)
+        return p
+end
+
+
+"""
+Plot both the solution and the FFT of a solution from a row of the DataFrame
+"""
+function plotboth(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)))
+        solplot = plotsol(row, df, prob; vars)
+        fftplot = plotfft(row, df, prob; vars)
+
+        bothplot = plot(solplot, fftplot, layout = (2,1), size = (1000, 600))
+        display(bothplot)
+        return bothplot
+end
