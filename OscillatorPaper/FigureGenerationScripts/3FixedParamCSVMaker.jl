@@ -4,6 +4,7 @@ begin
     using DifferentialEquations
     using Statistics
     using Peaks
+    using FindPeaks1D
     using Evolutionary, FFTW
     using Random
     using Distributions
@@ -61,7 +62,8 @@ ogprob = remake(ogprob, u0 = new_u0)
 # @benchmark solve($ogprob, saveat = 0.1, save_idxs = 1)
 
 @benchmark solve($ogprob, saveat=0.1, save_idxs = 1)
-ogsol = solve(ogprob, saveat=0.01, save_idxs = 1)
+ogsol = solve(ogprob, saveat=0.1, save_idxs = 1)
+peakidxs, props = findpeaks1d(ogsol[1,:]; height = 0.1)
 plot(ogsol)
 testfunc(ogprob) = solve(ogprob, saveat=0.1, save_idxs = 1)
 
@@ -151,7 +153,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 fixed_values = [val1, val2, val3]
                 @info fixed_values
                 make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs)
-                oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 5000, iterations = 5) 
+                oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5) 
                 num_oscillatory_points = length(oscillatory_points_df.ind)
 
                 if iszero(num_oscillatory_points)
@@ -206,8 +208,9 @@ CSV.write("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVs/fixed_tripl
 param_names = ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "DF"]
 using Combinatorics
 param_triplets = collect(combinations(param_names, 3))
+firstka2idx = findfirst(x -> x[1] == "ka2", param_triplets)
 
-for triplet in param_triplets[169:end]
+for triplet in param_triplets[firstka2idx:end]
     @info triplet
     results_df = fixed_triplet_csv_maker(triplet..., param_constraints, ogprob)
     CSV.write("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVs/fixed_triplet_results-$(triplet[1]*triplet[2]*triplet[3]).csv", results_df)
@@ -215,15 +218,58 @@ end
 
 
 
-testvec = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-testvec2 = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
-testvec == testvec2
-filter!(x -> x != 0.0, testvec)
-mean(testvec)
-maximum(testvec; init=0.0)
+
 
 
 #! TESTING GA FUNCTIONALITY
+function test_fixedparam(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; fixed_values = [0.001, 0.01, 0.001])
+    variable_constraints = deepcopy(constraints)
+    # fixedtrip = [x for x in variable_constraints.ranges if x.name == param1 || x.name == param2 || x.name == param3]
+    filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.ranges)
+
+    fixed_ga_problem = GAProblem(variable_constraints, prob)
+    fixedtrip_idxs = find_indices(param1, param2, param3, constraints.ranges) 
+
+    make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs)
+
+
+    oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5) 
+    num_oscillatory_points = length(oscillatory_points_df.ind)
+    @info num_oscillatory_points
+
+    #* insert the fixed params into each ind of oscillatory_points_df
+    for ind in oscillatory_points_df.ind
+        for (j,fixedidx) in enumerate(fixedtrip_idxs)
+            if fixedidx <= length(ind)
+                insert!(ind, fixedtrip_idxs[j], fixed_values[j])
+            else
+                push!(ind, fixed_values[j])
+            end
+        end
+    end
+    # return oscillatory_points_df
+    #* split parameter values into separate columns and add initial conditions
+    # split_dataframe!(oscillatory_points_df, prob)
+    return oscillatory_points_df
+end
+
+param_triplet = ["ka2", "kb2", "ka4"]
+testfixed_df = test_fixedparam(param_triplet..., param_constraints, ogprob)
+
+
+
+plotboth(row) = plotboth(row, testfixed_df, ogprob)
+plotboth(8)
+
+for i in 1:50:nrow(test_results)
+    plotsol(i)
+end
+
+test_fitness(row) = eval_param_fitness(testfixed_df.ind[row], ogprob)
+test_fitness(2)
+#########################
+
+
 test_gaproblem = GAProblem(param_constraints, ogprob)
 
 test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5)
@@ -293,7 +339,7 @@ end
 testp = [0.001446235	,12.57362226	,141.654639,	0.001,	0.01,	75.60589547,	0.412100526,
 	0.001,	214.1700694,	92.11680262,	0.549807548,	0.656318131,	78752.98443]
 reogprob = remake(ogprob, p=testp)
-testsol = solve(reogprob, Rosenbrock23(), saveat = 0.01, save_idxs = 1)
+testsol = solve(reogprob, Rosenbrock23(), saveat = 0.1, save_idxs = 1)
 plot(testsol)
     
 CostFunction(testsol)
@@ -429,6 +475,7 @@ plot(testsol)
 #* Validate solutions from raw df, then see it written to csv correctly  
 #* Idea for FFT: downsampling, or smoothing
 #* Look into the recombine, duplicates. More duplicates with each generation 
+#* Rerun for twice as long if 2 index check is failed in getPerAmp
 
 
 
