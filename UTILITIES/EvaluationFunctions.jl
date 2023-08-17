@@ -50,8 +50,8 @@ function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; wind
     arrLen = length(fft_arrayData)
     window = max(1,cld(arrLen,window_ratio)) #* window size is 1% of array length, or 1 if array length is less than 100
     sum_std = @inbounds sum(std(fft_arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in fft_peakindxs) #* sum rolling window of standard deviations
-    return sum_std
-    # return sum_std / length(fft_peakindxs) #* divide by number of peaks to get average std
+    # return sum_std
+    return sum_std / length(fft_peakindxs) #* divide by number of peaks to get average std
 end 
 
 """Return normalized FFT of solution vector. Modifies the solution vector in place"""
@@ -64,8 +64,8 @@ end
 function getPerAmp(sol::ODESolution)
     solu = sol[1,:] #* get the solution array out of ODESolution type
 
-    indx_max, vals_max = findmaxima(solu, 5) #* find the peaks of the maxima with window size 5
-    indx_min, vals_min = findminima(solu, 5)
+    indx_max, vals_max = findmaxima(solu, 1) #* find the peaks of the maxima with window size 5
+    indx_min, vals_min = findminima(solu, 1)
     
     if length(indx_max) < 2 || length(indx_min) < 2
         return 0.0, 0.0
@@ -82,7 +82,7 @@ end
 """Calculates the period and amplitude of each individual in the population"""
 function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Float64})
     #* Find peaks of the minima too 
-    indx_min, vals_min = findminima(sol[1,:], 5)
+    indx_min, vals_min = findminima(sol[1,:], 1)
 
     #* Calculate amplitudes and periods
     @inbounds pers = (sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1))
@@ -127,10 +127,10 @@ function CostFunction(sol::ODESolution)::Vector{Float64}
 
     #* Get the rfft of the solution
     fftData = getFrequencies(normsol)
-    fft_peakindexes, fft_peakvals = findmaxima(fftData,5) #* get the indexes of the peaks in the fft
-    # fft_peakindexes, peakprops = findpeaks1d(fftData; height = 1e-2) #* get the indexes of the peaks in the fft
-    # fft_peakvals = peakprops["peak_heights"]
-    @info length(fft_peakindexes)
+    # fft_peakindexes, fft_peakvals = findmaxima(fftData,1) #* get the indexes of the peaks in the fft
+    fft_peakindexes, peakprops = findpeaks1d(fftData; height = 1e-3) #* get the indexes of the peaks in the fft
+    fft_peakvals = peakprops["peak_heights"]
+    # @info length(fft_peakindexes)
     if length(fft_peakindexes) < 2 #* if there is no signal in the frequency domain, return 0.0s
         return [0.0, 0.0, 0.0]
     else

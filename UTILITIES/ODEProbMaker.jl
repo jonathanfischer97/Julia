@@ -29,16 +29,16 @@ end
 
 
 #< Plotting utilities
-"""
-Plot the solution of an ODEProblem, `prob`, with respect to the variables `vars`.
-"""
-function plotsol(prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)), title = "")
-        sol = solve(prob, Rosenbrock23(), save_idxs=vars)
-        p = plot(sol, title = title, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600))
+# """
+# Plot the solution of an ODEProblem, `prob`, with respect to the variables `vars`.
+# """
+# function plotsol(prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)), title = "")
+#         sol = solve(prob, Rosenbrock23(), saveat=0.1, save_idxs=vars)
+#         p = plot(sol, title = title, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600))
 
-        display(p)
-        return p
-end
+#         display(p)
+#         return p
+# end
 
 
 """
@@ -47,7 +47,13 @@ Plot the solution from a row of the DataFrame
 function plotsol(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)))
 
         reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row]) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
-        plotsol(reprob; vars, title = "Period = $(df.per[row]) s; Fitness = $(df.fit[row])")        
+        sol = solve(reprob, saveat=0.1, save_idxs=vars[1:5])
+        cost, per, amp = CostFunction(sol)
+        p = plot(sol, title = "Fit = $cost\nPeriod = $per s", xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600))
+        # annotate!(p, (0, 0), text("Period = $per\nAmplitude = $amp", :left, 10))
+
+        display(p)
+        return p    
 end
 
 
@@ -57,18 +63,20 @@ Plot the FFT of a solution from a row of the DataFrame
 function plotfft(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)))
 
         reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row]) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
-        sol = solve(reprob, Rosenbrock23(), saveat = 0.1, save_idxs=vars)
+        sol = solve(reprob, saveat = 0.1, save_idxs=vars)
         normsol = normalize_time_series!(sol[1,:])
         # normsol = sol[1,:]
         solfft = getFrequencies(normsol)
-        # fft_peakindexes, fft_peakvals = findmaxima(solfft,5) #* get the indexes of the peaks in the fft
-        fft_peakindexes, peakprops = findpeaks1d(solfft; height = 1e-2) #* get the indexes of the peaks in the fft
+        # fft_peakindexes, fft_peakvals = findmaxima(solfft,1) #* get the indexes of the peaks in the fft
+        fft_peakindexes, peakprops = findpeaks1d(solfft; height = 1e-3, distance = 1) #* get the indexes of the peaks in the fft
         fft_peakvals = peakprops["peak_heights"]
         diffs = getDif(fft_peakvals)
         standevs = getSTD(fft_peakindexes, solfft)
-        cost, per, amp = CostFunction(sol)
-        p = plot(solfft, title = "Fit = $(cost)", xlabel = "Frequency (Hz)", ylabel = "Amplitude", lw = 2, size = (1000, 600), xlims = (0, 100), label="")
-        scatter!(p, fft_peakindexes, fft_peakvals, label = "getDif: $(diffs)\nPeakvals: $(round.(fft_peakvals; digits=7))\ngetSTD: $(standevs)\nSumFitness: $(-standevs-diffs)\nPeriod: $per", color = :red, markersize = 5)
+        # cost, per, amp = CostFunction(sol)
+        p = plot(solfft, title = "getDif: $(diffs)", xlabel = "Frequency (Hz)", ylabel = "Amplitude", lw = 2, size = (1000, 600), xlims = (0, 100), label="")
+        peaklabels = [text("$(round.(val; digits=4))", :bottom, 8) for val in fft_peakvals]
+        scatter!(p, fft_peakindexes, fft_peakvals, text = peaklabels,
+                         label = "Peakvals: $(round.(fft_peakvals; digits=7))\ngetSTD: $(standevs)\nSumFitness: $(-standevs-diffs)", color = :red, markersize = 5)
         
         display(p)
         return p

@@ -1,5 +1,6 @@
 begin 
     using Plots; #theme(:juno)
+    # using Compose
     using Catalyst
     using DifferentialEquations
     using Statistics
@@ -57,6 +58,11 @@ end
 
 fullrn = make_fullrn()
 ogprob = ODEProblem(fullrn, [], (0.,2000.0), [])
+ogsol = solve(ogprob, saveat=0.1)
+
+fftdata = getFrequencies(ogsol[1,:])
+fft_peakindexes, fft_peakvals = findmaxima(fftdata,1) #* get the indexes of the peaks in the fft
+fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 0.0, distance = 1) #* get the indexes of the peaks in the fft
 
 param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
 
@@ -120,7 +126,17 @@ end
 
 param_triplet = ["ka2", "kb2", "ka4"]
 testfixed_df = test_fixedparam(param_triplet..., param_constraints, ogprob)
+CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", testfixed_df)
 
+
+function plot_everything(df::DataFrame, prob::ODEProblem)
+    for i in 1:5:nrow(df)
+        p = plotboth(i, df, prob)
+        savefig(p, "OscillatorPaper/FigureGenerationScripts/TestbenchPlots/plot_$(i).png")
+    end
+end
+
+plot_everything(testfixed_df, ogprob)
 
 
 plotboth(row) = plotboth(row, testfixed_df, ogprob)
