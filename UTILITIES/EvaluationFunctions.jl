@@ -163,7 +163,7 @@ end
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
 function solve_for_fitness_peramp(prob::ODEProblem)
 
-    sol = solve(prob,saveat=0.1, save_idxs=1, verbose=false)
+    sol = solve(prob,saveat=0.1, save_idxs=4, verbose=false)
     # return CostFunction(sol)
     
     if sol.retcode == ReturnCode.Success

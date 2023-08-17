@@ -149,3 +149,9 @@ end
 test_fitness(row) = eval_param_fitness(testfixed_df.ind[row], ogprob)
 test_fitness(2)
 #########################
+
+#* Make A oscillate instead of L
+#* Find out why frequencies are so low sometimes
+#* Tune the STD window and peakfinding to discriminate better
+#* Add back in trimsol maybe 
+#* Verify that normalization isn't messing up evals, signal strength
