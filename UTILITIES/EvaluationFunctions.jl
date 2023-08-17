@@ -127,10 +127,11 @@ function CostFunction(sol::ODESolution)::Vector{Float64}
 
     #* Get the rfft of the solution
     fftData = getFrequencies(normsol)
-    # fft_peakindexes, fft_peakvals = findmaxima(fftData,5) #* get the indexes of the peaks in the fft
-    fft_peakindexes, peakprops = findpeaks1d(fftData; height = 1e-2) #* get the indexes of the peaks in the fft
-    fft_peakvals = peakprops["peak_heights"]
-    if isempty(fft_peakindexes) #* if there is no signal in the frequency domain, return 0.0s
+    fft_peakindexes, fft_peakvals = findmaxima(fftData,5) #* get the indexes of the peaks in the fft
+    # fft_peakindexes, peakprops = findpeaks1d(fftData; height = 1e-2) #* get the indexes of the peaks in the fft
+    # fft_peakvals = peakprops["peak_heights"]
+    @info length(fft_peakindexes)
+    if length(fft_peakindexes) < 2 #* if there is no signal in the frequency domain, return 0.0s
         return [0.0, 0.0, 0.0]
     else
         standard_deviation = getSTD(fft_peakindexes, fftData) #* get the summed standard deviation of the peaks in frequency domain

@@ -67,7 +67,7 @@ function plotfft(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = colle
         diffs = getDif(fft_peakvals)
         standevs = getSTD(fft_peakindexes, solfft)
         cost, per, amp = CostFunction(sol)
-        p = plot(solfft, title = "Fit = $(cost)", xlabel = "Frequency (Hz)", ylabel = "Amplitude", lw = 2, size = (1000, 600), xlims = (0, 1000), label="")
+        p = plot(solfft, title = "Fit = $(cost)", xlabel = "Frequency (Hz)", ylabel = "Amplitude", lw = 2, size = (1000, 600), xlims = (0, 100), label="")
         scatter!(p, fft_peakindexes, fft_peakvals, label = "getDif: $(diffs)\nPeakvals: $(round.(fft_peakvals; digits=7))\ngetSTD: $(standevs)\nSumFitness: $(-standevs-diffs)\nPeriod: $per", color = :red, markersize = 5)
         
         display(p)

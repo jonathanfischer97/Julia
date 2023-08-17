@@ -304,6 +304,9 @@ end
 
 
 #< MISCELLANEOUS FUNCTIONS ##
+"""Defines logspace function for sampling parameters"""
+logrange(start, stop, length) = exp10.(collect(range(start=log10(start), stop=log10(stop), length=length)))
+
 """Extract solution of a row from the dataframe"""
 function extract_solution(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)), tspan = (0.0, 100.0))
     reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row], tspan = tspan) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))], tspan = tspan)
