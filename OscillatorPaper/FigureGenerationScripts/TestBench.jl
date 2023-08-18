@@ -164,11 +164,11 @@ test_fitness(2)
 test_gaproblem = GAProblem(param_constraints, ogprob)
 
 Random.seed!(1234)
-test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, idx = 4)
+test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4)
 
 plotboth(row) = plotboth(row, test_results, ogprob)
 plotboth(1)
 
-plot_everything(test_results, ogprob; setnum=2)
+plot_everything(test_results, ogprob; setnum=4)
 
 CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", test_results)

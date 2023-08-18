@@ -111,12 +111,12 @@ function CostFunction(sol::ODESolution; idx = 1)::Vector{Float64}
     end 
 
     #* Trim first 10% of the solution array to avoid initial spikes
-    # tstart = cld(length(sol.t),10) 
-    # trimsol = sol[tstart:end] 
+    tstart = cld(length(sol.t),10) 
+    trimsol = sol[tstart:end] 
     # trimsol = sol
 
     #* Get the solution array out of ODESolution type
-    solarray = copy(sol[idx,:]) 
+    solarray = copy(trimsol[idx,:])
     # time_peakindexes, time_peakvals = findmaxima(solarray,5) #* get the times of the peaks in the fft
     # time_peakproms = peakproms(time_peakindexes, solarray; minprom = 0.1)[1] #* get the peak prominences (amplitude of peak above surrounding valleys
     # if length(time_peakproms) < 2 #* if there are less than 2 prominent peaks in the time domain, return 0
@@ -129,7 +129,7 @@ function CostFunction(sol::ODESolution; idx = 1)::Vector{Float64}
     #* Get the rfft of the solution
     fftData = getFrequencies(normsol)
     # fft_peakindexes, fft_peakvals = findmaxima(fftData,1) #* get the indexes of the peaks in the fft
-    fft_peakindexes, peakprops = findpeaks1d(fftData; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
+    fft_peakindexes, peakprops = findpeaks1d(fftData; height = 1e-3, distance = 1) #* get the indexes of the peaks in the fft
     fft_peakvals = peakprops["peak_heights"]
     # @info length(fft_peakindexes)
     if length(fft_peakindexes) < 2 #* if there is no signal in the frequency domain, return 0.0s
