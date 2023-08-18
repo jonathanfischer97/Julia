@@ -89,7 +89,7 @@ param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), 
 
 
 # Modification to make_fitness_function_with_fixed_inputs function
-function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int})
+function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}; fitidx=1)
     function fitness_function(input::Vector{Float64})
         # Create a new input vector that includes the fixed inputs.
         new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
@@ -108,20 +108,16 @@ function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEPr
             end
         end
 
-        return evalfunc(new_input, prob)
+        return evalfunc(new_input, prob; idx=fitidx)
     end
     return fitness_function
 end
 
 
 
-"""Defines logspace function for sampling parameters"""
-logrange(start, stop, length) = exp10.(collect(range(start=log10(start), stop=log10(stop), length=length)))
-
-
 
 #* Modification to fixed_triplet_csv_maker function
-function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; rangelength = 4) 
+function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; rangelength = 4, fitidx = 1) 
     variable_constraints = deepcopy(constraints)
     fixedtrip = [x for x in variable_constraints.ranges if x.name == param1 || x.name == param2 || x.name == param3]
     filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.ranges)
@@ -152,8 +148,8 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
             for val3 in fixed_values3
                 fixed_values = [val1, val2, val3]
                 @info fixed_values
-                make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs)
-                oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5) 
+                make_fitness_function_closure(evalfunc,prob; fitidx) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs; fitidx)
+                oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5, fitidx=fitidx) 
                 num_oscillatory_points = length(oscillatory_points_df.ind)
 
                 if iszero(num_oscillatory_points)
@@ -210,9 +206,9 @@ using Combinatorics
 param_triplets = collect(combinations(param_names, 3))
 firstka2idx = findfirst(x -> x[1] == "ka2", param_triplets)
 
-for triplet in param_triplets[firstka2idx:end]
+for triplet in param_triplets
     @info triplet
-    results_df = fixed_triplet_csv_maker(triplet..., param_constraints, ogprob)
+    results_df = fixed_triplet_csv_maker(triplet..., param_constraints, ogprob; fitidx=4)
     CSV.write("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVs/fixed_triplet_results-$(triplet[1]*triplet[2]*triplet[3]).csv", results_df)
 end
 

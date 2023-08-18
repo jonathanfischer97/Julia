@@ -68,7 +68,7 @@ fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 0.0, distance = 1) #*
 param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
 
 # Modification to make_fitness_function_with_fixed_inputs function
-function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}; opt_idx = 1)
+function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}; fitidx = 1)
     function fitness_function(input::Vector{Float64})
         # Create a new input vector that includes the fixed inputs.
         new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
@@ -87,7 +87,7 @@ function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEPr
             end
         end
 
-        return evalfunc(new_input, prob; idx = opt_idx)
+        return evalfunc(new_input, prob; idx = fitidx)
     end
     return fitness_function
 end

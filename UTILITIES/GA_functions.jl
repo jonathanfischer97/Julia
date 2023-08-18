@@ -219,10 +219,10 @@ end
 
 #< DEFAULT FITNESS FUNCTION FACTORY
 """Returns the `fitness function(input)` for the cost function, referencing the ODE problem with closure"""
-function make_fitness_function(evalfunc::Function, prob::ODEProblem; idx = 1)
+function make_fitness_function(evalfunc::Function, prob::ODEProblem; fitidx = 1)
     function fitness_function(input::Vector{Float64})
         #? Returns a cost function method that takes in just a vector of parameters/ICs and references the ODE problem 
-        return evalfunc(input, prob; idx = idx)
+        return evalfunc(input, prob; idx = fitidx)
     end
     return fitness_function
 end
@@ -248,7 +248,7 @@ end
 Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 """
 function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; 
-                                            threshold=10000, population_size = 5000, abstol=1e-4, reltol=1e-2, successive_f_tol = 2, iterations=5, parallelization = :thread, idx = 1)
+                                            threshold=10000, population_size = 5000, abstol=1e-4, reltol=1e-2, successive_f_tol = 2, iterations=5, parallelization = :thread, fitidx = 1)
     blas_threads = BLAS.get_num_threads()
     BLAS.set_num_threads(1)
 
@@ -275,7 +275,7 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     mutation  = BGA(mutation_range, 2), mutationRate = 1.0)
 
     #* Make fitness function. Makes closure of evaluation function and ODE problem
-    fitness_function = fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem; idx = idx)
+    fitness_function = fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem; fitidx = fitidx)
 
     #* Run the optimization.
     result = Evolutionary.optimize(fitness_function, [0.0,0.0,0.0], boxconstraints, mthd, pop, opts)
