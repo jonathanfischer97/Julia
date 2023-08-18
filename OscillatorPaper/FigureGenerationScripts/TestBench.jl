@@ -61,13 +61,14 @@ ogprob = ODEProblem(fullrn, [], (0.,2000.0), [])
 ogsol = solve(ogprob, saveat=0.1)
 
 fftdata = getFrequencies(ogsol[1,:])
+cld(length(fftdata), 1000)
 fft_peakindexes, fft_peakvals = findmaxima(fftdata,1) #* get the indexes of the peaks in the fft
 fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 0.0, distance = 1) #* get the indexes of the peaks in the fft
 
 param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
 
 # Modification to make_fitness_function_with_fixed_inputs function
-function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int})
+function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}; opt_idx = 1)
     function fitness_function(input::Vector{Float64})
         # Create a new input vector that includes the fixed inputs.
         new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
@@ -86,7 +87,7 @@ function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEPr
             end
         end
 
-        return evalfunc(new_input, prob)
+        return evalfunc(new_input, prob; idx = opt_idx)
     end
     return fitness_function
 end
@@ -129,10 +130,11 @@ testfixed_df = test_fixedparam(param_triplet..., param_constraints, ogprob)
 CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", testfixed_df)
 
 
-function plot_everything(df::DataFrame, prob::ODEProblem)
-    for i in 1:5:nrow(df)
+function plot_everything(df::DataFrame, prob::ODEProblem; setnum = 1)
+    for i in 1:10:nrow(df)
         p = plotboth(i, df, prob)
-        savefig(p, "OscillatorPaper/FigureGenerationScripts/TestbenchPlots/plot_$(i).png")
+        path = mkpath("OscillatorPaper/FigureGenerationScripts/TestbenchPlots/Set$(setnum)")
+        savefig(p, path*"/plot_$(i).png")
     end
 end
 
@@ -164,6 +166,9 @@ test_gaproblem = GAProblem(param_constraints, ogprob)
 Random.seed!(1234)
 test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, idx = 4)
 
-plot_everything(test_results, ogprob)
+plotboth(row) = plotboth(row, test_results, ogprob)
+plotboth(1)
+
+plot_everything(test_results, ogprob; setnum=2)
 
 CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", test_results)
