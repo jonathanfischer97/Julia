@@ -28,7 +28,7 @@ end
 """
 Plot the FFT of a solution from a row of the DataFrame
 """
-function plotfft(sol::ODESolution; fitidx=4)
+function plotfft(sol::ODESolution; fitidx::Int=4)
         tstart = cld(length(sol.t),10) 
         trimsol = sol[tstart:end] 
 
@@ -37,7 +37,7 @@ function plotfft(sol::ODESolution; fitidx=4)
         solfft = getFrequencies(trimsol[fitidx,:])
         normalize_time_series!(solfft)
         # fft_peakindexes, fft_peakvals = findmaxima(solfft,1) #* get the indexes of the peaks in the fft
-        fft_peakindexes, peakprops = findpeaks1d(solfft; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
+        fft_peakindexes, peakprops = findpeaks1d(solfft; height = 1e-5, distance = 2) #* get the indexes of the peaks in the fft
         fft_peakvals = peakprops["peak_heights"]
 
 
@@ -53,8 +53,6 @@ function plotfft(sol::ODESolution; fitidx=4)
         maxpeak_idx = fft_peakindexes[argmax(fft_peakvals)]
         stdlines = [maxpeak_idx - window, maxpeak_idx + window]
 
-        # vline!(p1, stdlines, color = :blue, label = "")
-
         
         p2 = plot(solfft, title = "getSTD: $(standevs)", xlabel = "Frequency (Hz)", lw = 2, xlims = (max(0,maxpeak_idx-50), min(length(solfft),maxpeak_idx+50)), 
                                         ylims=(0,min(1.0, maximum(fft_peakvals)+0.25)),label="", titlefontsize = 18, titlefontcolor = :red)
@@ -69,9 +67,9 @@ end
 """
 Plot both the solution and the FFT of a solution from a row of the DataFrame
 """
-function plotboth(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)), fitidx = 4)
+function plotboth(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)), fitidx::Int = 4)
         reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row]) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
-        sol = solve(reprob, saveat=0.1, save_idxs=vars)
+        sol = solve(reprob, Rosenbrock23(), saveat=0.1, save_idxs=vars)
         cost, per, amp = CostFunction(sol; idx = fitidx)
 
         solplot = plotsol(sol; vars=vars[1:5])

@@ -130,11 +130,13 @@ testfixed_df = test_fixedparam(param_triplet..., param_constraints, ogprob)
 CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", testfixed_df)
 
 
-function plot_everything(df::DataFrame, prob::ODEProblem; setnum = 1)
+function plot_everything(df::DataFrame, prob::ODEProblem; setnum::Int = 1)
     progbar = Progress(cld(nrow(df),10); desc = "Plotting:")
+    path = mkpath("OscillatorPaper/FigureGenerationScripts/TestbenchPlots/Set$(setnum)")
+    CSV.write(path*"/Set$(setnum).csv", df)
+
     for i in 1:10:nrow(df)
         p = plotboth(i, df, prob)
-        path = mkpath("OscillatorPaper/FigureGenerationScripts/TestbenchPlots/Set$(setnum)")
         savefig(p, path*"/plot_$(i).png")
         next!(progbar)
     end
@@ -163,7 +165,24 @@ test_fitness(2)
 
 #< Regular GA testbench
 # Random.seed!(1234)
-# test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4)
+test_gaproblem = GAProblem(param_constraints, ogprob)
+test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4)
+@code_warntype run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4)
+typeof(test_results)
+test_results_df = trace_to_df(test_results)
+
+
+function foo(gaprob::GAProblem)
+    test_results = run_GA(gaprob; population_size = 5000, iterations = 5, fitidx = 4)
+    results_df = trace_to_df(test_results)
+    mean_fitness = mean(results_df.fit)
+    mean_period = mean(results_df.per)
+    mean_amplitude = mean(results_df.amp)
+    return mean_fitness, mean_period, mean_amplitude
+end
+
+@code_warntype foo(test_gaproblem)
+
 # avg_fitness = mean(test_results.fit)
 # avg_period = mean(test_results.per)
 # avg_amplitude = mean(test_results.amp)
@@ -185,17 +204,27 @@ function testbench(param_constraints::ConstraintType, prob::ODEProblem)
     test_gaproblem = GAProblem(param_constraints, prob)
     Random.seed!(1234)
     test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4)
-    avg_fitness = mean(test_results.fit)
+
+    avg_fitness = mean(test_results.fitvals)
     @info "Average fitness: $avg_fitness"
-    avg_period = mean(test_results.per)
+    avg_period = mean(test_results.periods)
     @info "Average period: $avg_period"
-    avg_amplitude = mean(test_results.amp)
+    avg_amplitude = mean(test_results.amplitudes)
     @info "Average amplitude: $avg_amplitude"
-    return test_results#, avg_fitness, avg_period, avg_amplitude
+    test_results_df = make_df(test_results)
+    return test_results_df#, avg_fitness, avg_period, avg_amplitude
 end
 
+#* now testing 0.01 dt and Rosenbrock23 for the ringing solutions
+@code_warntype testbench(param_constraints, ogprob)
 test_results = testbench(param_constraints, ogprob)
 
-plot_everything(test_results, ogprob; setnum=8)
+plot_everything(test_results, ogprob; setnum=9)
 
 CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", test_results)
+
+
+test_gaproblem = GAProblem(param_constraints, ogprob)
+garesult = run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4)
+
+gatrace = garesult.trace

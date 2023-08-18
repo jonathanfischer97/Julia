@@ -219,7 +219,7 @@ end
 
 #< DEFAULT FITNESS FUNCTION FACTORY
 """Returns the `fitness function(input)` for the cost function, referencing the ODE problem with closure"""
-function make_fitness_function(evalfunc::Function, prob::ODEProblem; fitidx = 1)
+function make_fitness_function(evalfunc::Function, prob::ODEProblem; fitidx = 4)
     function fitness_function(input::Vector{Float64})
         #? Returns a cost function method that takes in just a vector of parameters/ICs and references the ODE problem 
         return evalfunc(input, prob; idx = fitidx)
@@ -248,7 +248,7 @@ end
 Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 """
 function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; 
-                                            threshold=10000, population_size = 5000, abstol=1e-4, reltol=1e-2, successive_f_tol = 2, iterations=5, parallelization = :thread, fitidx = 1)
+                                            threshold=10000, population_size = 5000, abstol=1e-4, reltol=1e-2, successive_f_tol = 2, iterations=5, parallelization = :thread, fitidx = 4)
     blas_threads = BLAS.get_num_threads()
     BLAS.set_num_threads(1)
 
@@ -286,27 +286,57 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     # num_oscillatory = sum([gen.metadata["num_oscillatory"] for gen in result.trace[2:end]])
 
     BLAS.set_num_threads(blas_threads)
-    return trace_to_df(result)
+    return GAResults(result)
+    # return trace_to_df(result)
 end
 #> END
 
-
-function trace_to_df(results)
-    #* make a dataframe from the trace
-    df = DataFrame(ind = [], fit = [], per = [], amp = [])
-    for gen in results.trace
-        push!(df.ind, gen.metadata["population"]...)
-        push!(df.fit, gen.metadata["fitvals"]...)
-        push!(df.per, gen.metadata["periods"]...)
-        push!(df.amp, gen.metadata["amplitudes"]...)
-    end
-    return df
+struct GAResults 
+    trace::Vector{Evolutionary.OptimizationTraceRecord}
+    population::Vector{Vector{Float64}}
+    fitvals::Vector{Float64}
+    periods::Vector{Float64}
+    amplitudes::Vector{Float64}
 end
+
+function GAResults(result::Evolutionary.EvolutionaryOptimizationResults)
+    numpoints = sum(length, (gen.metadata["fitvals"] for gen in result.trace))
+    population = []#Vector{Vector{Float64}}(undef, numpoints)
+    fitvals = []#Vector{Float64}(undef, numpoints)
+    periods = [] #Vector{Float64}(undef, numpoints)
+    amplitudes = []#Vector{Float64}(undef, numpoints)
+
+    for gen in result.trace
+        push!(population, gen.metadata["population"]...)
+        push!(fitvals, gen.metadata["fitvals"]...)
+        push!(periods, gen.metadata["periods"]...)
+        push!(amplitudes, gen.metadata["amplitudes"]...)
+    end
+    return GAResults(result.trace, population, fitvals, periods, amplitudes)
+end
+
+function make_df(results::GAResults)
+    return DataFrame(ind = results.population, fit = results.fitvals, per = results.periods, amp = results.amplitudes)
+end
+
+
+
+# function trace_to_df(results)
+#     #* make a dataframe from the trace
+#     df = DataFrame(ind = [], fit = [], per = [], amp = [])
+#     for gen in results.trace
+#         push!(df.ind, gen.metadata["population"]...)
+#         push!(df.fit, gen.metadata["fitvals"]...)
+#         push!(df.per, gen.metadata["periods"]...)
+#         push!(df.amp, gen.metadata["amplitudes"]...)
+#     end
+#     return df
+# end
 
 
 #< MISCELLANEOUS FUNCTIONS ##
 """Defines logspace function for sampling parameters"""
-logrange(start, stop, length) = exp10.(collect(range(start=log10(start), stop=log10(stop), length=length)))
+logrange(start, stop, length::Int) = exp10.(collect(range(start=log10(start), stop=log10(stop), length=length)))
 
 """Extract solution of a row from the dataframe"""
 function extract_solution(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)), tspan = (0.0, 100.0))
