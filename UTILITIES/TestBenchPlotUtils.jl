@@ -41,7 +41,7 @@ function plotfft(sol::ODESolution; fitidx=1)
         diffs = round(getDif(fft_peakvals); digits=4)
         standevs = round(getSTD(fft_peakindexes, solfft);digits=4)
         # cost, per, amp = CostFunction(sol)
-        p1 = plot(solfft, title = "getDif: $(diffs)", xlabel = "Frequency (Hz)", ylabel = "Amplitude", lw = 2, xlims = (0, max(length(solfft),fft_peakindexes[end]+50)), label="", titlefontsize = 16, titlefontcolor = :green)
+        p1 = plot(solfft, title = "getDif: $(diffs)", xlabel = "Frequency (Hz)", ylabel = "Amplitude", lw = 2, xlims = (0, min(length(solfft),fft_peakindexes[end]+50)), label="", titlefontsize = 18, titlefontcolor = :green)
         peaklabels = [text("$(round.(val; digits=4))", :bottom, 10) for val in fft_peakvals]
         scatter!(p1, fft_peakindexes, fft_peakvals, text = peaklabels, label = "", color = :red, markersize = 5)
 
@@ -49,10 +49,10 @@ function plotfft(sol::ODESolution; fitidx=1)
         maxpeak_idx = fft_peakindexes[argmax(fft_peakvals)]
         stdlines = [maxpeak_idx - window, maxpeak_idx + window]
 
-        vline!(p1, stdlines, color = :blue, label = "")
+        # vline!(p1, stdlines, color = :blue, label = "")
 
         
-        p2 = plot(solfft, title = "getSTD: $(standevs)", xlabel = "Frequency (Hz)", lw = 2, xlims = (0, 100), label="", titlefontsize = 16, titlefontcolor = :red)
+        p2 = plot(solfft, title = "getSTD: $(standevs)", xlabel = "Frequency (Hz)", lw = 2, xlims = (0, 100), label="", titlefontsize = 18, titlefontcolor = :red)
         scatter!(p2, fft_peakindexes, fft_peakvals, text = peaklabels, color = :red, markersize = 5, label="")
         vline!(p2, stdlines, color = :blue, label = "")
         
@@ -72,8 +72,8 @@ function plotboth(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = coll
         solplot = plotsol(sol; vars=vars[1:5])
         fftplot = plotfft(sol)
 
-        bothplot = plot(solplot, fftplot, suptitle ="Fit: $(round(cost;digits=4))\nPeriod: $(round(per;digits=4)) s" , 
-                        titlefont = :bold, layout = (2,1), size = (1000, 800))
+        bothplot = plot(solplot, fftplot, plot_title ="Fit: $(round(cost;digits=4))\nPeriod: $(round(per;digits=4)) s" , 
+                        plot_titlefontsize = 20, layout = (2,1), size = (1000, 800))
         display(bothplot)
         return bothplot
 end
