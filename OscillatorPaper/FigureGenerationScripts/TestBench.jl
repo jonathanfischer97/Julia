@@ -131,10 +131,12 @@ CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", testfixed_df)
 
 
 function plot_everything(df::DataFrame, prob::ODEProblem; setnum = 1)
+    progbar = Progress(cld(nrow(df),10); desc = "Plotting:")
     for i in 1:10:nrow(df)
         p = plotboth(i, df, prob)
         path = mkpath("OscillatorPaper/FigureGenerationScripts/TestbenchPlots/Set$(setnum)")
         savefig(p, path*"/plot_$(i).png")
+        next!(progbar)
     end
 end
 
@@ -160,15 +162,40 @@ test_fitness(2)
 
 
 #< Regular GA testbench
+# Random.seed!(1234)
+# test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4)
+# avg_fitness = mean(test_results.fit)
+# avg_period = mean(test_results.per)
+# avg_amplitude = mean(test_results.amp)
 
-test_gaproblem = GAProblem(param_constraints, ogprob)
+# plotboth(row) = plotboth(row, test_results, ogprob)
+# plotboth(1338)
 
-Random.seed!(1234)
-test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4)
+# testprob = remake(ogprob, p = test_results.ind[1338])
+# testsol = solve(testprob, saveat=0.1)
+# fftdata = getFrequencies(testsol[4,:])
+# normalize_time_series!(fftdata)
+# plot(fftdata, xlims=(0,100))
+# plotfft(testsol; fitidx=4)
+# fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
+# fft_peakvals = peakprops["peak_heights"]
 
-plotboth(row) = plotboth(row, test_results, ogprob)
-plotboth(1)
 
-plot_everything(test_results, ogprob; setnum=4)
+function testbench(param_constraints::ConstraintType, prob::ODEProblem)
+    test_gaproblem = GAProblem(param_constraints, prob)
+    Random.seed!(1234)
+    test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4)
+    avg_fitness = mean(test_results.fit)
+    @info "Average fitness: $avg_fitness"
+    avg_period = mean(test_results.per)
+    @info "Average period: $avg_period"
+    avg_amplitude = mean(test_results.amp)
+    @info "Average amplitude: $avg_amplitude"
+    return test_results#, avg_fitness, avg_period, avg_amplitude
+end
+
+test_results = testbench(param_constraints, ogprob)
+
+plot_everything(test_results, ogprob; setnum=6)
 
 CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", test_results)

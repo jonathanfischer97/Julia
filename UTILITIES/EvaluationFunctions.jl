@@ -46,7 +46,7 @@ function getDif(peakvals::Vector{Float64})
 end
 
 """Get summed average standard deviation of peaks in the frequency domain"""
-function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; window=2) #get average standard deviation of fft peak indexes
+function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; window=1) #get average standard deviation of fft peak indexes
     arrLen = length(fft_arrayData)
     # window = max(1,cld(arrLen,window_ratio)) #* window size is 1% of array length, or 1 if array length is less than 100
     # window = 5
@@ -105,10 +105,10 @@ end
 function CostFunction(sol::ODESolution; idx = 1)::Vector{Float64}
 
     #* Check if last half of the solution array is steady state
-    lasthalfsol = sol[cld(length(sol.t),2):end]
-    if std(lasthalfsol[idx,:]) < 0.01 
-        return [0.0, 0.0, 0.0]
-    end 
+    # lasthalfsol = sol[cld(length(sol.t),2):end]
+    # if std(lasthalfsol[idx,:]) < 0.01 
+    #     return [0.0, 0.0, 0.0]
+    # end 
 
     #* Trim first 10% of the solution array to avoid initial spikes
     tstart = cld(length(sol.t),10) 
@@ -116,7 +116,7 @@ function CostFunction(sol::ODESolution; idx = 1)::Vector{Float64}
     # trimsol = sol
 
     #* Get the solution array out of ODESolution type
-    solarray = copy(trimsol[idx,:])
+    # solarray = copy(trimsol[idx,:])
     # time_peakindexes, time_peakvals = findmaxima(solarray,5) #* get the times of the peaks in the fft
     # time_peakproms = peakproms(time_peakindexes, solarray; minprom = 0.1)[1] #* get the peak prominences (amplitude of peak above surrounding valleys
     # if length(time_peakproms) < 2 #* if there are less than 2 prominent peaks in the time domain, return 0
@@ -124,18 +124,20 @@ function CostFunction(sol::ODESolution; idx = 1)::Vector{Float64}
     # end
 
     #* Normalize the solution array. WARNING: solarray is modified after this line
-    normsol = normalize_time_series!(solarray)
+    # normsol = normalize_time_series!(solarray)
 
     #* Get the rfft of the solution
-    fftData = getFrequencies(normsol)
+    fftData = getFrequencies(trimsol[idx,:])
+    normalize_time_series!(fftData)
     # fft_peakindexes, fft_peakvals = findmaxima(fftData,1) #* get the indexes of the peaks in the fft
-    fft_peakindexes, peakprops = findpeaks1d(fftData; height = 1e-3, distance = 1) #* get the indexes of the peaks in the fft
-    fft_peakvals = peakprops["peak_heights"]
+    fft_peakindexes, peakprops = findpeaks1d(fftData; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
     # @info length(fft_peakindexes)
     if length(fft_peakindexes) < 2 #* if there is no signal in the frequency domain, return 0.0s
         return [0.0, 0.0, 0.0]
     else
-        standard_deviation = getSTD(fft_peakindexes, fftData) #* get the summed standard deviation of the peaks in frequency domain
+        fft_peakvals = peakprops["peak_heights"]
+
+        standard_deviation = getSTD(fft_peakindexes, fftData; window = 2) #* get the summed standard deviation of the peaks in frequency domain
         sum_diff = getDif(fft_peakvals) #* get the summed difference between the first and last peaks in frequency domain
     
         #* Compute the period and amplitude
@@ -148,21 +150,21 @@ end
 
 #! EVALUATION FUNCTIONS ## 
 """Evaluate the fitness of an individual with new parameters"""
-function eval_param_fitness(params::Vector{Float64},  prob::ODEProblem; idx = 1)
+function eval_param_fitness(params::Vector{Float64},  prob::ODEProblem; idx = 4)
     #* remake with new parameters
     new_prob = remake(prob, p=params)
     return solve_for_fitness_peramp(new_prob, idx)
 end
 
 """Evaluate the fitness of an individual with new initial conditions"""
-function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem; idx = 1)
+function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem; idx = 4)
     #* remake with new initial conditions
     new_prob = remake(prob, u0=[initial_conditions; zeros(length(prob.u0)-length(initial_conditions))])
     return solve_for_fitness_peramp(new_prob, idx)
 end
 
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
-function solve_for_fitness_peramp(prob::ODEProblem, idx = 1)
+function solve_for_fitness_peramp(prob::ODEProblem, idx = 4)
 
     sol = solve(prob,saveat=0.1, save_idxs=idx, verbose=false)
     # return CostFunction(sol)
