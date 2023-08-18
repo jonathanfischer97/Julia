@@ -51,8 +51,8 @@ function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; wind
     # window = max(1,cld(arrLen,window_ratio)) #* window size is 1% of array length, or 1 if array length is less than 100
     # window = 5
     sum_std = sum(std(fft_arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in fft_peakindxs) #* sum rolling window of standard deviations
-    return sum_std
-    # return sum_std / length(fft_peakindxs) #* divide by number of peaks to get average std
+    # return sum_std
+    return sum_std / length(fft_peakindxs) #* divide by number of peaks to get average std
 end 
 
 """Return normalized FFT of solution vector. Modifies the solution vector in place"""
@@ -105,10 +105,10 @@ end
 function CostFunction(sol::ODESolution; idx = 1)::Vector{Float64}
 
     #* Check if last half of the solution array is steady state
-    # lasthalfsol = sol[cld(length(sol.t),2):end]
-    # if std(lasthalfsol[idx,:]) < 0.01 
-    #     return [0.0, 0.0, 0.0]
-    # end 
+    lasthalfsol = sol[cld(length(sol.t),2):end]
+    if std(lasthalfsol[idx,:]) < 0.01 
+        return [0.0, 0.0, 0.0]
+    end 
 
     #* Trim first 10% of the solution array to avoid initial spikes
     tstart = cld(length(sol.t),10) 
@@ -130,14 +130,14 @@ function CostFunction(sol::ODESolution; idx = 1)::Vector{Float64}
     fftData = getFrequencies(trimsol[idx,:])
     normalize_time_series!(fftData)
     # fft_peakindexes, fft_peakvals = findmaxima(fftData,1) #* get the indexes of the peaks in the fft
-    fft_peakindexes, peakprops = findpeaks1d(fftData; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
+    fft_peakindexes, peakprops = findpeaks1d(fftData; height = 1e-5, distance = 2) #* get the indexes of the peaks in the fft
     # @info length(fft_peakindexes)
     if length(fft_peakindexes) < 2 #* if there is no signal in the frequency domain, return 0.0s
         return [0.0, 0.0, 0.0]
     else
         fft_peakvals = peakprops["peak_heights"]
 
-        standard_deviation = getSTD(fft_peakindexes, fftData; window = 2) #* get the summed standard deviation of the peaks in frequency domain
+        standard_deviation = getSTD(fft_peakindexes, fftData; window = 1) #* get the summed standard deviation of the peaks in frequency domain
         sum_diff = getDif(fft_peakvals) #* get the summed difference between the first and last peaks in frequency domain
     
         #* Compute the period and amplitude

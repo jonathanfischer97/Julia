@@ -44,7 +44,8 @@ function plotfft(sol::ODESolution; fitidx=4)
         diffs = round(getDif(fft_peakvals); digits=4)
         standevs = round(getSTD(fft_peakindexes, solfft);digits=4)
         # cost, per, amp = CostFunction(sol)
-        p1 = plot(solfft, title = "getDif: $(diffs)", xlabel = "Frequency (Hz)", ylabel = "Amplitude", lw = 2, xlims = (0, min(length(solfft),fft_peakindexes[end]+50)), label="", titlefontsize = 18, titlefontcolor = :green)
+        p1 = plot(solfft, title = "getDif: $(diffs)", xlabel = "Frequency (Hz)", ylabel = "Amplitude", lw = 2, 
+                        xlims = (0, min(length(solfft),fft_peakindexes[end]+50)), ylims=(0,min(1.0, maximum(fft_peakvals)+0.25)), label="", titlefontsize = 18, titlefontcolor = :green)
         peaklabels = [text("$(round.(val; digits=4))", :bottom, 10) for val in fft_peakvals]
         scatter!(p1, fft_peakindexes, fft_peakvals, text = peaklabels, label = "", color = :red, markersize = 5)
 
@@ -55,7 +56,8 @@ function plotfft(sol::ODESolution; fitidx=4)
         # vline!(p1, stdlines, color = :blue, label = "")
 
         
-        p2 = plot(solfft, title = "getSTD: $(standevs)", xlabel = "Frequency (Hz)", lw = 2, xlims = (0, 100), label="", titlefontsize = 18, titlefontcolor = :red)
+        p2 = plot(solfft, title = "getSTD: $(standevs)", xlabel = "Frequency (Hz)", lw = 2, xlims = (max(0,maxpeak_idx-50), min(length(solfft),maxpeak_idx+50)), 
+                                        ylims=(0,min(1.0, maximum(fft_peakvals)+0.25)),label="", titlefontsize = 18, titlefontcolor = :red)
         scatter!(p2, fft_peakindexes, fft_peakvals, text = peaklabels, color = :red, markersize = 5, label="")
         vline!(p2, stdlines, color = :blue, label = "")
         

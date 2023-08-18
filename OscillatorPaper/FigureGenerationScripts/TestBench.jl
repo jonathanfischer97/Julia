@@ -196,6 +196,6 @@ end
 
 test_results = testbench(param_constraints, ogprob)
 
-plot_everything(test_results, ogprob; setnum=6)
+plot_everything(test_results, ogprob; setnum=8)
 
 CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", test_results)
