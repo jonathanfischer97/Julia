@@ -61,7 +61,7 @@ fullrn = make_fullrn()
 ogprob = ODEProblem(fullrn, [], tspan, [])
 de = modelingtoolkitize(ogprob)
 
-ogprobjac = ODEProblem(de, [], tspan, [], jac=true)
+ogprobjac = ODEProblem(de, [], tspan, jac=true)
 
 @btime solve(ogprob, saveat=0.1, save_idxs=4)
 @btime solve(ogprobjac, saveat=0.1, save_idxs=4)
@@ -119,7 +119,7 @@ function test_fixedparam(param1::String, param2::String, param3::String, constra
     make_fitness_function_closure(evalfunc,prob; fitidx) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs; fitidx)
 
 
-    oscillatory_points_df = make_df(run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 30000, iterations = 5)) 
+    oscillatory_points_df = make_df(run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5)) 
     num_oscillatory_points = length(oscillatory_points_df.ind)
     @info num_oscillatory_points
 
@@ -140,7 +140,7 @@ function test_fixedparam(param1::String, param2::String, param3::String, constra
 end
 
 param_triplet = ["ka2", "kb2", "ka4"]
-testfixed_df = test_fixedparam(param_triplet..., param_constraints, ogprobjac; fixed_values = [0.01,0.01,0.01])
+testfixed_df = test_fixedparam(param_triplet..., param_constraints, ogprobjac; fixed_values = [0.01,0.001,0.01])
 # CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", testfixed_df)
 
 
@@ -221,7 +221,7 @@ end
 @code_warntype testbench(param_constraints, ogprob)
 test_results_df = testbench(param_constraints, ogprobjac)
 
-plot_everything(test_results_df, ogprob; setnum=10, label="PeriodRewardlog10", jump = 10)
+plot_everything(test_results_df, ogprobjac; setnum=10, label="PeriodRewardlog10", jump = 10)
 
 
 
