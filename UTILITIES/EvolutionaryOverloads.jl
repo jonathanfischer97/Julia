@@ -18,19 +18,11 @@ end
 Evolutionary.value(s::CustomGAState) = s.fittestValue #return the fitness of the fittest individual
 Evolutionary.minimizer(s::CustomGAState) = s.fittestInd #return the fittest individual
 
-# """Trace override function"""
-# function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population::Vector{Vector{Float64}}, method::GA, options) 
-#     oscillatory_population_idxs = findall(fit -> fit != 0.0, state.fitvals) #find the indices of the oscillatory individuals
-#     # @assert length(population) == length(state.fitvals) "$(length(population)) != $(length(state.fitvals))"
-#     record["staterecord"] = [(ind=population[i], fit=state.fitvals[i], per=state.periods[i], amp=state.amplitudes[i]) for i in oscillatory_population_idxs]
-#     # record["num_oscillatory"] = length(oscillatory_population_idxs)
-# end
 
 """Trace override function"""
 function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population::Vector{Vector{Float64}}, method::GA, options) 
     oscillatory_population_idxs = findall(fit -> fit < 0.0, state.fitvals) #find the indices of the oscillatory individuals
-    # @assert length(population) == length(state.fitvals) "$(length(population)) != $(length(state.fitvals))"
-    # record["staterecord"] = [(ind=population[i], fit=state.fitvals[i], per=state.periods[i], amp=state.amplitudes[i]) for i in oscillatory_population_idxs]
+
     record["population"] = deepcopy(population[oscillatory_population_idxs])
     record["fitvals"] = deepcopy(state.fitvals[oscillatory_population_idxs])
     record["periods"] = deepcopy(state.periods[oscillatory_population_idxs])
@@ -89,12 +81,23 @@ function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}},
     F, P, A
 end
 
+function Evolutionary.value!(obj::EvolutionaryObjective{TC,Vector{Float64},Vector{Float64},Val{:thread}},
+                                F::Vector{Float64}, xs::Vector{Vector{Float64}},  P::Vector{Float64}, A::Vector{Float64}) where {TC}
+    # @info "Using custom value! function"
+    n = length(xs)
+    Threads.@threads for i in 1:n
+        F[i], P[i], A[i] = Evolutionary.value(obj, xs[i])  #* evaluate the fitness, period, and amplitude for each individual
+    end
+    F, P, A
+end
+
+"""Same value! function but with serial eval"""
 function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:serial}},
                                 F::AbstractVector, xs::AbstractVector{TX}, P::AbstractVector, A::AbstractVector) where {TC,TF<:AbstractVector,TX}
     n = length(xs)
     for i in 1:n
         F[i], P[i], A[i] = Evolutionary.value(obj, xs[i])  #* evaluate the fitness, period, and amplitude for each individual
-        println("Ind: $(xs[i]) fit: $(F[i]) per: $(P[i]) amp: $(A[i])")
+        # println("Ind: $(xs[i]) fit: $(F[i]) per: $(P[i]) amp: $(A[i])")
     end
     F, P, A
 end
@@ -119,23 +122,18 @@ function Evolutionary.initial_state(method::GA, options, objfun, population) #TO
     eliteSize = isa(method.ɛ, Int) ? method.ɛ : round(Int, method.ɛ * method.populationSize)
 
     #* Evaluate population fitness, period and amplitude
-    if options.parallelization == :serial
-        for i in eachindex(population)
-            fitvals[i], periods[i], amplitudes[i] = Evolutionary.value(objfun, population[i])
-            # println("Ind: $(population[i]) fit: $(fitvals[i]) per: $(periods[i]) amp: $(amplitudes[i])")
-        end
-    else
-        Threads.@threads for i in eachindex(population)
-            fitvals[i], periods[i], amplitudes[i] = Evolutionary.value(objfun, population[i])
-            # @info "Ind: $(population[i]) fit: $(fitvals[i]) per: $(periods[i]) amp: $(amplitudes[i])"
-        end
-    end
-    # Evolutionary.value!(objfun, fitvals, population, periods, amplitudes)
-    # fitvals = map(i -> value(objfun, i)[1], population)
-
-    # for (i,ind) in enumerate(population)
-    #     fitvals[i], periods[i], amplitudes[i] = value(objfun, ind)
+    # if options.parallelization == :serial
+    #     for i in eachindex(population)
+    #         fitvals[i], periods[i], amplitudes[i] = Evolutionary.value(objfun, population[i])
+    #         # println("Ind: $(population[i]) fit: $(fitvals[i]) per: $(periods[i]) amp: $(amplitudes[i])")
+    #     end
+    # else
+    #     Threads.@threads for i in eachindex(population)
+    #         fitvals[i], periods[i], amplitudes[i] = Evolutionary.value(objfun, population[i])
+    #         # @info "Ind: $(population[i]) fit: $(fitvals[i]) per: $(periods[i]) amp: $(amplitudes[i])"
+    #     end
     # end
+    Evolutionary.value!(objfun, fitvals, population, periods, amplitudes)
 
     minfit, fitidx = findmin(fitvals)
 

@@ -63,6 +63,24 @@ de = modelingtoolkitize(ogprob)
 
 ogprobjac = ODEProblem(de, [], tspan, jac=true)
 
+
+
+
+ogjacsol = solve(ogprobjac, saveat=0.1, save_idxs=4)
+
+@btime CostFunction($ogjacsol)
+@code_warntype CostFunction(ogjacsol)
+
+
+@btime ogjacsol[1:100]
+plot(ogjacsol)
+
+flipped = flip_about_mean(ogjacsol[1,:])
+plot(flipped)
+flip_about_mean!(ogjacsol[1,:])
+
+ogjacsol[1:end] .= 0.1
+
 @btime solve(ogprob, saveat=0.1, save_idxs=4)
 @btime solve(ogprobjac, saveat=0.1, save_idxs=4)
 
@@ -205,21 +223,24 @@ end
 function testbench(param_constraints::ConstraintType, prob::ODEProblem)
     test_gaproblem = GAProblem(param_constraints, prob)
     Random.seed!(1234)
-    test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4)
+    test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4, show_trace=true)
 
     avg_fitness = mean(test_results.fitvals)
-    @info "Average fitness: $avg_fitness"
+    # @info "Average fitness: $avg_fitness"
     avg_period = mean(test_results.periods)
-    @info "Average period: $avg_period"
+    # @info "Average period: $avg_period"
     avg_amplitude = mean(test_results.amplitudes)
-    @info "Average amplitude: $avg_amplitude"
+    # @info "Average amplitude: $avg_amplitude"
     test_results_df = make_df(test_results)
     return test_results_df#, avg_fitness, avg_period, avg_amplitude
 end
 
 #* now testing Rosenbrock23 and new peak finder in getPerAmp for the ringing solutions
-@code_warntype testbench(param_constraints, ogprob)
+@code_warntype testbench(param_constraints, ogprobjac)
 test_results_df = testbench(param_constraints, ogprobjac)
+
+@btime testbench($param_constraints, $ogprob)
+@btime testbench($param_constraints, $ogprobjac)
 
 plot_everything(test_results_df, ogprobjac; setnum=10, label="PeriodRewardlog10", jump = 10)
 

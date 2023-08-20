@@ -56,7 +56,7 @@ function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; wind
 end 
 
 """Return normalized FFT of solution vector. Modifies the solution vector in place"""
-function getFrequencies(timeseries::Vector{Float64}) 
+function getFrequencies(timeseries) 
     res = abs.(rfft(timeseries))
     return res ./ cld(length(timeseries), 2) #* normalize by length of timeseries
 end
@@ -66,11 +66,18 @@ function flip_about_mean(vec::Vector{Float64})
     return [2 * mean_value - x for x in vec]
 end
 
+function flip_about_mean!(vec::Vector{Float64})
+    mean_value = mean(vec)
+    @inbounds for i in eachindex(vec)
+        vec[i] = 2 * mean_value - vec[i]
+    end
+    vec
+end
+
+
 
 """Calculates the period and amplitude of each individual in the population"""
 function getPerAmp(sol::ODESolution, idx::Int = 1)
-    # indx_max, vals_max = findmaxima(solu, 1) #* find the peaks of the maxima with window size 5
-    # indx_min, vals_min = findminima(solu, 1)
 
     indx_max, maxprops = findpeaks1d(sol[idx,:]; height = 1e-2, distance = 10)
     return getPerAmp(sol, indx_max, maxprops, idx)
@@ -86,8 +93,10 @@ function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, maxprops::Dict{Strin
     # vals_min = minprops["peak_heights"]
 
     #* Calculate amplitudes and periods
-    @inbounds pers = (sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1))
-    @inbounds amps = ((vals_max[i] - sol[idx,indx_min[i]])/2 for i in 1:min(length(indx_max), length(indx_min)))
+
+    pers = (sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1))
+    amps = ((vals_max[i] - sol[idx,indx_min[i]])/2 for i in 1:min(length(indx_max), length(indx_min)))
+
 
     return maximum(pers), mean(amps)
 end
@@ -113,28 +122,18 @@ function CostFunction(sol::ODESolution; idx::Int = 1)::Vector{Float64}
     #* Trim first 10% of the solution array to avoid initial spikes
     tstart = cld(length(sol.t),10) 
     trimsol = sol[tstart:end] 
-    # trimsol = sol
 
     indx_max, maxprops = findpeaks1d(trimsol[idx,:]; height = 1e-2, distance = 10)
     if length(indx_max) < 2
         return [0.0, 0.0, 0.0]
     end
-
-    #* Get the solution array out of ODESolution type
-    # solarray = copy(trimsol[idx,:])
-    # time_peakindexes, time_peakvals = findmaxima(solarray,5) #* get the times of the peaks in the fft
-    # time_peakproms = peakproms(time_peakindexes, solarray; minprom = 0.1)[1] #* get the peak prominences (amplitude of peak above surrounding valleys
-    # if length(time_peakproms) < 2 #* if there are less than 2 prominent peaks in the time domain, return 0
-    #     return [0.0, 0.0, 0.0]
-    # end
-
-    #* Normalize the solution array. WARNING: solarray is modified after this line
-    # normsol = normalize_time_series!(solarray)
-
+    
     #* Get the rfft of the solution
     fftData = getFrequencies(trimsol[idx,:])
+
+    #* Normalize the solution array. WARNING: solarray is modified after this line
     normalize_time_series!(fftData)
-    # fft_peakindexes, fft_peakvals = findmaxima(fftData,1) #* get the indexes of the peaks in the fft
+
     fft_peakindexes, peakprops = findpeaks1d(fftData; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
     # @info length(fft_peakindexes)
     if length(fft_peakindexes) < 2 #* if there is no signal in the frequency domain, return 0.0s

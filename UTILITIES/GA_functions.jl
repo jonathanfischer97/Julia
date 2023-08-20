@@ -219,13 +219,23 @@ end
 
 #< DEFAULT FITNESS FUNCTION FACTORY
 """Returns the `fitness function(input)` for the cost function, referencing the ODE problem with closure"""
-function make_fitness_function(evalfunc::Function, prob::ODEProblem; fitidx = 4)
+function make_fitness_function(evalfunc::Function, prob::ODEProblem; fitidx::Int = 4)
     function fitness_function(input::Vector{Float64})
         #? Returns a cost function method that takes in just a vector of parameters/ICs and references the ODE problem 
         return evalfunc(input, prob; idx = fitidx)
     end
     return fitness_function
 end
+
+function make_fitness_function_with_let(evalfunc::Function, prob::ODEProblem; fitidx::Int = 4)
+    let evalfunc = evalfunc, prob = prob, fitidx = fitidx
+        function fitness_function(input::Vector{Float64})
+            return evalfunc(input, prob; idx = fitidx)
+        end
+        return fitness_function
+    end
+end
+
 #> END
 
 
@@ -248,7 +258,7 @@ end
 Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 """
 function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; 
-                                            threshold=10000, population_size = 5000, abstol=1e-4, reltol=1e-2, successive_f_tol = 2, iterations=5, parallelization = :thread, fitidx = 4)
+                                            threshold=10000, population_size = 5000, abstol=1e-4, reltol=1e-2, successive_f_tol = 2, iterations=5, parallelization = :thread, fitidx = 4, show_trace=true)
     blas_threads = BLAS.get_num_threads()
     BLAS.set_num_threads(1)
 
@@ -264,7 +274,7 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
 
     #* Define options for the GA.
     opts = Evolutionary.Options(abstol=abstol, reltol=reltol, successive_f_tol = successive_f_tol, iterations=iterations, 
-                        store_trace = true, show_trace=true, show_every=1, parallelization=parallelization)#, callback=callback_func)
+                        store_trace = true, show_trace=show_trace, show_every=1, parallelization=parallelization)#, callback=callback_func)
 
     #* Define the range of possible values for each parameter when mutated, and the mutation scalar.
     mutation_scalar = 0.5; mutation_range = fill(mutation_scalar, length(ga_problem.constraints.ranges))
@@ -292,6 +302,7 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
 end
 #> END
 
+"Struct to hold the results of a GA optimization"
 struct GAResults 
     trace::Vector{Evolutionary.OptimizationTraceRecord}
     population::Vector{Vector{Float64}}
