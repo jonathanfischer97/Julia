@@ -1,7 +1,7 @@
 begin 
     using Plots; #theme(:juno)
     using Catalyst
-    using DifferentialEquations
+    using DifferentialEquations, ModelingToolkit
     using Statistics
     using Peaks
     using FindPeaks1D
@@ -55,8 +55,17 @@ end
 # infologger = ConsoleLogger(stderr, Logging.Info)
 # global_logger(infologger)
 
+tspan = (0., 2000.0)
 fullrn = make_fullrn()
 ogprob = ODEProblem(fullrn, [], (0.,2000.0), [])
+
+de = modelingtoolkitize(ogprob)
+
+ogprobjac = ODEProblem(de, [], tspan, jac=true)
+
+
+
+
 new_u0 = ogprob.u0 .* 10
 ogprob = remake(ogprob, u0 = new_u0)
 # @benchmark solve($ogprob, saveat = 0.1, save_idxs = 1)
@@ -83,13 +92,13 @@ descend_code_warntype(testfunc, (ODEProblem,))
 
 
 #* Optimization of parameters to produce data for CSV
-param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
+param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e2, 1e5))
 
 
 
 
 # Modification to make_fitness_function_with_fixed_inputs function
-function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}; fitidx=1)
+function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}; fitidx = 4)
     function fitness_function(input::Vector{Float64})
         # Create a new input vector that includes the fixed inputs.
         new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
@@ -108,7 +117,7 @@ function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEPr
             end
         end
 
-        return evalfunc(new_input, prob; idx=fitidx)
+        return evalfunc(new_input, prob; idx = fitidx)
     end
     return fitness_function
 end
@@ -117,7 +126,7 @@ end
 
 
 #* Modification to fixed_triplet_csv_maker function
-function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; rangelength = 4, fitidx = 1) 
+function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; rangelength = 4, fitidx = 4) 
     variable_constraints = deepcopy(constraints)
     fixedtrip = [x for x in variable_constraints.ranges if x.name == param1 || x.name == param2 || x.name == param3]
     filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.ranges)
@@ -149,26 +158,27 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 fixed_values = [val1, val2, val3]
                 @info fixed_values
                 make_fitness_function_closure(evalfunc,prob; fitidx) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs; fitidx)
-                oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5, fitidx=fitidx) 
-                num_oscillatory_points = length(oscillatory_points_df.ind)
+                oscillatory_points_results = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5, fitidx=fitidx) 
+                num_oscillatory_points = length(oscillatory_points_results.population)
 
                 if iszero(num_oscillatory_points)
                     results_df[i, :] = (val1, val2, val3, 0, NaN, NaN, NaN, NaN, NaN, NaN)
                 else
-                    filteredper = filter(x -> x > 0.0, oscillatory_points_df.per)
-                    average_period::Float64 = mean(oscillatory_points_df.per)
-                    maximum_period::Float64 = maximum(filteredper; init=0.0)
-                    minimum_period::Float64 = minimum(filteredper; init=0.0)
+                    # filteredper = filter(x -> x > 0.0, oscillatory_points_df.periods)
+                    average_period::Float64 = mean(oscillatory_points_results.periods)
+                    maximum_period::Float64 = maximum(oscillatory_points_results.periods; init=0.0)
+                    minimum_period::Float64 = minimum(oscillatory_points_results.periods; init=0.0)
 
 
-                    filteredamp = filter(x -> x > 0.0, oscillatory_points_df.amp)
-                    average_amplitude::Float64 = mean(oscillatory_points_df.amp)
-                    maximum_amplitude::Float64 = maximum(filteredamp; init=0.0)
-                    minimum_amplitude::Float64 = minimum(filteredamp; init=0.0)
+                    # filteredamp = filter(x -> x > 0.0, oscillatory_points_df.amp)
+                    average_amplitude::Float64 = mean(oscillatory_points_results.amplitudes)
+                    maximum_amplitude::Float64 = maximum(oscillatory_points_results.amplitudes; init=0.0)
+                    minimum_amplitude::Float64 = minimum(oscillatory_points_results.amplitudes; init=0.0)
     
                     results_df[i, :] = (val1, val2, val3, num_oscillatory_points, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude)
                 
                     #* insert the fixed params into each ind of oscillatory_points_df
+                    oscillatory_points_df = make_df(oscillatory_points_results)
                     for ind in oscillatory_points_df.ind
                         for (j,fixedidx) in enumerate(fixedtrip_idxs)
                             if fixedidx <= length(ind)
@@ -194,7 +204,7 @@ end
 
 param_triplet = ["kcat1", "kcat7", "DF"]
 
-results_df = fixed_triplet_csv_maker(param_triplet..., param_constraints, ogprob)
+results_df = fixed_triplet_csv_maker(param_triplet..., param_constraints, ogprobjac)
 unique(results_df, :fit)
 
 CSV.write("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVs/fixed_triplet_results-$(param_triplet[1]*param_triplet[2]*param_triplet[3]).csv", results_df)
@@ -208,7 +218,7 @@ firstka2idx = findfirst(x -> x[1] == "ka2", param_triplets)
 
 for triplet in param_triplets
     @info triplet
-    results_df = fixed_triplet_csv_maker(triplet..., param_constraints, ogprob; fitidx=4)
+    results_df = fixed_triplet_csv_maker(triplet..., param_constraints, ogprobjac; fitidx=4)
     CSV.write("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVs/fixed_triplet_results-$(triplet[1]*triplet[2]*triplet[3]).csv", results_df)
 end
 
