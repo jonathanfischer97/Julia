@@ -286,7 +286,8 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     # num_oscillatory = sum([gen.metadata["num_oscillatory"] for gen in result.trace[2:end]])
 
     BLAS.set_num_threads(blas_threads)
-    return GAResults(result)
+    # return result
+    return GAResults(result, length(ga_problem.constraints.ranges))
     # return trace_to_df(result)
 end
 #> END
@@ -299,18 +300,26 @@ struct GAResults
     amplitudes::Vector{Float64}
 end
 
-function GAResults(result::Evolutionary.EvolutionaryOptimizationResults)
+function GAResults(result::Evolutionary.EvolutionaryOptimizationResults, indlength::Int = 13)
     numpoints = sum(length, (gen.metadata["fitvals"] for gen in result.trace))
-    population = []#Vector{Vector{Float64}}(undef, numpoints)
-    fitvals = []#Vector{Float64}(undef, numpoints)
-    periods = [] #Vector{Float64}(undef, numpoints)
-    amplitudes = []#Vector{Float64}(undef, numpoints)
+    population = [Vector{Float64}(undef, indlength) for i in 1:numpoints]
+    fitvals = Vector{Float64}(undef, numpoints)
+    periods = Vector{Float64}(undef, numpoints)
+    amplitudes = Vector{Float64}(undef, numpoints)
 
+    startidx = 1
     for gen in result.trace
-        push!(population, gen.metadata["population"]...)
-        push!(fitvals, gen.metadata["fitvals"]...)
-        push!(periods, gen.metadata["periods"]...)
-        push!(amplitudes, gen.metadata["amplitudes"]...)
+        endidx = startidx + length(gen.metadata["population"]) - 1
+        @info startidx, endidx
+        # push!(population, gen.metadata["population"]...)
+        population[startidx:endidx] .= gen.metadata["population"]
+        # push!(fitvals, gen.metadata["fitvals"]...)
+        fitvals[startidx:endidx] .= gen.metadata["fitvals"]
+        # push!(periods, gen.metadata["periods"]...)
+        periods[startidx:endidx] .= gen.metadata["periods"]
+        # push!(amplitudes, gen.metadata["amplitudes"]...)
+        amplitudes[startidx:endidx] .= gen.metadata["amplitudes"]
+        startidx = endidx + 1
     end
     return GAResults(result.trace, population, fitvals, periods, amplitudes)
 end
@@ -347,21 +356,34 @@ end
 
 """Splits ind column into separate columns for each parameter, adds initial conditions for writing DataFrame to CSV"""
 function split_dataframe!(df, prob)
-
     paramsymbols = [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka4,:kb4,:ka7,:kb7,:kcat7,:DF]
+    
+    if length(df.ind[1]) > 4
 
-    #* Split ind column into separate columns for each parameter
-    for (i,param) in enumerate(paramsymbols)
-        df[!, param] .= [x[i] for x in df.ind]
+        #* Split ind column into separate columns for each parameter
+        for (i,param) in enumerate(paramsymbols)
+            df[!, param] .= [x[i] for x in df.ind]
+        end
+
+        select!(df, Not(:ind))
+
+        #* Add initial conditions
+        df.L .= prob.u0[1]
+        df.K .= prob.u0[2]
+        df.P .= prob.u0[3]
+        df.A .= prob.u0[4]
+    else
+        concsymbols = [:L,:K,:P,:A]
+        for (i,conc) in enumerate(concsymbols)
+            df[!, conc] .= [x[i] for x in df.ind]
+        end
+        select!(df, Not(:ind))
+
+        #* Add parameters
+        for (i,param) in paramsymbols
+            df[!, param] .= prob.p[i]
+        end
     end
-
-    select!(df, Not(:ind))
-
-    #* Add initial conditions
-    df.L .= prob.u0[1]
-    df.K .= prob.u0[2]
-    df.P .= prob.u0[3]
-    df.A .= prob.u0[4]
 end
 
 

@@ -1,6 +1,7 @@
 using DifferentialEquations
 using StaticArrays
 using BenchmarkTools, Profile
+using ModelingToolkit
 
 function fullmodel_ode!(du, u, p, t)
     L, K, P, A, Lp, LpA, LK, LpP, LpAK, LpAP, LpAKL, LpAPLp, AK, AP, AKL, APLp = u #initial conditions
@@ -129,3 +130,14 @@ odeprob = ODEProblem(fullmodel_ode!, u0, tspan, p)
 # @benchmark solve($odeprob, saveat=0.1, save_idxs=1)
 # @benchmark solve($odeprobstatic, saveat=0.1, save_idxs=1)
 # @benchmark solve($fullprob, saveat=0.1, save_idxs=1)
+
+
+#* Testing auto jacobian 
+fullrn = make_fullrn()
+fullprob = ODEProblem(fullrn, [], tspan, [])
+de = modelingtoolkitize(fullprob)
+
+fullprobjac = ODEProblem(de, [], tspan, jac=true)
+
+@btime solve($fullprob)
+@btime solve($fullprobjac)

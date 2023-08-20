@@ -28,7 +28,7 @@ Evolutionary.minimizer(s::CustomGAState) = s.fittestInd #return the fittest indi
 
 """Trace override function"""
 function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population::Vector{Vector{Float64}}, method::GA, options) 
-    oscillatory_population_idxs = findall(fit -> fit != 0.0, state.fitvals) #find the indices of the oscillatory individuals
+    oscillatory_population_idxs = findall(fit -> fit < 0.0, state.fitvals) #find the indices of the oscillatory individuals
     # @assert length(population) == length(state.fitvals) "$(length(population)) != $(length(state.fitvals))"
     # record["staterecord"] = [(ind=population[i], fit=state.fitvals[i], per=state.periods[i], amp=state.amplitudes[i]) for i in oscillatory_population_idxs]
     record["population"] = deepcopy(population[oscillatory_population_idxs])

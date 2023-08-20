@@ -2,7 +2,7 @@ begin
     using Plots; #theme(:juno)
     # using Compose
     using Catalyst
-    using DifferentialEquations
+    using DifferentialEquations, ModelingToolkit
     using Statistics
     using Peaks
     using FindPeaks1D
@@ -56,19 +56,32 @@ end
 # infologger = ConsoleLogger(stderr, Logging.Info)
 # global_logger(infologger)
 
+tspan = (0., 2000.0)
 fullrn = make_fullrn()
-ogprob = ODEProblem(fullrn, [], (0.,2000.0), [])
-ogsol = solve(ogprob, saveat=0.1)
+ogprob = ODEProblem(fullrn, [], tspan, [])
+de = modelingtoolkitize(ogprob)
 
-fftdata = getFrequencies(ogsol[1,:])
-cld(length(fftdata), 1000)
-fft_peakindexes, fft_peakvals = findmaxima(fftdata,1) #* get the indexes of the peaks in the fft
-fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 0.0, distance = 1) #* get the indexes of the peaks in the fft
+ogprobjac = ODEProblem(de, [], tspan, [], jac=true)
+
+@btime solve(ogprob, saveat=0.1, save_idxs=4)
+@btime solve(ogprobjac, saveat=0.1, save_idxs=4)
+
+
+
+# ogsol = solve(ogprob, saveat=0.1, save_idxs=4)
+
+# fftdata = getFrequencies(ogsol[1,:])
+# frequencies_per_minute!(ogsol.t, fftdata)
+# fftdata
+
+# cld(length(fftdata), 1000)
+# fft_peakindexes, fft_peakvals = findmaxima(fftdata,1) #* get the indexes of the peaks in the fft
+# fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 0.0, distance = 1) #* get the indexes of the peaks in the fft
 
 param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
 
 # Modification to make_fitness_function_with_fixed_inputs function
-function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}; fitidx = 1)
+function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}; fitidx = 4)
     function fitness_function(input::Vector{Float64})
         # Create a new input vector that includes the fixed inputs.
         new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
@@ -95,6 +108,7 @@ end
 
 
 function test_fixedparam(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; fixed_values = [0.001, 0.01, 0.001])
+    Random.seed!(1234)
     variable_constraints = deepcopy(constraints)
     # fixedtrip = [x for x in variable_constraints.ranges if x.name == param1 || x.name == param2 || x.name == param3]
     filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.ranges)
@@ -102,10 +116,10 @@ function test_fixedparam(param1::String, param2::String, param3::String, constra
     fixed_ga_problem = GAProblem(variable_constraints, prob)
     fixedtrip_idxs = find_indices(param1, param2, param3, constraints.ranges) 
 
-    make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs)
+    make_fitness_function_closure(evalfunc,prob; fitidx) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs; fitidx)
 
 
-    oscillatory_points_df = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 5000, iterations = 5) 
+    oscillatory_points_df = make_df(run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 30000, iterations = 5)) 
     num_oscillatory_points = length(oscillatory_points_df.ind)
     @info num_oscillatory_points
 
@@ -126,41 +140,29 @@ function test_fixedparam(param1::String, param2::String, param3::String, constra
 end
 
 param_triplet = ["ka2", "kb2", "ka4"]
-testfixed_df = test_fixedparam(param_triplet..., param_constraints, ogprob)
-CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", testfixed_df)
+testfixed_df = test_fixedparam(param_triplet..., param_constraints, ogprobjac; fixed_values = [0.01,0.01,0.01])
+# CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", testfixed_df)
 
 
-function plot_everything(df::DataFrame, prob::ODEProblem; setnum::Int = 1)
-    progbar = Progress(cld(nrow(df),10); desc = "Plotting:")
-    path = mkpath("OscillatorPaper/FigureGenerationScripts/TestbenchPlots/Set$(setnum)")
-    CSV.write(path*"/Set$(setnum).csv", df)
+plot_everything(testfixed_df, ogprob; setnum=11, label="Fixed-ka2-kb2-ka4", jump=10)
 
-    for i in 1:10:nrow(df)
-        p = plotboth(i, df, prob)
-        savefig(p, path*"/plot_$(i).png")
-        next!(progbar)
-    end
-end
 
-plot_everything(testfixed_df, ogprob)
+
 
 
 plotboth(row) = plotboth(row, testfixed_df, ogprob)
 plotboth(1)
 
-for i in 1:50:nrow(testfixed_df)
-    plotboth(i)
-end
-
 test_fitness(row) = eval_param_fitness(testfixed_df.ind[row], ogprob)
 test_fitness(2)
 #########################
 
-#* Make A oscillate instead of L
-#* Find out why frequencies are so low sometimes
-#* Tune the STD window and peakfinding to discriminate better
-#* Add back in trimsol maybe 
-#* Verify that normalization isn't messing up evals, signal strength
+#* OBSERVATIONS FROM THE TESTBENCH
+#* No false positives or negatives currently with no fixed param GA optimization
+#* Bias towards high frequency I think
+#* Last half STD check seems necessary, not sure about trim
+#* Not much difference between Rosenbrock23 and Tsit5, or dt = 0.1 and dt = 0.01
+#* Peak height threshold seems to be important
 
 
 #< Regular GA testbench
@@ -215,16 +217,11 @@ function testbench(param_constraints::ConstraintType, prob::ODEProblem)
     return test_results_df#, avg_fitness, avg_period, avg_amplitude
 end
 
-#* now testing 0.01 dt and Rosenbrock23 for the ringing solutions
+#* now testing Rosenbrock23 and new peak finder in getPerAmp for the ringing solutions
 @code_warntype testbench(param_constraints, ogprob)
-test_results = testbench(param_constraints, ogprob)
+test_results_df = testbench(param_constraints, ogprobjac)
 
-plot_everything(test_results, ogprob; setnum=9)
-
-CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", test_results)
+plot_everything(test_results_df, ogprob; setnum=10, label="PeriodRewardlog10", jump = 10)
 
 
-test_gaproblem = GAProblem(param_constraints, ogprob)
-garesult = run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4)
 
-gatrace = garesult.trace
