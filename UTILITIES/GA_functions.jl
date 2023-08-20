@@ -310,7 +310,7 @@ function GAResults(result::Evolutionary.EvolutionaryOptimizationResults, indleng
     startidx = 1
     for gen in result.trace
         endidx = startidx + length(gen.metadata["population"]) - 1
-        @info startidx, endidx
+        # @info startidx, endidx
         # push!(population, gen.metadata["population"]...)
         population[startidx:endidx] .= gen.metadata["population"]
         # push!(fitvals, gen.metadata["fitvals"]...)
