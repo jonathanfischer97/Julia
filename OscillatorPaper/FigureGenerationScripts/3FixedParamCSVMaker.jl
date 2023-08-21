@@ -248,7 +248,7 @@ end
 
 # @code_warntype run_all_triplets(param_constraints, ogprobjac)
 
-run_all_triplets(param_constraints, ogprobjac; startparam="ka3", rangelength=4, fitidx=4)
+run_all_triplets(param_constraints, ogprobjac; startparam="kb3", rangelength=4, fitidx=4)
 
 # param_names = ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "DF"]
 # param_triplets = collect(combinations(param_names, 3))

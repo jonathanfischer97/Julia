@@ -76,14 +76,14 @@ end
 """Calculates the period and amplitude of each individual in the population"""
 function getPerAmp(sol::ODESolution, idx::Int = 1)
 
-    indx_max, maxprops = myfindpeaks1d(sol[idx,:]; height = 1e-2, distance = 10)
+    indx_max, maxprops = findpeaks1d(sol[idx,:]; height = 1e-2, distance = 10)
     return getPerAmp(sol, indx_max, maxprops, idx)
 end
 
 """Calculates the period and amplitude of each individual in the population"""
 function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, maxprops::Dict{String, Any}, idx::Int = 1)
     #* Find peaks of the minima too 
-    indx_min, _ = myfindpeaks1d(flip_about_mean(sol[idx,:]); height = 1e-2, distance = 10)
+    indx_min, _ = findpeaks1d(flip_about_mean(sol[idx,:]); height = 1e-2, distance = 10)
 
     #* Calculate amplitudes and periods
     vals_max = maxprops["peak_heights"]
@@ -120,7 +120,7 @@ function CostFunction(sol::ODESolution; idx::Int = 1)::Vector{Float64}
     tstart = cld(length(sol.t),10) 
     trimsol = sol[tstart:end] 
 
-    indx_max, maxprops = myfindpeaks1d(trimsol[idx,:]; height = 1e-2, distance = 10)
+    indx_max, maxprops = findpeaks1d(trimsol[idx,:]; height = 1e-2, distance = 10)
     if length(indx_max) < 2
         return [0.0, 0.0, 0.0]
     end
@@ -131,7 +131,7 @@ function CostFunction(sol::ODESolution; idx::Int = 1)::Vector{Float64}
     #* Normalize the solution array. WARNING: solarray is modified after this line
     normalize_time_series!(fftData)
 
-    fft_peakindexes, peakprops = myfindpeaks1d(fftData; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
+    fft_peakindexes, peakprops = findpeaks1d(fftData; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
     # @info length(fft_peakindexes)
     if length(fft_peakindexes) < 2 #* if there is no signal in the frequency domain, return 0.0s
         return [0.0, 0.0, 0.0]
