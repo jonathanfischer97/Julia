@@ -526,6 +526,8 @@ plot(testsol)
 #* Idea for FFT: downsampling, or smoothing
 #* Look into the recombine, duplicates. More duplicates with each generation 
 #* Rerun for twice as long if 2 index check is failed in getPerAmp
+#* Fix DF in the hundreds
+#* optimize initial conditions too 
 
 
 
