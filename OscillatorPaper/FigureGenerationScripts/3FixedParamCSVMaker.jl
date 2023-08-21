@@ -178,7 +178,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 make_fitness_function_closure(evalfunc,prob; fitidx) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs; fitidx)
 
                 Random.seed!(1234)
-                oscillatory_points_results = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5, fitidx=fitidx) 
+                oscillatory_points_results = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 5000, iterations = 5, fitidx=fitidx) 
                 num_oscillatory_points = length(oscillatory_points_results.population)
 
                 #* if there are no oscillatory points, save the results to the results_df and continue
@@ -189,7 +189,6 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                     average_period::Float64 = mean(oscillatory_points_results.periods)
                     maximum_period::Float64 = maximum(oscillatory_points_results.periods; init=0.0)
                     minimum_period::Float64 = minimum(oscillatory_points_results.periods; init=0.0)
-
 
                     # filteredamp = filter(x -> x > 0.0, oscillatory_points_df.amp)
                     average_amplitude::Float64 = mean(oscillatory_points_results.amplitudes)
@@ -212,7 +211,6 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                             end
                         end
                     end
-                    # return oscillatory_points_df
                     #* split parameter values into separate columns and add initial conditions
                     split_dataframe!(oscillatory_points_df, prob)
                     CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
@@ -225,7 +223,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
     return results_df
 end
 
-param_triplet = ["ka1", "kb1", "kb4"]
+param_triplet = ["kcat1", "kcat7", "DF"]
 
 results_df = fixed_triplet_csv_maker(param_triplet..., param_constraints, ogprobjac)
 

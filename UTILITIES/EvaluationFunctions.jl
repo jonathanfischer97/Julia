@@ -19,7 +19,6 @@
 #     return 2 * sum_diff # multiply by 2 to account for the fact that we're only summing half of the differences
 # end
 
-
 """
 # Module holding all evaluation functions for assesing oscillatory solutions
 """
@@ -31,8 +30,6 @@
 # #* Exported functions #####
 # export getPerAmp, CostFunction, eval_ic_fitness, eval_param_fitness
 # #*#######
-
-
 
 # """Get summed average difference of peaks in the frequency domain"""
 # function getDifAvg(peakvals::Vector{Float64}) #todo: compressed the range of values
@@ -79,14 +76,14 @@ end
 """Calculates the period and amplitude of each individual in the population"""
 function getPerAmp(sol::ODESolution, idx::Int = 1)
 
-    indx_max, maxprops = findpeaks1d(sol[idx,:]; height = 1e-2, distance = 10)
+    indx_max, maxprops = myfindpeaks1d(sol[idx,:]; height = 1e-2, distance = 10)
     return getPerAmp(sol, indx_max, maxprops, idx)
 end
 
 """Calculates the period and amplitude of each individual in the population"""
 function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, maxprops::Dict{String, Any}, idx::Int = 1)
     #* Find peaks of the minima too 
-    indx_min, _ = findpeaks1d(flip_about_mean(sol[idx,:]); height = 1e-2, distance = 10)
+    indx_min, _ = myfindpeaks1d(flip_about_mean(sol[idx,:]); height = 1e-2, distance = 10)
 
     #* Calculate amplitudes and periods
     vals_max = maxprops["peak_heights"]
@@ -123,7 +120,7 @@ function CostFunction(sol::ODESolution; idx::Int = 1)::Vector{Float64}
     tstart = cld(length(sol.t),10) 
     trimsol = sol[tstart:end] 
 
-    indx_max, maxprops = findpeaks1d(trimsol[idx,:]; height = 1e-2, distance = 10)
+    indx_max, maxprops = myfindpeaks1d(trimsol[idx,:]; height = 1e-2, distance = 10)
     if length(indx_max) < 2
         return [0.0, 0.0, 0.0]
     end
@@ -134,7 +131,7 @@ function CostFunction(sol::ODESolution; idx::Int = 1)::Vector{Float64}
     #* Normalize the solution array. WARNING: solarray is modified after this line
     normalize_time_series!(fftData)
 
-    fft_peakindexes, peakprops = findpeaks1d(fftData; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
+    fft_peakindexes, peakprops = myfindpeaks1d(fftData; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
     # @info length(fft_peakindexes)
     if length(fft_peakindexes) < 2 #* if there is no signal in the frequency domain, return 0.0s
         return [0.0, 0.0, 0.0]
@@ -181,3 +178,91 @@ function solve_for_fitness_peramp(prob::ODEProblem, idx::Int = 4)
 end
 
 #>MODULE END
+
+#< CUSTOM PEAK FINDER
+"""
+Struct to hold the properties of the peaks found by the peak finder
+"""
+mutable struct PeakProperties
+    peak_heights::Vector{Float64}
+    prominences::Vector{Float64}
+    leftbases::Vector{Int}
+    rightbases::Vector{Int}
+    widths::Vector{Float64}
+    widthheights::Vector{Float64}
+    leftips::Vector{Float64}
+    rightips::Vector{Float64}
+end
+
+function filterproperties!(properties::PeakProperties, keep::BitVector)
+    properties.peak_heights = properties.peak_heights[keep]
+    properties.prominences = properties.prominences[keep]
+    properties.leftbases = properties.leftbases[keep]
+    properties.rightbases = properties.rightbases[keep]
+    properties.widths = properties.widths[keep]
+    properties.widthheights = properties.widthheights[keep]
+    properties.leftips = properties.leftips[keep]
+    properties.rightips = properties.rightips[keep]
+end
+
+function myfindpeaks1d(x::AbstractVector{T};
+                     height::Union{Nothing,<:Real,NTuple{2,<:Real}}=nothing,
+                     distance::Union{Nothing,I}=nothing,
+                     prominence::Union{Nothing,Real,NTuple{2,Real}}=nothing,
+                     width::Union{Nothing,Real,NTuple{2,Real}}=nothing,
+                     wlen::Union{Nothing,I}=nothing,
+                     relheight::Real=0.5) where {T<:Real,I<:Integer}
+    pkindices, leftedges, rightedges = FindPeaks1D.localmaxima1d(x)
+    properties = PeakProperties(Vector{Float64}[], Vector{Float64}[], Vector{Int}[], Vector{Int}[], Vector{Float64}[], Vector{Float64}[], Vector{Float64}[], Vector{Float64}[])
+    isempty(pkindices) && (return pkindices, properties)
+
+    if !isnothing(height)
+        pkheights = x[pkindices]
+        hmin, hmax = height isa Number ? (height, nothing) : height
+        keepheight = FindPeaks1D.selectbyproperty(pkheights, hmin, hmax)
+        pkindices = pkindices[keepheight]
+        properties.peak_heights = pkheights
+        filterproperties!(properties, keepheight)
+    end
+
+    if !isnothing(distance)
+        keepdist = FindPeaks1D.selectbypeakdistance(pkindices, x[pkindices], distance)
+        pkindices = pkindices[keepdist]
+        filterproperties!(properties, keepdist)
+    end
+
+    if !isnothing(prominence) || !isnothing(width)
+        prominences, leftbases, rightbases = peakprominences1d(x, pkindices, wlen)
+        properties.prominences = prominences
+        properties.leftbases = leftbases
+        properties.rightbases = rightbases
+    end
+
+    if !isnothing(prominence)
+        pmin, pmax = prominence isa Number ? (prominence, nothing) : prominence
+        keepprom = FindPeaks1D.selectbyproperty(prominences, pmin, pmax)
+        pkindices = pkindices[keepprom]
+        filterproperties!(properties, keepprom)
+    end
+
+    if !isnothing(width)
+        widths, widthheights, leftips, rightips = peakwidths1d(x, pkindices, relheight, properties.prominences, properties.leftbases, properties.rightbases)
+        properties.widths = widths
+        properties.widthheights = widthheights
+        properties.leftips = leftips
+        properties.rightips = rightips
+        wmin, wmax = width isa Number ? (width, nothing) : width
+        keepwidth = FindPeaks1D.selectbyproperty(widths, wmin, wmax)
+        pkindices = pkindices[keepwidth]
+        filterproperties!(properties, keepwidth)
+    end
+
+    pkindices, properties
+end
+
+
+
+
+
+
+

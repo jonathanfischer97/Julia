@@ -158,7 +158,7 @@ function test_fixedparam(param1::String, param2::String, param3::String, constra
 end
 
 param_triplet = ["ka2", "kb2", "ka4"]
-testfixed_df = test_fixedparam(param_triplet..., param_constraints, ogprobjac; fixed_values = [0.01,0.001,0.01])
+testfixed_df = test_fixedparam(param_triplet..., param_constraints, ogprobjac; fixed_values = [0.01,0.01,0.01])
 # CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", testfixed_df)
 
 
