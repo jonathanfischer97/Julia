@@ -58,7 +58,7 @@ end
 
 tspan = (0., 2000.0)
 fullrn = make_fullrn()
-ogprob = ODEProblem(fullrn, [], tspan, [])
+ogprob = ODEProblem(fullrn, [:L => 10.0], tspan, [])
 de = modelingtoolkitize(ogprob)
 
 ogprobjac = ODEProblem(de, [], tspan, jac=true)
