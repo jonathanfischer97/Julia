@@ -56,7 +56,8 @@ end
 # global_logger(infologger)
 
 tspan = (0., 2000.0)
-fullrn = make_fullrn()
+fullrn = make_fullrn(;defvars = [:L => 10.0, :K => 0.5, :P => 0.3, :A => 2.0, :Lp => 0.0, :LpA => 0.0, :LK => 0.0, 
+:LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, :AKL => 0.0, :APLp => 0.0])
 ogprob = ODEProblem(fullrn, [], tspan, [])
 
 de = modelingtoolkitize(ogprob)
@@ -163,7 +164,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
 
     
     #* make folder to hold all the csv files 
-    path = mkpath("OscillatorPaper/FigureGenerationScripts/3FixedCSVRawSets/$(param1)_$(param2)_$(param3)")
+    path = mkpath("OscillatorPaper/FigureGenerationScripts/3FixedCSVRawSetsExcessL/$(param1)_$(param2)_$(param3)")
     i = 1
 
     #* make progress bar 
@@ -178,7 +179,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 make_fitness_function_closure(evalfunc,prob; fitidx) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs; fitidx)
 
                 Random.seed!(1234)
-                oscillatory_points_results = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 5000, iterations = 5, fitidx=fitidx) 
+                oscillatory_points_results = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5, fitidx=fitidx) 
                 num_oscillatory_points = length(oscillatory_points_results.population)
 
                 #* if there are no oscillatory points, save the results to the results_df and continue
@@ -241,14 +242,14 @@ function run_all_triplets(param_constraints::ConstraintType, prob::ODEProblem; s
     for triplet in param_triplets[startparam_idx:end]
         @info triplet
         results_df = fixed_triplet_csv_maker(triplet..., param_constraints, prob; rangelength=rangelength, fitidx=fitidx)
-        CSV.write("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVs/fixed_triplet_results-$(triplet[1]*triplet[2]*triplet[3]).csv", results_df)
+        CSV.write("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVsExcessL/fixed_triplet_results-$(triplet[1]*triplet[2]*triplet[3]).csv", results_df)
         # GC.gc(full=false)
     end
 end
 
 # @code_warntype run_all_triplets(param_constraints, ogprobjac)
 
-run_all_triplets(param_constraints, ogprobjac; startparam="kb3", rangelength=4, fitidx=4)
+run_all_triplets(param_constraints, ogprobjac; startparam="ka1", rangelength=4, fitidx=4)
 
 # param_names = ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "DF"]
 # param_triplets = collect(combinations(param_names, 3))
