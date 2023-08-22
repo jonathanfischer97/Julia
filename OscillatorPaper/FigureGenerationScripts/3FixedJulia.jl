@@ -7,10 +7,11 @@ begin
     # using CairoMakie
 end
 
-pnames = ["kb3","kb4","DF"]
+pnames = ["ka1","kb1","kcat1"]
 
 # load CSV into DataFrame 
 df = CSV.read("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVs/fixed_triplet_results-$(pnames[1])$(pnames[2])$(pnames[3]).csv", DataFrame)
+excessL_df = CSV.read("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVsExcessL/fixed_triplet_results-$(pnames[1])$(pnames[2])$(pnames[3]).csv", DataFrame)
 
 
 
@@ -38,9 +39,9 @@ norm_colors = (colors .- minimum(colors)) ./ (maximum(colors) - minimum(colors))
 
 
 #< GLMakie plots
-using Makie
+# using Makie
 
-function scatters_in_3D(df; angle=30)
+function scatters_in_3D(df; fig = Figure(resolution=(1600, 1000)),  angle=30)
     pnames = names(df)[1:3]
     xlog = log10.(df[:, pnames[1]])
     ylog = log10.(df[:, pnames[2]])
@@ -65,8 +66,8 @@ function scatters_in_3D(df; angle=30)
     norm_periods[nonan_indices] = (nonan_periods .- minimum(nonan_periods)) ./ (maximum(nonan_periods) - minimum(nonan_periods)) 
 
     # Create the figure and axis
-    fig = Figure(resolution=(1000, 1000))
-    ax = Axis3(fig[1:3,1:3]; aspect=:data, perspectiveness=0.5, title="3 Fixed Parameter Oscillatory Regions", xlabel = pnames[1], ylabel = pnames[2], zlabel = pnames[3])
+    
+    ax = Axis3(fig[1:2,3]; aspect=:data, perspectiveness=0.5, title="3 Fixed Parameter Oscillatory Regions Excess L", xlabel = pnames[1], ylabel = pnames[2], zlabel = pnames[3])
 
     # Scatter plot for non-NaN values
     hm = meshscatter!(ax, xlog, ylog, zlog; markersize=sizes, ssao=true, color=df.average_period, colormap=:thermal, transparency=false, nan_color=:gray,
@@ -80,7 +81,7 @@ function scatters_in_3D(df; angle=30)
     # meshscatter!(ax3, x[nan_indices], y[nan_indices], z[nan_indices]; markersize=sizes[nan_indices], color=:gray)
 
     # Colorbar and labels
-    Colorbar(fig[2, 4], hm, label="Period (s)", height=Relative(2.0))
+    # Colorbar(fig[2, 4], hm, label="Period (s)", height=Relative(2.0))
     colgap!(fig.layout, 5)
     # xlabel!(ax3, "log10(kb3)")
     # ylabel!(ax3, "log10(kb4)")
@@ -90,7 +91,13 @@ function scatters_in_3D(df; angle=30)
     fig
 end
 
-scatters_in_3D(df)
+fig = scatters_in_3D(df)
+
+fig2 = scatters_in_3D(excessL_df; fig=fig)
+
+
+GLMakie.save("3FixedParameterOscillatoryRegionsExcessLCompare.png", fig2)
+
 
 
 function scatters_in_3D(x, y, z, sizes, norm_colors)
