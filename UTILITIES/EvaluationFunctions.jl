@@ -164,6 +164,13 @@ function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem; 
     return solve_for_fitness_peramp(new_prob, idx)
 end
 
+"""Evaluate the fitness of an individual with new initial conditions and new parameters"""
+function eval_both_fitness(initial_conditions::Vector{Float64}, params::Vector{Float64}, prob::ODEProblem; idx::Int = 4)
+    #* remake with new initial conditions
+    new_prob = remake(prob, u0=[initial_conditions; zeros(length(prob.u0)-length(initial_conditions))])
+    return solve_for_fitness_peramp(new_prob, idx)
+end
+
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
 function solve_for_fitness_peramp(prob::ODEProblem, idx::Int = 4)
 
