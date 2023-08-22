@@ -24,9 +24,9 @@ function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population
     oscillatory_population_idxs = findall(fit -> fit < 0.0, state.fitvals) #find the indices of the oscillatory individuals
 
     record["population"] = deepcopy(population[oscillatory_population_idxs])
-    record["fitvals"] = deepcopy(state.fitvals[oscillatory_population_idxs])
-    record["periods"] = deepcopy(state.periods[oscillatory_population_idxs])
-    record["amplitudes"] = deepcopy(state.amplitudes[oscillatory_population_idxs])
+    record["fitvals"] = copy(state.fitvals[oscillatory_population_idxs])
+    record["periods"] = copy(state.periods[oscillatory_population_idxs])
+    record["amplitudes"] = copy(state.amplitudes[oscillatory_population_idxs])
 
     # record["population"] = deepcopy(population)
     # record["fitvals"] = deepcopy(state.fitvals)
@@ -34,7 +34,7 @@ function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population
     # record["amplitudes"] = deepcopy(state.amplitudes)
 
 end
-
+copy()
 
 """Show override function to prevent printing large arrays"""
 function Evolutionary.show(io::IO, t::Evolutionary.OptimizationTraceRecord)
