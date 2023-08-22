@@ -36,7 +36,8 @@ sizes = (nonan_amplitudes .- minimum(nonan_amplitudes)) ./ (maximum(nonan_amplit
 colors = nonan_periods
 norm_colors = (colors .- minimum(colors)) ./ (maximum(colors) - minimum(colors))
 
-
+numpoints = df.num_oscillatory_points
+sizes = (numpoints .- minimum(numpoints)) ./ (maximum(numpoints) - minimum(numpoints))
 
 #< GLMakie plots
 # using Makie
@@ -53,12 +54,16 @@ function scatters_in_3D(df; fig = Figure(resolution=(1600, 1000)),  angle=30)
 
     # Identify non-NaN indices and values
     nonan_indices = findall(!isnan, df[:, :average_period])
-    nonan_amplitudes = df[:, :average_amplitude][nonan_indices]
+    # nonan_amplitudes = df[:, :average_amplitude][nonan_indices]
+    nonan_numpoints = df[:, :num_oscillatory_points][nonan_indices]
+
     nonan_periods = df[:, :average_period][nonan_indices]
 
     # Normalize sizes for non-NaN values
     sizes = fill(0.1, size(df, 1))
-    sizes[nonan_indices] = ((nonan_amplitudes .- minimum(nonan_amplitudes)) ./ (maximum(nonan_amplitudes) - minimum(nonan_amplitudes))) ./ 2 
+    # sizes[nonan_indices] = ((nonan_amplitudes .- minimum(nonan_amplitudes)) ./ (maximum(nonan_amplitudes) - minimum(nonan_amplitudes))) ./ 2 
+    sizes[nonan_indices] = ((nonan_numpoints .- minimum(nonan_numpoints)) ./ (maximum(nonan_numpoints) - minimum(nonan_numpoints))) ./ 2 
+
 
     # Normalize periods for non-NaN values
     norm_periods = fill(NaN, size(df, 1))

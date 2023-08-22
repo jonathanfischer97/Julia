@@ -83,7 +83,7 @@ end
 """Calculates the period and amplitude of each individual in the population"""
 function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Float64}, idx::Int = 1)
     #* Find peaks of the minima too 
-    indx_min, vals_min = findextrema(flip_about_mean(sol[idx,:]); height = 1e-2, distance = 10, find_maxima=true)
+    indx_min, vals_min = findextrema(sol[idx,:]; height = 1e-2, distance = 10, find_maxima=false)
 
     #* Calculate amplitudes and periods
     # vals_max = maxprops["peak_heights"]
@@ -165,9 +165,9 @@ function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem; 
 end
 
 """Evaluate the fitness of an individual with new initial conditions and new parameters"""
-function eval_both_fitness(initial_conditions::Vector{Float64}, params::Vector{Float64}, prob::ODEProblem; idx::Int = 4)
+function eval_both_fitness(params::Vector{Float64}, initial_conditions::Vector{Float64}, prob::ODEProblem; idx::Int = 4)
     #* remake with new initial conditions
-    new_prob = remake(prob, u0=[initial_conditions; zeros(length(prob.u0)-length(initial_conditions))])
+    new_prob = remake(prob, p = params, u0=[initial_conditions; zeros(length(prob.u0)-length(initial_conditions))])
     return solve_for_fitness_peramp(new_prob, idx)
 end
 

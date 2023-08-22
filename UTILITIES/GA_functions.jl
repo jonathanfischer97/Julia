@@ -39,6 +39,20 @@ Struct encapsulating initial condition constraints. Each field represents a diff
 mutable struct InitialConditionConstraints <: ConstraintType 
     ranges::Vector{ConstraintRange} 
 end
+
+"""
+    AllConstraints
+
+Struct encapsulating all constraints. Each field represents a different parameter or initial condition, holding a `ConstraintRange` object that defines the valid range for that parameter or initial condition.
+"""
+mutable struct AllConstraints{T} <: ConstraintType
+    paramranges::Vector{ConstraintRange}
+    icranges::Vector{ConstraintRange}
+
+    # function AllConstraints(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints) 
+    #     new{}AllConstraints(paramconstraints.ranges, icconstraints.ranges)
+    # end
+end
 #> END 
 
 
@@ -109,14 +123,14 @@ constraints = define_initialcondition_constraints(
 )
 ```
 """
-function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinaserange = (0.1, 5.0), phosphataserange = (0.1, 5.0), ap2range = (0.1, 10.0),
+function define_initialcondition_constraints(;Lrange = (0.1, 10.0), Krange = (0.1, 5.0), Prange = (0.1, 5.0), Arange = (0.1, 10.0),
                                                 nominalvals = (;L = 3.0, K = 0.5, P = 0.3, A = 2.0)
                                             )
     # Define parameter constraint ranges
-    lipid_min, lipid_max = lipidrange  # uM
-    kinase_min, kinase_max = kinaserange  # uM
-    phosphatase_min, phosphatase_max = phosphataserange # uM
-    ap2_min, ap2_max = ap2range # uM
+    lipid_min, lipid_max = Lrange  # uM
+    kinase_min, kinase_max = Krange  # uM
+    phosphatase_min, phosphatase_max = Prange # uM
+    ap2_min, ap2_max = Arange # uM
 
     return InitialConditionConstraints(
         [
@@ -128,8 +142,13 @@ function define_initialcondition_constraints(;lipidrange = (0.1, 10.0), kinasera
     )
 end
 
-define_initialcondition_constraints(prob::ODEProblem; lipidrange = (0.1, 10.0), kinaserange = (0.1, 5.0), phosphataserange = (0.1, 5.0), ap2range = (0.1, 10.0)) = 
-                                    define_initialcondition_constraints(;lipidrange=lipidrange, kinaserange=kinaserange, phosphataserange= phosphataserange, ap2range=ap2range, nominalvals = prob.u0)
+define_initialcondition_constraints(prob::ODEProblem; Lrange = (0.1, 10.0), Krange = (0.1, 5.0), Prange = (0.1, 5.0), Arange = (0.1, 10.0)) = 
+                                    define_initialcondition_constraints(;Lrange=Lrange, Krange=Krange, Prange= Prange, Arange=Arange, nominalvals = prob.u0[1:4])
+
+
+function AllConstraints(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints) 
+    AllConstraints(paramconstraints.ranges, icconstraints.ranges)
+end
 #> END
 
 
@@ -158,6 +177,10 @@ struct GAProblem{T <: ConstraintType}
 
     function GAProblem(constraints::InitialConditionConstraints, ode_problem::ODEProblem) 
         new{InitialConditionConstraints}(constraints, ode_problem, eval_ic_fitness)
+    end
+
+    function GAProblem(constraints::AllConstraints, ode_problem::ODEProblem) 
+        new{AllConstraints}(constraints, ode_problem, eval_all_fitness)
     end
 end
 

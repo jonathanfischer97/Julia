@@ -34,7 +34,7 @@ function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population
     # record["amplitudes"] = deepcopy(state.amplitudes)
 
 end
-copy()
+
 
 """Show override function to prevent printing large arrays"""
 function Evolutionary.show(io::IO, t::Evolutionary.OptimizationTraceRecord)

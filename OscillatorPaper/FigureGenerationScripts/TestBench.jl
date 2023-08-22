@@ -45,7 +45,7 @@ begin
 
     include("../../UTILITIES/TestBenchPlotUtils.jl")
 
-    include("../../UTILITIES/UnitTools.jl")
+    # include("../../UTILITIES/UnitTools.jl")
 
 
     const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
@@ -58,7 +58,9 @@ end
 
 tspan = (0., 2000.0)
 fullrn = make_fullrn()
-ogprob = ODEProblem(fullrn, [:L => 10.0], tspan, [])
+ogsys = convert(ODESystem, fullrn)
+@unpack L, K, P, A = ogsys
+ogprob = ODEProblem(osys, [:L => 10.0], tspan, [])
 de = modelingtoolkitize(ogprob)
 
 ogprobjac = ODEProblem(de, [], tspan, jac=true)
@@ -66,7 +68,16 @@ ogprobjac = ODEProblem(de, [], tspan, jac=true)
 
 
 
-ogjacsol = solve(ogprobjac, saveat=0.1, save_idxs=4)
+ogjacsol = solve(ogprobjac, saveat=0.1)
+plot(ogjacsol; idxs=[L,A])
+
+maxpeaks = findextrema(ogjacsol[1,:]; height=1e-2, distance=2)
+minpeaks = findextrema(ogjacsol[1,:]; height=-1e-2, distance=2, find_maxima=false)
+minpeaks = findextrema(flip_about_mean(ogjacsol[1,:]); height=-1e-2, distance=2, find_maxima=false)
+
+
+
+
 
 @btime CostFunction($ogjacsol)
 @code_warntype CostFunction(ogjacsol)
@@ -97,6 +108,9 @@ ogjacsol[1:end] .= 0.1
 # fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 0.0, distance = 1) #* get the indexes of the peaks in the fft
 
 param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
+ic_constraints = define_initialcondition_constraints(ogprob; Lrange = (1e-1, 1e2), Krange = (1e-1, 1e2), Prange = (1e-1, 1e2), Arange = (1e-1, 1e2))
+
+allconstraints = AllConstraints(param_constraints.ranges, ic_constraints.ranges)
 
 # Modification to make_fitness_function_with_fixed_inputs function
 function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}; fitidx = 4)
@@ -157,12 +171,12 @@ function test_fixedparam(param1::String, param2::String, param3::String, constra
     return oscillatory_points_df
 end
 
-param_triplet = ["ka2", "kb2", "ka4"]
-testfixed_df = test_fixedparam(param_triplet..., param_constraints, ogprobjac; fixed_values = [0.01,0.01,0.01])
+param_triplet = ["ka1", "kb1", "kcat1"]
+testfixed_df = test_fixedparam(param_triplet..., param_constraints, ogprobjac; fixed_values = [0.001,0.01,1000.])
 # CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", testfixed_df)
 
 
-plot_everything(testfixed_df, ogprob; setnum=11, label="Fixed-ka2-kb2-ka4", jump=10)
+plot_everything(testfixed_df, ogprob; setnum=12, label="Fixed-ka1-kb1-kcat1", jump=100)
 
 
 
