@@ -60,7 +60,7 @@ tspan = (0., 2000.0)
 fullrn = make_fullrn()
 ogsys = convert(ODESystem, fullrn)
 @unpack L, K, P, A = ogsys
-ogprob = ODEProblem(osys, [:L => 10.0], tspan, [])
+ogprob = ODEProblem(ogsys, [:L => 10.0], tspan, [])
 de = modelingtoolkitize(ogprob)
 
 ogprobjac = ODEProblem(de, [], tspan, jac=true)
