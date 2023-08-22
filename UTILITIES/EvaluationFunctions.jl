@@ -83,7 +83,7 @@ end
 """Calculates the period and amplitude of each individual in the population"""
 function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Float64}, idx::Int = 1)
     #* Find peaks of the minima too 
-    indx_min, vals_min = findextrema(sol[idx,:]; height = 1e-2, distance = 10, find_maxima=false)
+    indx_min, vals_min = findextrema(flip_about_mean(sol[idx,:]); height = 1e-2, distance = 10, find_maxima=true)
 
     #* Calculate amplitudes and periods
     # vals_max = maxprops["peak_heights"]
