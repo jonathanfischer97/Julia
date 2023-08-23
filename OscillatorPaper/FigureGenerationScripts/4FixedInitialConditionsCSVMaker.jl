@@ -3,12 +3,12 @@ begin
     using Catalyst
     using DifferentialEquations, ModelingToolkit
     using Statistics
-    using Peaks
-    using FindPeaks1D
+    # using Peaks
+    # using FindPeaks1D
     using Evolutionary, FFTW
     using Random
     using Distributions
-    using DataFrames, DataFrameMacros
+    using DataFrames#, DataFrameMacros
     using CSV
     # using Unitful
     # using Unitful: µM, M, nm, µm, s, μs, Na, L, 𝐍
