@@ -184,7 +184,8 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
             end
         end
     end
-                    
+    CSV.write("./OscillatorPaper/FigureGenerationScripts/4FixedICs.csv", results_df)
+    return results_df                
 end
 
 testranges = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=3)
