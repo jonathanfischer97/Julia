@@ -45,13 +45,13 @@ end
 
 Struct encapsulating all constraints. Each field represents a different parameter or initial condition, holding a `ConstraintRange` object that defines the valid range for that parameter or initial condition.
 """
-mutable struct AllConstraints{T} <: ConstraintType
-    paramranges::Vector{ConstraintRange}
-    icranges::Vector{ConstraintRange}
+mutable struct AllConstraints{T,V} <: ConstraintType where {T,V}
+    paramranges::T
+    icranges::V
 
-    # function AllConstraints(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints) 
-    #     new{}AllConstraints(paramconstraints.ranges, icconstraints.ranges)
-    # end
+    function AllConstraints(paramconstraints, icconstraints) 
+        new(paramconstraints.ranges, icconstraints.ranges)
+    end
 end
 #> END 
 
