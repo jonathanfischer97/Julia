@@ -104,7 +104,14 @@ Plot both the solution and the FFT of a solution from a row of the DataFrame
 """
 function plotboth(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)), fitidx::Int = 4)
 
-        reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row]) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
+        # reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row]) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
+        if length(df.ind[row]) == 4
+                reprob = remake(prob, p = df.ind[row])
+        elseif length(df.ind[row]) == 13
+                reprob = remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
+        else
+                reprob = remake(prob, p = df.ind[row][1:13], u0 = [df.ind[row][14:end]; zeros(length(prob.u0) - length(df.ind[row][14:end]))])
+        end
         sol = solve(reprob, Rosenbrock23(), saveat=0.1, save_idxs=vars)
         cost, per, amp = CostFunction(sol; idx = fitidx)
 

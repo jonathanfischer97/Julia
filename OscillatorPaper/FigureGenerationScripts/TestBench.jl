@@ -69,7 +69,7 @@ ogprobjac = ODEProblem(de, [], tspan, jac=true)
 
 
 ogjacsol = solve(ogprobjac, saveat=0.1)
-plot(ogjacsol; idxs=[L,A])
+plot(ogjacsol)
 
 maxpeaks = findextrema(ogjacsol[1,:]; height=1e-2, distance=2)
 minpeaks = findextrema(ogjacsol[1,:]; height=-1e-2, distance=2, find_maxima=false)
@@ -107,10 +107,14 @@ ogjacsol[1:end] .= 0.1
 # fft_peakindexes, fft_peakvals = findmaxima(fftdata,1) #* get the indexes of the peaks in the fft
 # fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 0.0, distance = 1) #* get the indexes of the peaks in the fft
 
-param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
-ic_constraints = define_initialcondition_constraints(ogprob; Lrange = (1e-1, 1e2), Krange = (1e-1, 1e2), Prange = (1e-1, 1e2), Arange = (1e-1, 1e2))
+param_constraints = define_parameter_constraints(ogprobjac; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
+ic_constraints = define_initialcondition_constraints(ogprobjac; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
 
-allconstraints = AllConstraints(param_constraints.ranges, ic_constraints.ranges)
+allconstraints = AllConstraints(param_constraints, ic_constraints)
+
+testgaproblem = GAProblem(allconstraints, ogprobjac)
+
+generate_population(testgaproblem.constraints, 1000)
 
 # Modification to make_fitness_function_with_fixed_inputs function
 function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}; fitidx = 4)
@@ -138,17 +142,55 @@ function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEPr
 end
 
 
+# Modification to make_fitness_function_with_fixed_inputs function
+function make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}, fixedDF=1000.; fitidx = 4)
+    function fitness_function(input::Vector{Float64})
+        # Create a new input vector that includes the fixed inputs.
+        new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
 
-function test_fixedparam(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; fixed_values = [0.001, 0.01, 0.001])
+        # Keep track of the number of fixed inputs that have been inserted.
+        fixed_inputs_inserted = 0
+
+        for i in eachindex(new_input)
+            if i in triplet_idxs
+                # If the current index matches the index of a fixed input, insert the fixed input.
+                new_input[i] = fixed_input_triplet[fixed_inputs_inserted + 1]
+                fixed_inputs_inserted += 1
+            else
+                # Otherwise, insert the next value from the input vector.
+                new_input[i] = input[i - fixed_inputs_inserted]
+            end
+        end
+
+        new_param_input = new_input[1:12]
+        new_ic_input = new_input[13:end]
+
+        push!(new_param_input, fixedDF)
+
+        return evalfunc(new_param_input, new_ic_input, prob; idx = fitidx)
+    end
+    return fitness_function
+end
+
+
+
+function test_fixedparam(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; fixed_values = [0.001, 0.01, 0.001], fixedDF=1000.)
     Random.seed!(1234)
     variable_constraints = deepcopy(constraints)
     # fixedtrip = [x for x in variable_constraints.ranges if x.name == param1 || x.name == param2 || x.name == param3]
     filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.ranges)
+    # filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.icranges)
+
+
+    #* remove DF from range because it'll be fixed
+    filter!(x -> x.name != "DF", variable_constraints.ranges)
 
     fixed_ga_problem = GAProblem(variable_constraints, prob)
     fixedtrip_idxs = find_indices(param1, param2, param3, constraints.ranges) 
 
-    make_fitness_function_closure(evalfunc,prob; fitidx) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs; fitidx)
+    # make_fitness_function_closure(evalfunc,prob; fitidx) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs; fitidx)
+    make_fitness_function_closure(evalfunc,prob; fitidx) = make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc, prob, fixed_values, fixedtrip_idxs, fixedDF; fitidx)
+
 
 
     oscillatory_points_df = make_df(run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5)) 
@@ -164,6 +206,7 @@ function test_fixedparam(param1::String, param2::String, param3::String, constra
                 push!(ind, fixed_values[j])
             end
         end
+        insert!(ind, 13, fixedDF)
     end
     # return oscillatory_points_df
     #* split parameter values into separate columns and add initial conditions
@@ -172,11 +215,12 @@ function test_fixedparam(param1::String, param2::String, param3::String, constra
 end
 
 param_triplet = ["ka1", "kb1", "kcat1"]
-testfixed_df = test_fixedparam(param_triplet..., param_constraints, ogprobjac; fixed_values = [0.001,0.01,1000.])
-# CSV.write("OscillatorPaper/FigureGenerationScripts/testbench.csv", testfixed_df)
+testfixed_df = test_fixedparam(param_triplet..., allconstraints, ogprob; fixed_values = [0.001,0.01,1000.])
+split_dataframe!(testfixed_df, ogprob)
+CSV.write("OscillatorPaper/FigureGenerationScripts/Params&Inits.csv", testfixed_df)
 
 
-plot_everything(testfixed_df, ogprob; setnum=12, label="Fixed-ka1-kb1-kcat1", jump=100)
+plot_everything(testfixed_df, ogprob; setnum=13, label="Params&Inits", jump=500)
 
 
 
@@ -257,6 +301,11 @@ test_results_df = testbench(param_constraints, ogprobjac)
 @btime testbench($param_constraints, $ogprobjac)
 
 plot_everything(test_results_df, ogprobjac; setnum=10, label="PeriodRewardlog10", jump = 10)
+
+
+
+#* measure A in solution vs A membrane 
+#* quadruplet fixed search initial conditions 
 
 
 

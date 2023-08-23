@@ -95,7 +95,7 @@ function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Flo
     amps = ((vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min)))
 
 
-    return maximum(pers), mean(amps)
+    return maximum(pers), mean(amps) #TODO fix this, why is amps empty sometimes
 end
 
 
@@ -121,7 +121,9 @@ function CostFunction(sol::ODESolution; idx::Int = 1)::Vector{Float64}
     trimsol = sol[tstart:end] 
 
     indx_max, vals_max = findextrema(trimsol[idx,:]; height = 1e-2, distance = 10)
-    if length(indx_max) < 2
+    indx_min, vals_min = findextrema(trimsol[idx,:]; height = 1e-2, distance = 10, find_maxima=false)
+
+    if length(indx_max) < 2 || length(indx_min) < 2 #* if there is no signal in the frequency domain,
         return [0.0, 0.0, 0.0]
     end
     
@@ -165,7 +167,7 @@ function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem; 
 end
 
 """Evaluate the fitness of an individual with new initial conditions and new parameters"""
-function eval_both_fitness(params::Vector{Float64}, initial_conditions::Vector{Float64}, prob::ODEProblem; idx::Int = 4)
+function eval_all_fitness(params::Vector{Float64}, initial_conditions::Vector{Float64}, prob::ODEProblem; idx::Int = 4)
     #* remake with new initial conditions
     new_prob = remake(prob, p = params, u0=[initial_conditions; zeros(length(prob.u0)-length(initial_conditions))])
     return solve_for_fitness_peramp(new_prob, idx)

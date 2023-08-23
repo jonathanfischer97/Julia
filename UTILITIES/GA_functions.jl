@@ -45,13 +45,12 @@ end
 
 Struct encapsulating all constraints. Each field represents a different parameter or initial condition, holding a `ConstraintRange` object that defines the valid range for that parameter or initial condition.
 """
-mutable struct AllConstraints{T,V} <: ConstraintType where {T,V}
-    paramranges::T
-    icranges::V
+mutable struct AllConstraints <: ConstraintType
+    ranges::Vector{ConstraintRange}
 
-    function AllConstraints(paramconstraints, icconstraints) 
-        new(paramconstraints.ranges, icconstraints.ranges)
-    end
+    # function AllConstraints(paramconstraints, icconstraints) 
+    #     new(paramconstraints.ranges, icconstraints.ranges)
+    # end
 end
 #> END 
 
@@ -147,7 +146,7 @@ define_initialcondition_constraints(prob::ODEProblem; Lrange = (0.1, 10.0), Kran
 
 
 function AllConstraints(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints) 
-    AllConstraints(paramconstraints.ranges, icconstraints.ranges)
+    AllConstraints([paramconstraints.ranges; icconstraints.ranges])
 end
 #> END
 
@@ -229,6 +228,17 @@ function generate_population(constraint::InitialConditionConstraints, n::Int)
     population = [rand(Uniform(conrange.min, conrange.max), n) for conrange in constraint.ranges]
     population = transpose(hcat(population...))
     return [population[:, i] for i in 1:n]
+end
+
+function generate_population(constraint::AllConstraints, n::Int)
+    #* find index where initial conditions start, will be named either L, K, P, or A
+    icstartidx = findfirst(x -> x.symbol ∈ [:L, :K, :P, :A], constraint.ranges)
+    parampopulation = [exp10.(rand(Uniform(log10(conrange.min), log10(conrange.max)), n)) for conrange in constraint.ranges[1:icstartidx-1]]
+    icpopulation = [rand(Uniform(conrange.min, conrange.max), n) for conrange in constraint.ranges[icstartidx:end]]
+    parampopulation = transpose(hcat(parampopulation...))
+    icpopulation = transpose(hcat(icpopulation...))
+    return [[parampopulation[:,i]; icpopulation[:,i]] for i in 1:n]
+    # return [population[:, i] for i in 1:n]
 end
 
 """For calculating volume when optimizing for NERDSS solutions"""
@@ -392,7 +402,7 @@ end
 function split_dataframe!(df, prob)
     paramsymbols = [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka4,:kb4,:ka7,:kb7,:kcat7,:DF]
     
-    if length(df.ind[1]) > 4
+    if length(df.ind[1]) == 13
 
         #* Split ind column into separate columns for each parameter
         for (i,param) in enumerate(paramsymbols)
@@ -406,7 +416,7 @@ function split_dataframe!(df, prob)
         df.K .= prob.u0[2]
         df.P .= prob.u0[3]
         df.A .= prob.u0[4]
-    else
+    elseif length(df.ind[1]) == 4
         concsymbols = [:L,:K,:P,:A]
         for (i,conc) in enumerate(concsymbols)
             df[!, conc] .= [x[i] for x in df.ind]
@@ -417,6 +427,17 @@ function split_dataframe!(df, prob)
         for (i,param) in paramsymbols
             df[!, param] .= prob.p[i]
         end
+    else 
+        concsymbols = [:L,:K,:P,:A]
+        allsymbols = vcat(paramsymbols, concsymbols)
+
+        for (i,conc) in enumerate(allsymbols)
+            df[!, conc] .= [x[i] for x in df.ind]
+        end
+        # for (i,param) in enumerate(paramsymbols)
+        #     df[!, param] .= [x[i] for x in df.ind[5:end]]
+        # end
+        select!(df, Not(:ind))
     end
 end
 
