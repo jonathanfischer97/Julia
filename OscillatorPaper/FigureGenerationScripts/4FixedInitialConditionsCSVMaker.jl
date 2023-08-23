@@ -188,7 +188,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     return results_df                
 end
 
-testranges = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=3)
+df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=3)
 
 
 
