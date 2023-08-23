@@ -144,7 +144,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                     Random.seed!(1234)
 
                     #* run the GA on the new problem
-                    oscillatory_points_results = run_GA(ga_problem; population_size = 10000, iterations = 5)
+                    oscillatory_points_results = run_GA(ga_problem; population_size = 20000, iterations = 5)
 
                     #* get the number of oscillatory points
                     num_oscillatory_points = length(oscillatory_points_results.population)
@@ -188,7 +188,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     return results_df                
 end
 
-df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=3)
+df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4)
 
 
 
