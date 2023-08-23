@@ -122,17 +122,6 @@ function Evolutionary.initial_state(method::GA, options, objfun, population) #TO
     eliteSize = isa(method.ɛ, Int) ? method.ɛ : round(Int, method.ɛ * method.populationSize)
 
     #* Evaluate population fitness, period and amplitude
-    # if options.parallelization == :serial
-    #     for i in eachindex(population)
-    #         fitvals[i], periods[i], amplitudes[i] = Evolutionary.value(objfun, population[i])
-    #         # println("Ind: $(population[i]) fit: $(fitvals[i]) per: $(periods[i]) amp: $(amplitudes[i])")
-    #     end
-    # else
-    #     Threads.@threads for i in eachindex(population)
-    #         fitvals[i], periods[i], amplitudes[i] = Evolutionary.value(objfun, population[i])
-    #         # @info "Ind: $(population[i]) fit: $(fitvals[i]) per: $(periods[i]) amp: $(amplitudes[i])"
-    #     end
-    # end
     Evolutionary.value!(objfun, fitvals, population, periods, amplitudes)
 
     minfit, fitidx = findmin(fitvals)
@@ -190,31 +179,5 @@ function Evolutionary.update_state!(objfun, constraints, state::CustomGAState, p
 end
 
 
-# """
-#     BGA(valrange, m = 20)
 
-# Returns an in-place real valued mutation function that performs the BGA mutation scheme with the mutation range `valrange` and the mutation probability `1/m` [^1].
-# """
-# function Evolutionary.BGA(valrange::Vector, m::Int = 20)
-#     prob = 1.0 / m
-#     function mutation(recombinant::T;
-#                       rng::AbstractRNG=Random.default_rng()
-#                      ) where {T <: AbstractVector}
-#         d = length(recombinant)
-#         @assert length(valrange) == d "Range matrix must have $(d) columns"
-#         δ = zeros(m)
-#         for i in 1:length(recombinant)
-#             for j in 1:m
-#                 δ[j] = (rand(rng) < prob) ? δ[j] = 2.0^(-j) : 0.0
-#             end
-#             if rand(rng, Bool)
-#                 recombinant[i] += sum(δ)*valrange[i]
-#             else
-#                 recombinant[i] -= sum(δ)*valrange[i]
-#             end
-#         end
-#         return recombinant
-#     end
-#     return mutation
-# end
 
