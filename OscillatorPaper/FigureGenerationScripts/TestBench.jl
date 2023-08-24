@@ -5,7 +5,7 @@ begin
     using DifferentialEquations, ModelingToolkit
     using Statistics
     # using Peaks
-    # using FindPeaks1D
+    using FindPeaks1D
     using Evolutionary, FFTW
     using Random
     using Distributions
@@ -220,10 +220,15 @@ split_dataframe!(testfixed_df, ogprob)
 CSV.write("OscillatorPaper/FigureGenerationScripts/test.csv", testfixed_df)
 
 
-plot_everything(testfixed_df, ogprob; setnum=13, label="Params&Inits", jump=500)
+plot_everything(testfixed_df, ogprob; setnum=13, label="Params&Inits", jump=50)
 
+testfixed_df = CSV.read("OscillatorPaper/FigureGenerationScripts/test.csv", DataFrame)
+testsol = solve(remake(ogprob, p = testfixed_df.ind[401]), saveat=0.1)
 
-
+newprob = remake(ogprob, u0 = [[97.23405302393168, 76.78427415397275, 8.928095154587805, 22.611353860124073]; zeros(12)],p = [0.1, 249.16082412239868, 1000.0, 4.969336136315573, 115.12839147825775, 3.399727998677895, 50.40303569894044, 0.001, 0.01, 34.13205544050995, 903.6369655144391, 1000.0, 1000.0])
+testsol = solve(newprob, saveat=0.1)
+plotsol(testsol)
+plotboth(401, testfixed_df, ogprob)
 
 
 plotboth(row) = plotboth(row, testfixed_df, ogprob)
@@ -300,12 +305,21 @@ test_results_df = testbench(param_constraints, ogprobjac)
 @btime testbench($param_constraints, $ogprob)
 @btime testbench($param_constraints, $ogprobjac)
 
-plot_everything(test_results_df, ogprobjac; setnum=10, label="PeriodRewardlog10", jump = 10)
+plot_everything(test_results_df, ogprob; setnum=13, label="Params&Inits", jump = 10)
 
 
 
 #* measure A in solution vs A membrane 
 #* quadruplet fixed search initial conditions 
+
+
+# get data 
+testdf = CSV.read("OscillatorPaper/FigureGenerationScripts/test.csv", DataFrame)
+
+#combine all parameter columns into one column of vectors
+
+
+
 
 
 

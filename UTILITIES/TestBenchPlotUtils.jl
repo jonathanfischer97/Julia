@@ -14,11 +14,18 @@
 """
 Plot the solution from a row of the DataFrame
 """
-function plotsol(sol::ODESolution; title = "", vars::Vector{Int} = collect(1:length(prob.u0)))
+function plotsol(sol::ODESolution; title = "")
+
+        #* Sum up all A in solution 
+        Asol = sol[4,:]  + sol[end-2,:] + sol[end-4, :]
+
+        Amem = sol[6,:] + sol[9,:] + sol[10,:]+ sol[11,:] + sol[12,:]+ sol[end,:] + sol[end-1,:]
 
         # cost, per, amp = CostFunction(sol)
-        p = plot(sol, idxs = vars, title = title, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600))
+        p = plot(sol, title = title, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600))
         # annotate!(p, (0, 0), text("Period = $per\nAmplitude = $amp", :left, 10))
+        plot!(p, sol.t, Asol, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600), label="A in solution", ls = :dash)
+        plot!(p, sol.t, Amem, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600), label = "A on membrane", ls = :dash)
 
         # display(p)
         return p    
@@ -115,7 +122,7 @@ function plotboth(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = coll
         sol = solve(reprob, Rosenbrock23(), saveat=0.1, save_idxs=vars)
         cost, per, amp = CostFunction(sol; idx = fitidx)
 
-        solplot = plotsol(sol; vars=vars[1:5])
+        solplot = plotsol(sol; vars=vars)
         fftplot = plotfft(sol; fitidx = fitidx)
 
         bothplot = plot(solplot, fftplot, plot_title ="Fit: $(round(cost;digits=4))\nPeriod: $(round(per;digits=4)) s" , 
