@@ -35,8 +35,8 @@ begin
 
 
     # using GLMakie; GLMakie.activate!(ssao=true)
-    # using Plots 
-    using CairoMakie; CairoMakie.activate!()
+    using Plots, Plots.PlotMeasures; default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
+    # using CairoMakie; CairoMakie.activate!()
 
     # const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 end
@@ -73,9 +73,80 @@ fig = Figure(resolution=(1600, 1000))
 
 
 
+ezra_df = CSV.read("OscillatorPaper/FigureGenerationScripts/AllExpOsc .csv", DataFrame)
+Acol = log10.(Vector(ezra_df.A))
+Kcol = log10.(Vector(ezra_df.K))
+Pcol = log10.(Vector(ezra_df.P))
+Lcol = log10.(Vector(ezra_df.L))
 
+function create_3d_scatter_with_shadows_ezra(x,y,z,colors; angle=30)
+    # Convert to log scale and add epsilon to avoid log of zero
+    # pnames = names(df)[1:3]
 
+    # Identify non-NaN indices
+    # nonan_indices = findall(!isnan, df[:, :average_period])
+    # nonan_amplitudes = df[:, :average_amplitude][nonan_indices]
+    # nonan_periods = df[:, :average_period][nonan_indices]
 
+    # Normalize sizes for non-NaN values
+    sizes = fill(5., length(x))
+    # sizes[nonan_indices] = (nonan_amplitudes .- minimum(nonan_amplitudes)) ./ (maximum(nonan_amplitudes) - minimum(nonan_amplitudes)) * 10 .+ 5
+
+    # Normalize periods for non-NaN values
+    # norm_periods_nonan = (nonan_periods .- minimum(nonan_periods)) ./ (maximum(nonan_periods) - minimum(nonan_periods))
+
+    # Create a color gradient for non-NaN values
+    color_gradient = cgrad(:viridis, colors, rev=true)
+
+    # Main plot for non-NaN values
+    p = scatter3d(x,y,z, color=color_gradient, legend=false, alpha=1.0, markerstrokewidth=0)
+
+    # Plot NaN values in gray
+    # nan_indices = findall(isnan, df[:, :average_period])
+    # scatter3d!(p, x[nan_indices], y[nan_indices], z[nan_indices], markersize=sizes[nan_indices], color=:gray, legend=false, alpha=1.0, markerstrokewidth=0)
+
+    # Logic for handling NaN values
+    # for (xi, yi, zi, si, ci) in zip(x, y, z, sizes, colors)
+    #     # color_proj = isnan(ci) ? :gray : colormap[ci]
+    #     scatter3d!(p,[xi], [yi], [minimum(z)], markersize=[si], color=color_proj, alpha=0.4, markerstrokewidth=0)
+    #     scatter3d!(p,[xi], [yi], [minimum(y)], [zi], markersize=[si], color=color_proj, alpha=0.4, markerstrokewidth=0)
+    #     scatter3d!(p,[minimum(x)], [yi], [zi], markersize=[si], color=color_proj, alpha=0.4, markerstrokewidth=0)
+    # end
+
+    # Project the points onto each plane and connect them with lines
+    for (xi, yi, zi, si, ci) in zip(x, y, z, sizes, color_gradient)
+        color_proj = color_gradient
+        scatter3d!(p,[xi], [yi], [minimum(z)], markersize=[si], color=color_proj, alpha=0.4, markerstrokewidth=0)
+        scatter3d!(p,[xi], [minimum(y)], [zi], markersize=[si], color=color_proj, alpha=0.4, markerstrokewidth=0)
+        scatter3d!(p,[minimum(x)], [yi], [zi], markersize=[si], color=color_proj, alpha=0.4, markerstrokewidth=0)
+        plot3d!(p,[xi, xi], [yi, yi], [zi, minimum(z)], color=color_proj, lw=0.5, linealpha=0.5, linestyle=:dash)
+        plot3d!(p,[xi, xi], [yi, minimum(y)], [zi, zi], color=color_proj, lw=0.5, linealpha=0.5, linestyle=:dash)
+        plot3d!(p,[xi, minimum(x)], [yi, yi], [zi, zi], color=color_proj, lw=0.5, linealpha=0.5, linestyle=:dash)
+    end
+
+    # Set axis labels
+    xlabel!(p,"log10(A)")
+    ylabel!(p,"log10(K)")
+    zlabel!(p,"log10(P)")
+
+    # Set view angle
+    plot!(p,camera=(30, angle))
+
+    # Set title
+    title!(p,"Log-Scaled Parameters with Projections & Shadows (Angle: $angle) - Size & Color: Average Amplitude & Period")
+    display(p)
+end
+
+# Sample call to the modified function
+create_3d_scatter_with_shadows_ezra(Acol, Kcol, Pcol, Lcol, angle=30)
+
+ezfig, ax, pl = meshscatter(Acol, Kcol, Pcol; color=Lcol, colormap=:thermal, markersize=0.1, ssao=true, transparency=false)
+
+Colorbar(ezfig, label="L", height=Relative(2.0))
+ezfig
+xlabel!(ax3, "log10(kb3)")
+ylabel!(ax3, "log10(kb4)")
+zlabel!(ax3, "log10(DF)")
 
 
 

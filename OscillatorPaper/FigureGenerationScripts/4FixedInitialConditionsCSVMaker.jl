@@ -116,10 +116,23 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
 
     num_rows = rangelength^length(icnames)
 
-    results_df = DataFrame(icnames[1] => Vector{Float64}(undef, num_rows), icnames[2] => Vector{Float64}(undef, num_rows), icnames[3] => Vector{Float64}(undef, num_rows),icnames[4] => Vector{Float64}(undef, num_rows),
-                            "num_oscillatory_points" => Vector{Int}(undef, num_rows), 
-                            "average_period" => Vector{Float64}(undef, num_rows), "maximum_period"=>Vector{Float64}(undef, num_rows), "minimum_period"=>Vector{Float64}(undef, num_rows),
-                            "average_amplitude" => Vector{Float64}(undef, num_rows), "maximum_amplitude"=>Vector{Float64}(undef, num_rows), "minimum_amplitude"=>Vector{Float64}(undef, num_rows))
+    # results_df = DataFrame(icnames[1] => Vector{Float64}(undef, num_rows), icnames[2] => Vector{Float64}(undef, num_rows), icnames[3] => Vector{Float64}(undef, num_rows),icnames[4] => Vector{Float64}(undef, num_rows),
+    #                         "num_oscillatory_points" => Vector{Int}(undef, num_rows), 
+    #                         "average_period" => Vector{Float64}(undef, num_rows), "maximum_period"=>Vector{Float64}(undef, num_rows), "minimum_period"=>Vector{Float64}(undef, num_rows),
+    #                         "average_amplitude" => Vector{Float64}(undef, num_rows), "maximum_amplitude"=>Vector{Float64}(undef, num_rows), "minimum_amplitude"=>Vector{Float64}(undef, num_rows))
+
+    icvals1 = Vector{Float64}(undef, num_rows)
+    icvals2 = Vector{Float64}(undef, num_rows)
+    icvals3 = Vector{Float64}(undef, num_rows)
+    icvals4 = Vector{Float64}(undef, num_rows)
+    num_oscillatory_points = Vector{Int}(undef, num_rows)
+    average_period = Vector{Float64}(undef, num_rows)
+    maximum_period = Vector{Float64}(undef, num_rows)
+    minimum_period = Vector{Float64}(undef, num_rows)
+    average_amplitude = Vector{Float64}(undef, num_rows)
+    maximum_amplitude = Vector{Float64}(undef, num_rows)
+    minimum_amplitude = Vector{Float64}(undef, num_rows)
+
 
     i = 1
 
@@ -154,7 +167,18 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
 
                     #* if there are no oscillatory points, save the results to the results_df and continue
                     if iszero(num_oscillatory_points)
-                        results_df[i, :] = (icval1, icval2, icval3, icval4, 0, NaN, NaN, NaN, NaN, NaN, NaN)
+                        # results_df[i, :] = (icval1, icval2, icval3, icval4, 0, NaN, NaN, NaN, NaN, NaN, NaN)
+                        icvals1[i] = icval1
+                        icvals2[i] = icval2
+                        icvals3[i] = icval3
+                        icvals4[i] = icval4
+                        num_oscillatory_points[i] = 0
+                        average_period[i] = NaN
+                        maximum_period[i] = NaN
+                        minimum_period[i] = NaN
+                        average_amplitude[i] = NaN
+                        maximum_amplitude[i] = NaN
+                        minimum_amplitude[i] = NaN
                     else
                         average_period::Float64 = mean(oscillatory_points_results.periods)
                         maximum_period::Float64 = maximum(oscillatory_points_results.periods; init=0.0)
@@ -165,7 +189,19 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                         minimum_amplitude::Float64 = minimum(oscillatory_points_results.amplitudes; init=0.0)
                         
                         #* save the results to the results_df
-                        results_df[i, :] = (icval1, icval2, icval3, icval4, num_oscillatory_points, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude)
+                        # results_df[i, :] = (icval1, icval2, icval3, icval4, num_oscillatory_points, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude)
+                        icvals1[i] = icval1
+                        icvals2[i] = icval2
+                        icvals3[i] = icval3
+                        icvals4[i] = icval4
+                        num_oscillatory_points[i] = num_oscillatory_points
+                        average_period[i] = average_period
+                        maximum_period[i] = maximum_period
+                        minimum_period[i] = minimum_period
+                        average_amplitude[i] = average_amplitude
+                        maximum_amplitude[i] = maximum_amplitude
+                        minimum_amplitude[i] = minimum_amplitude
+
                     
                         #* make dataframe from oscillatory_points_results
                         oscillatory_points_df = make_df(oscillatory_points_results)
@@ -187,6 +223,10 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
             end
         end
     end
+    results_df = DataFrame(icnames[1] => icvals1, icnames[2] => icvals2, icnames[3] => icvals3, icnames[4] => icvals4,
+                            "num_oscillatory_points" => num_oscillatory_points, 
+                            "average_period" => average_period, "maximum_period"=>maximum_period, "minimum_period"=>minimum_period,
+                            "average_amplitude" => average_amplitude, "maximum_amplitude"=>maximum_amplitude, "minimum_amplitude"=>minimum_amplitude)
     CSV.write("./OscillatorPaper/FigureGenerationScripts/4FixedICs.csv", results_df)
     return results_df                
 end
