@@ -107,7 +107,7 @@ ogjacsol[1:end] .= 0.1
 # fft_peakindexes, fft_peakvals = findmaxima(fftdata,1) #* get the indexes of the peaks in the fft
 # fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 0.0, distance = 1) #* get the indexes of the peaks in the fft
 
-param_constraints = define_parameter_constraints(ogprobjac; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e3, 1e5))
+param_constraints = define_parameter_constraints(ogprobjac; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e2, 1e5))
 ic_constraints = define_initialcondition_constraints(ogprobjac; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
 
 allconstraints = AllConstraints(param_constraints, ic_constraints)
@@ -214,10 +214,10 @@ function test_fixedparam(param1::String, param2::String, param3::String, constra
     return oscillatory_points_df
 end
 
-param_triplet = ["ka1", "kb1", "kcat1"]
-testfixed_df = test_fixedparam(param_triplet..., allconstraints, ogprob; fixed_values = [0.001,0.01,1000.])
+param_triplet = ["ka1", "kcat1", "kcat7"]
+testfixed_df = test_fixedparam(param_triplet..., allconstraints, ogprob; fixed_values = [0.1,1000.,1000.])
 split_dataframe!(testfixed_df, ogprob)
-CSV.write("OscillatorPaper/FigureGenerationScripts/Params&Inits.csv", testfixed_df)
+CSV.write("OscillatorPaper/FigureGenerationScripts/test.csv", testfixed_df)
 
 
 plot_everything(testfixed_df, ogprob; setnum=13, label="Params&Inits", jump=500)

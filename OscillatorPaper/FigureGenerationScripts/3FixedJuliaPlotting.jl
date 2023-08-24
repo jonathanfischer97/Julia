@@ -2,10 +2,45 @@ begin
     using CSV 
     using DataFrames 
     using DataFrameMacros
-    using GLMakie; GLMakie.activate!(ssao=true)
+    using DifferentialEquations
+    using Catalyst
+    using Evolutionary, FFTW
+    using Random
+    using Distributions
+    using ProgressMeter
+    using CSV
+
+    using LinearAlgebra
+
+    using ColorSchemes#, PlotMeasures
+
+    using Combinatorics
+
+    # default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
+
+
+    include("../../UTILITIES/EvolutionaryOverloads.jl")
+
+    # import the Catalyst model "fullrn"
+    include("../../UTILITIES/ReactionNetwork.jl")
+
+    # import the cost function and other evaluation functions
+    include("../../UTILITIES/EvaluationFunctions.jl")
+    # using .EvaluationFunctions
+
+    # import the genetic algorithm and associated functions
+    include("../../UTILITIES/GA_functions.jl")
+
+    include("../../UTILITIES/TestBenchPlotUtils.jl")
+
+
+    # using GLMakie; GLMakie.activate!(ssao=true)
     # using Plots 
-    # using CairoMakie
+    using CairoMakie; CairoMakie.activate!()
+
+    # const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 end
+
 
 pnames = ["ka1","kb1","kcat1"]
 
@@ -14,30 +49,51 @@ df = CSV.read("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVs/fixed_t
 excessL_df = CSV.read("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVsExcessL/fixed_triplet_results-$(pnames[1])$(pnames[2])$(pnames[3]).csv", DataFrame)
 
 
+#* read in test data for fixed ka1, kcat1, kcat7 and initial conditions freely optimized
+testfig_df = CSV.read("OscillatorPaper/FigureGenerationScripts/test.csv", DataFrame)
+
+fullrn = make_fullrn()
+
+#* Get the solution to a row of the DataFrame
+function get_solution_from_row(dfrow::DataFrameRow, rn)
+    #* get the parameters
+    p = [dfrow.ka1, dfrow.kb1, dfrow.kcat1, dfrow.ka2, dfrow.kb2, dfrow.ka3, dfrow.kb3, dfrow.ka4, dfrow.kb4, dfrow.ka7, dfrow.kb7, dfrow.kcat7, dfrow.DF]
+    #* get the initial conditions
+    u0 = [[dfrow.L, dfrow.K, dfrow.P, dfrow.A]; zeros(12)]
+    #* get the solution
+    sol = solve(ODEProblem(rn, u0, (0.0,2000.0), p), Rosenbrock23(), saveat = 0.1)
+    return sol
+end
+
+sol = get_solution_from_row(testfig_df[1,:], fullrn)
+
+
+fig = Figure(resolution=(1600, 1000))
 
 
 
 
-# plot(testdf.kcat1, testdf.kcat7, testdf.DF, st = :scatter, xlabel = "kcat1", ylabel = "kcat7", zlabel="DF", title = "Average Period vs. Average Amplitude", legend = false)
 
 
 
 
-# Convert to log scale and normalize
-log_kcat1 = log10.(df[:,pnames[1]] .+ 1e-9) # Add epsilon to avoid log of zero
-log_kcat7 = log10.(df[:,pnames[2]] .+ 1e-9)
-log_DF = log10.(df[:,pnames[3]] .+ 1e-9)
 
-nonan_amplitudes = df.average_amplitude[.!isnan.(df.average_amplitude)]
-nonan_periods = df.average_period[.!isnan.(df.average_period)]
 
-# Normalize sizes and colors
-sizes = (nonan_amplitudes .- minimum(nonan_amplitudes)) ./ (maximum(nonan_amplitudes) - minimum(nonan_amplitudes)) * 10 .+ 5
-colors = nonan_periods
-norm_colors = (colors .- minimum(colors)) ./ (maximum(colors) - minimum(colors))
+# # Convert to log scale and normalize
+# log_kcat1 = log10.(df[:,pnames[1]] .+ 1e-9) # Add epsilon to avoid log of zero
+# log_kcat7 = log10.(df[:,pnames[2]] .+ 1e-9)
+# log_DF = log10.(df[:,pnames[3]] .+ 1e-9)
 
-numpoints = df.num_oscillatory_points
-sizes = (numpoints .- minimum(numpoints)) ./ (maximum(numpoints) - minimum(numpoints))
+# nonan_amplitudes = df.average_amplitude[.!isnan.(df.average_amplitude)]
+# nonan_periods = df.average_period[.!isnan.(df.average_period)]
+
+# # Normalize sizes and colors
+# sizes = (nonan_amplitudes .- minimum(nonan_amplitudes)) ./ (maximum(nonan_amplitudes) - minimum(nonan_amplitudes)) * 10 .+ 5
+# colors = nonan_periods
+# norm_colors = (colors .- minimum(colors)) ./ (maximum(colors) - minimum(colors))
+
+# numpoints = df.num_oscillatory_points
+# sizes = (numpoints .- minimum(numpoints)) ./ (maximum(numpoints) - minimum(numpoints))
 
 #< GLMakie plots
 # using Makie

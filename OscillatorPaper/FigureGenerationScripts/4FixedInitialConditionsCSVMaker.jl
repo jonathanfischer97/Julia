@@ -126,6 +126,9 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     #* make progress bar 
     loopprogress = Progress(num_rows, desc ="Looping thru fixed ICs: " , color=:red)
 
+    path = mkpath("./OscillatorPaper/FigureGenerationScripts/4FixedICRawSets/")
+
+
     #* loop through each ic range and run the GA on each set of initial conditions after remaking the problem with them
     for icval1 in icranges[1]
         for icval2 in icranges[2]
@@ -144,7 +147,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                     Random.seed!(1234)
 
                     #* run the GA on the new problem
-                    oscillatory_points_results = run_GA(ga_problem; population_size = 20000, iterations = 5)
+                    oscillatory_points_results = run_GA(ga_problem; population_size = 10000, iterations = 5)
 
                     #* get the number of oscillatory points
                     num_oscillatory_points = length(oscillatory_points_results.population)
@@ -176,7 +179,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                         oscillatory_points_df.P .= icval3
                         oscillatory_points_df.A .= icval4
 
-                        CSV.write("OscillatorPaper/FigureGenerationScripts/4FixedICRawSets/$(round(icval1; digits = 2))_$(round(icval2;digits = 2))_$(round(icval3; digits=2))_$(round(icval4; digits=2)).csv", oscillatory_points_df)
+                        CSV.write(path*"$(round(icval1; digits = 2))_$(round(icval2;digits = 2))_$(round(icval3; digits=2))_$(round(icval4; digits=2)).csv", oscillatory_points_df)
                     end
                     next!(loopprogress)
                     i += 1
@@ -188,7 +191,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     return results_df                
 end
 
-df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4)
+df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=3)
 
 
 
