@@ -22,10 +22,11 @@ function plotsol(sol::ODESolution; title = "")
         Amem = sol[6,:] + sol[9,:] + sol[10,:]+ sol[11,:] + sol[12,:]+ sol[end,:] + sol[end-1,:]
 
         # cost, per, amp = CostFunction(sol)
-        p = plot(sol, title = title, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600))
+        p = plot(sol, idxs = [1,5,2,3], title = title, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600),
+                color = [:blue :orange :purple :gold], label = ["PIP" "PIP2" "PIP5K" "Synaptojanin"])
         # annotate!(p, (0, 0), text("Period = $per\nAmplitude = $amp", :left, 10))
-        plot!(p, sol.t, Asol, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600), label="A in solution", ls = :dash)
-        plot!(p, sol.t, Amem, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600), label = "A on membrane", ls = :dash)
+        plot!(p, sol.t, Asol, label="AP2 in solution", ls = :dash, alpha=0.7, color=:red)
+        plot!(p, sol.t, Amem, lw = 2, size = (1000, 600), label = "AP2 on membrane", ls = :dash, alpha=0.7, color=:green)
 
         # display(p)
         return p    
@@ -106,29 +107,31 @@ function plotfft(sol::ODESolution; fitidx::Int=4)
 end
 
 
-s"""
+"""
 Plot both the solution and the FFT of a solution from a row of the DataFrame
 """
 function plotboth(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)), fitidx::Int = 4)
 
         # reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row]) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
-        if length(df.ind[row]) == 4
+        if length(df.ind[row]) == 13
                 reprob = remake(prob, p = df.ind[row])
-        elseif length(df.ind[row]) == 13
+        elseif length(df.ind[row]) == 4
                 reprob = remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
         else
                 reprob = remake(prob, p = df.ind[row][1:13], u0 = [df.ind[row][14:end]; zeros(length(prob.u0) - length(df.ind[row][14:end]))])
         end
         sol = solve(reprob, Rosenbrock23(), saveat=0.1, save_idxs=vars)
-        cost, per, amp = CostFunction(sol; idx = fitidx)
+        # cost, per, amp = CostFunction(sol; idx = fitidx)
 
-        solplot = plotsol(sol; vars=vars)
-        fftplot = plotfft(sol; fitidx = fitidx)
+        solplot = plotsol(sol)
+        # fftplot = plotfft(sol; fitidx = fitidx)
 
-        bothplot = plot(solplot, fftplot, plot_title ="Fit: $(round(cost;digits=4))\nPeriod: $(round(per;digits=4)) s" , 
-                        plot_titlefontsize = 20, layout = (2,1), size = (1000, 800))
-        display(bothplot)
-        return bothplot
+        # bothplot = plot(solplot, fftplot, plot_title ="Fit: $(round(cost;digits=4))\nPeriod: $(round(per;digits=4)) s" , 
+        #                 plot_titlefontsize = 20, layout = (2,1), size = (1000, 800))
+        # display(bothplot)
+        # return bothplot
+        display(solplot)
+        return solplot
 end
 
 """

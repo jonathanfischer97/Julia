@@ -60,7 +60,7 @@ tspan = (0., 2000.0)
 fullrn = make_fullrn()
 # ogsys = convert(ODESystem, fullrn)
 # @unpack L, K, P, A = ogsys
-ogprob = ODEProblem(fullrn, [:L => 10.0], tspan, [])
+ogprob = ODEProblem(fullrn, [], tspan, [])
 de = modelingtoolkitize(ogprob)
 
 ogprobjac = ODEProblem(de, [], tspan, jac=true)
@@ -286,7 +286,7 @@ end
 function testbench(param_constraints::ConstraintType, prob::ODEProblem)
     test_gaproblem = GAProblem(param_constraints, prob)
     Random.seed!(1234)
-    test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4, show_trace=true)
+    test_results = run_GA(test_gaproblem; population_size = 10000, iterations = 5, fitidx = 4, show_trace=true)
 
     avg_fitness = mean(test_results.fitvals)
     # @info "Average fitness: $avg_fitness"
@@ -301,11 +301,12 @@ end
 #* now testing Rosenbrock23 and new peak finder in getPerAmp for the ringing solutions
 @code_warntype testbench(param_constraints, ogprobjac)
 test_results_df = testbench(param_constraints, ogprobjac)
+test_results_df = testbench(allconstraints, ogprobjac)
 
 @btime testbench($param_constraints, $ogprob)
 @btime testbench($param_constraints, $ogprobjac)
 
-plot_everything(test_results_df, ogprob; setnum=13, label="Params&Inits", jump = 10)
+plot_everything(test_results_df, ogprob; setnum=14, label="IBR", jump = 10)
 
 
 

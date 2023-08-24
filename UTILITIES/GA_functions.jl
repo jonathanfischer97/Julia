@@ -310,7 +310,7 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
                         store_trace = true, show_trace=show_trace, show_every=1, parallelization=parallelization)#, callback=callback_func)
 
     #* Define the range of possible values for each parameter when mutated, and the mutation scalar.
-    mutation_scalar = 2.0
+    mutation_scalar = 0.5
     mutation_range = fill(mutation_scalar, length(ga_problem.constraints.ranges))
 
     #* Define the GA method.
