@@ -125,13 +125,13 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     icvals2 = Vector{Float64}(undef, num_rows)
     icvals3 = Vector{Float64}(undef, num_rows)
     icvals4 = Vector{Float64}(undef, num_rows)
-    num_oscillatory_points = Vector{Int}(undef, num_rows)
-    average_period = Vector{Float64}(undef, num_rows)
-    maximum_period = Vector{Float64}(undef, num_rows)
-    minimum_period = Vector{Float64}(undef, num_rows)
-    average_amplitude = Vector{Float64}(undef, num_rows)
-    maximum_amplitude = Vector{Float64}(undef, num_rows)
-    minimum_amplitude = Vector{Float64}(undef, num_rows)
+    num_oscillatory_points_array = Vector{Int}(undef, num_rows)
+    average_periods = Vector{Float64}(undef, num_rows)
+    maximum_periods = Vector{Float64}(undef, num_rows)
+    minimum_periods = Vector{Float64}(undef, num_rows)
+    average_amplitudes = Vector{Float64}(undef, num_rows)
+    maximum_amplitudes = Vector{Float64}(undef, num_rows)
+    minimum_amplitudes = Vector{Float64}(undef, num_rows)
 
 
     i = 1
@@ -160,7 +160,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                     Random.seed!(1234)
 
                     #* run the GA on the new problem
-                    oscillatory_points_results = run_GA(ga_problem; population_size = 10000, iterations = 5)
+                    oscillatory_points_results = run_GA(ga_problem; population_size = 5000, iterations = 5)
 
                     #* get the number of oscillatory points
                     num_oscillatory_points = length(oscillatory_points_results.population)
@@ -172,21 +172,21 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                         icvals2[i] = icval2
                         icvals3[i] = icval3
                         icvals4[i] = icval4
-                        num_oscillatory_points[i] = 0
-                        average_period[i] = NaN
-                        maximum_period[i] = NaN
-                        minimum_period[i] = NaN
-                        average_amplitude[i] = NaN
-                        maximum_amplitude[i] = NaN
-                        minimum_amplitude[i] = NaN
+                        num_oscillatory_points_array[i] = 0
+                        average_periods[i] = NaN
+                        maximum_periods[i] = NaN
+                        minimum_periods[i] = NaN
+                        average_amplitudes[i] = NaN
+                        maximum_amplitudes[i] = NaN
+                        minimum_amplitudes[i] = NaN
                     else
-                        average_period::Float64 = mean(oscillatory_points_results.periods)
-                        maximum_period::Float64 = maximum(oscillatory_points_results.periods; init=0.0)
-                        minimum_period::Float64 = minimum(oscillatory_points_results.periods; init=0.0)
+                        average_periods[i]::Float64 = mean(oscillatory_points_results.periods)
+                        maximum_periods[i]::Float64 = maximum(oscillatory_points_results.periods; init=0.0)
+                        minimum_periods[i]::Float64 = minimum(oscillatory_points_results.periods; init=0.0)
 
-                        average_amplitude::Float64 = mean(oscillatory_points_results.amplitudes)
-                        maximum_amplitude::Float64 = maximum(oscillatory_points_results.amplitudes; init=0.0)
-                        minimum_amplitude::Float64 = minimum(oscillatory_points_results.amplitudes; init=0.0)
+                        average_amplitudes[i]::Float64 = mean(oscillatory_points_results.amplitudes)
+                        maximum_amplitudes[i]::Float64 = maximum(oscillatory_points_results.amplitudes; init=0.0)
+                        minimum_amplitudes[i]::Float64 = minimum(oscillatory_points_results.amplitudes; init=0.0)
                         
                         #* save the results to the results_df
                         # results_df[i, :] = (icval1, icval2, icval3, icval4, num_oscillatory_points, average_period, maximum_period, minimum_period, average_amplitude, maximum_amplitude, minimum_amplitude)
@@ -194,13 +194,8 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                         icvals2[i] = icval2
                         icvals3[i] = icval3
                         icvals4[i] = icval4
-                        num_oscillatory_points[i] = num_oscillatory_points
-                        average_period[i] = average_period
-                        maximum_period[i] = maximum_period
-                        minimum_period[i] = minimum_period
-                        average_amplitude[i] = average_amplitude
-                        maximum_amplitude[i] = maximum_amplitude
-                        minimum_amplitude[i] = minimum_amplitude
+                        num_oscillatory_points_array[i] = num_oscillatory_points
+                        
 
                     
                         #* make dataframe from oscillatory_points_results
@@ -224,9 +219,9 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
         end
     end
     results_df = DataFrame(icnames[1] => icvals1, icnames[2] => icvals2, icnames[3] => icvals3, icnames[4] => icvals4,
-                            "num_oscillatory_points" => num_oscillatory_points, 
-                            "average_period" => average_period, "maximum_period"=>maximum_period, "minimum_period"=>minimum_period,
-                            "average_amplitude" => average_amplitude, "maximum_amplitude"=>maximum_amplitude, "minimum_amplitude"=>minimum_amplitude)
+                            "num_oscillatory_points" => num_oscillatory_points_array, 
+                            "average_period" => average_periods, "maximum_period"=>maximum_periods, "minimum_period"=>minimum_periods,
+                            "average_amplitude" => average_amplitudes, "maximum_amplitude"=>maximum_amplitudes, "minimum_amplitude"=>minimum_amplitudes)
     CSV.write("./OscillatorPaper/FigureGenerationScripts/4FixedICs.csv", results_df)
     return results_df                
 end
@@ -236,3 +231,6 @@ df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; 
 
 
 
+
+scatter3d(df.Kinase, df.Phosphatase, df.AP2, color = df.num_oscillatory_points, zlims = (0, 100), colorbar_title = "Number of Oscillatory Points", title = "Number of Oscillatory Points vs. Initial Conditions", xlabel = "L", ylabel = "K", zlabel = "P", markersize = df.maximum_period, markerstrokewidth = 0, colormap = :viridis, camera = (30, 30),
+            xscale = :log10, yscale = :log10)  

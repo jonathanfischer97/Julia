@@ -95,7 +95,7 @@ function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Flo
     amps = ((vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min)))
 
 
-    return maximum(pers), mean(amps) #TODO fix this, why is amps empty sometimes
+    return maximum(pers), mean(amps) .|> abs #TODO fix this, why is amps empty sometimes
 end
 
 
