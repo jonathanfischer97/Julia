@@ -103,7 +103,7 @@ ogprobjac = ODEProblem(de, [], tspan, jac=true)
 
 
 #* Optimization of parameters to produce data for CSV
-param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e2, 1e5))
+param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
 ic_constraints = define_initialcondition_constraints(ogprob; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
 
 
@@ -160,7 +160,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                     Random.seed!(1234)
 
                     #* run the GA on the new problem
-                    oscillatory_points_results = run_GA(ga_problem; population_size = 10000, iterations = 5)
+                    oscillatory_points_results = run_GA(ga_problem; population_size = 100000, iterations = 5)
 
                     #* get the number of oscillatory points
                     num_oscillatory_points = length(oscillatory_points_results.population)
