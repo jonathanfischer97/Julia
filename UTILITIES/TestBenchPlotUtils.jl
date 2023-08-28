@@ -16,17 +16,19 @@ Plot the solution from a row of the DataFrame
 """
 function plotsol(sol::ODESolution; title = "")
 
+        """L(t) K(t) P(t) A(t) Lp(t) LpA(t) LK(t) LpP(t) LpAK(t) LpAP(t) LpAKL(t) LpAPLp(t) AK(t) AP(t) AKL(t) APLp(t)"""
         #* Sum up all A in solution 
-        Asol = sol[4,:]  + sol[end-2,:] + sol[end-4, :]
+        Asol = sol[4,:]  + sol[13,:] + sol[14, :]
 
-        Amem = sol[6,:] + sol[9,:] + sol[10,:]+ sol[11,:] + sol[12,:]+ sol[end,:] + sol[end-1,:]
+        Amem = sol[6,:] + sol[9,:] + sol[10,:]+ sol[11,:] + sol[12,:]+ sol[15,:] + sol[16,:]
 
         # cost, per, amp = CostFunction(sol)
-        p = plot(sol, idxs = [1,5,2,3], title = title, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600),
-                color = [:blue :orange :purple :gold], label = ["PIP" "PIP2" "PIP5K" "Synaptojanin"])
+        # p = plot(sol, idxs = [1,5,2,3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 ,16], title = title, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600),
+                # color = [:blue :orange :purple :gold], label = ["PIP" "PIP2" "PIP5K" "Synaptojanin"], alpha = 0.5)
         # annotate!(p, (0, 0), text("Period = $per\nAmplitude = $amp", :left, 10))
-        plot!(p, sol.t, Asol, label="AP2 in solution", ls = :dash, alpha=0.7, color=:red)
-        plot!(p, sol.t, Amem, lw = 2, size = (1000, 600), label = "AP2 on membrane", ls = :dash, alpha=0.7, color=:green)
+        p = plot(sol, alpha = 0.4)
+        plot!(p, sol.t, Asol, label="AP2 in solution", ls = :dash, alpha=1.0, color=:red)
+        plot!(p, sol.t, Amem, lw = 2, size = (1000, 600), label = "AP2 on membrane", ls = :dash, alpha=1.0, color=:green)
 
         # display(p)
         return p    
