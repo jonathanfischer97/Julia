@@ -25,7 +25,7 @@ begin
     using Combinatorics
     # using LazySets, Polyhedra
     default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
-    # plotlyjs()
+    plotlyjs()
     # import CairoMakie as cm 
     # gr()
     # push!(LOAD_PATH, "../../UTILITIES")
@@ -55,16 +55,23 @@ end
 # infologger = ConsoleLogger(stderr, Logging.Info)
 # global_logger(infologger)
 
-tspan = (0., 2000.0)
-fullrn = make_fullrn(;defvars = [:L => 10.0, :K => 0.5, :P => 0.3, :A => 2.0, :Lp => 0.0, :LpA => 0.0, :LK => 0.0, 
+tspan = (0., 1000.0)
+fullrn = make_fullrn(;defvars = [:L => 3.0, :K => 0.5, :P => 0.3, :A => 2.0, :Lp => 0.0, :LpA => 0.0, :LK => 0.0, 
 :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, :AKL => 0.0, :APLp => 0.0])
 ogprob = ODEProblem(fullrn, [], tspan, [])
 
-de = modelingtoolkitize(ogprob)
+p = [0.001,	0.01,	1000,	34.29640003,	26.8423097,	0.001,	0.01,	0.001,	0.385,	7.338269953,	0.151727274,	1.675774808,	1000]
+u0 =	[[87.49808447,	65.11428053,	41.7579308,	20.30837595]; zeros(12)]		
 
-ogprobjac = ODEProblem(de, [], tspan, jac=true)
+reogprob = remake(ogprob, p = p, u0 = u0)
 
+# de = modelingtoolkitize(ogprob)
 
+# ogprobjac = ODEProblem(de, [], tspan, jac=true)
+
+ogsol = solve(reogprob, saveat=0.1)
+
+plotsol(ogsol)
 # @code_warntype make_fitness_function(eval_param_fitness, ogprobjac; fitidx = 4)
 
 # @btime solve($ogprob, saveat = 0.1, save_idxs = 1)
