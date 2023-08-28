@@ -55,23 +55,17 @@ end
 # infologger = ConsoleLogger(stderr, Logging.Info)
 # global_logger(infologger)
 
-tspan = (0., 1000.0)
-fullrn = make_fullrn(;defvars = [:L => 3.0, :K => 0.5, :P => 0.3, :A => 2.0, :Lp => 0.0, :LpA => 0.0, :LK => 0.0, 
-:LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, :AKL => 0.0, :APLp => 0.0])
+tspan = (0., 2000.0)
+fullrn = make_fullrn()
 ogprob = ODEProblem(fullrn, [], tspan, [])
 
-p = [0.001,	0.01,	1000,	34.29640003,	26.8423097,	0.001,	0.01,	0.001,	0.385,	7.338269953,	0.151727274,	1.675774808,	1000]
-u0 =	[[87.49808447,	65.11428053,	41.7579308,	20.30837595]; zeros(12)]		
 
-reogprob = remake(ogprob, p = p, u0 = u0)
 
-# de = modelingtoolkitize(ogprob)
+de = modelingtoolkitize(ogprob)
 
-# ogprobjac = ODEProblem(de, [], tspan, jac=true)
+ogprobjac = ODEProblem(de, [], tspan, jac=true)
 
-ogsol = solve(reogprob, saveat=0.1)
 
-plotsol(ogsol)
 # @code_warntype make_fitness_function(eval_param_fitness, ogprobjac; fitidx = 4)
 
 # @btime solve($ogprob, saveat = 0.1, save_idxs = 1)
@@ -108,44 +102,47 @@ plotsol(ogsol)
 
 
 #* Optimization of parameters to produce data for CSV
-param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e2, 1e5))
+param_constraints = define_parameter_constraints(ogprobjac; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
+ic_constraints = define_initialcondition_constraints(ogprobjac; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
 
-
+allconstraints = AllConstraints(param_constraints, ic_constraints)
 
 
 #* Modification to make_fitness_function_with_fixed_inputs function
-function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}; fitidx = 4)
-    let evalfunc = evalfunc, prob = prob, fixed_input_triplet = fixed_input_triplet, triplet_idxs = triplet_idxs, fitidx = fitidx
-        function fitness_function(input::Vector{Float64})
-            # Create a new input vector that includes the fixed inputs.
-            new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
+function make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}, fixedDF=1000.; fitidx = 4)
+    function fitness_function(input::Vector{Float64})
+        # Create a new input vector that includes the fixed inputs.
+        new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
 
-            # Keep track of the number of fixed inputs that have been inserted.
-            fixed_inputs_inserted = 0
+        # Keep track of the number of fixed inputs that have been inserted.
+        fixed_inputs_inserted = 0
 
-            for i in eachindex(new_input)
-                if i in triplet_idxs
-                    # If the current index matches the index of a fixed input, insert the fixed input.
-                    new_input[i] = fixed_input_triplet[fixed_inputs_inserted + 1]
-                    fixed_inputs_inserted += 1
-                else
-                    # Otherwise, insert the next value from the input vector.
-                    new_input[i] = input[i - fixed_inputs_inserted]
-                end
+        for i in eachindex(new_input)
+            if i in triplet_idxs
+                # If the current index matches the index of a fixed input, insert the fixed input.
+                new_input[i] = fixed_input_triplet[fixed_inputs_inserted + 1]
+                fixed_inputs_inserted += 1
+            else
+                # Otherwise, insert the next value from the input vector.
+                new_input[i] = input[i - fixed_inputs_inserted]
             end
-
-            return evalfunc(new_input, prob; idx = fitidx)
         end
-        return fitness_function
+
+        new_param_input = new_input[1:12]
+        new_ic_input = new_input[13:end]
+
+        push!(new_param_input, fixedDF)
+
+        return evalfunc(new_param_input, new_ic_input, prob; idx = fitidx)
     end
+    return fitness_function
 end
 
 
 
 
-
 #* Modification to fixed_triplet_csv_maker function
-function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; rangelength = 4, fitidx = 4) 
+function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; rangelength = 4, fitidx = 4, fixedDF = 1000.) 
     variable_constraints = deepcopy(constraints)
 
     #* get the fixed parameters from the variable constraints
@@ -166,13 +163,27 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
     
     fixed_values3 = logrange(fixedtrip[3].min, fixedtrip[3].max, rangelength)
 
-    results_df = DataFrame(param1 => Vector{Float64}(undef, rangelength^3), param2 => Vector{Float64}(undef, rangelength^3), param3 => Vector{Float64}(undef, rangelength^3), "num_oscillatory_points" => Vector{Int}(undef, rangelength^3), 
-                        "average_period" => Vector{Float64}(undef, rangelength^3), "maximum_period"=>Vector{Float64}(undef, rangelength^3), "minimum_period"=>Vector{Float64}(undef, rangelength^3),
-                        "average_amplitude" => Vector{Float64}(undef, rangelength^3), "maximum_amplitude"=>Vector{Float64}(undef, rangelength^3), "minimum_amplitude"=>Vector{Float64}(undef, rangelength^3))
+    num_rows = rangelength^3
+
+    icvals1 = Vector{Float64}(undef, num_rows)
+    icvals2 = Vector{Float64}(undef, num_rows)
+    icvals3 = Vector{Float64}(undef, num_rows)
+    icvals4 = Vector{Float64}(undef, num_rows)
+    num_oscillatory_points_array = Vector{Int}(undef, num_rows)
+    average_periods = Vector{Float64}(undef, num_rows)
+    maximum_periods = Vector{Float64}(undef, num_rows)
+    minimum_periods = Vector{Float64}(undef, num_rows)
+    average_amplitudes = Vector{Float64}(undef, num_rows)
+    maximum_amplitudes = Vector{Float64}(undef, num_rows)
+    minimum_amplitudes = Vector{Float64}(undef, num_rows)
+
+    # results_df = DataFrame(param1 => Vector{Float64}(undef, rangelength^3), param2 => Vector{Float64}(undef, rangelength^3), param3 => Vector{Float64}(undef, rangelength^3), "num_oscillatory_points" => Vector{Int}(undef, rangelength^3), 
+    #                     "average_period" => Vector{Float64}(undef, rangelength^3), "maximum_period"=>Vector{Float64}(undef, rangelength^3), "minimum_period"=>Vector{Float64}(undef, rangelength^3),
+    #                     "average_amplitude" => Vector{Float64}(undef, rangelength^3), "maximum_amplitude"=>Vector{Float64}(undef, rangelength^3), "minimum_amplitude"=>Vector{Float64}(undef, rangelength^3))
 
     
     #* make folder to hold all the csv files 
-    path = mkpath("OscillatorPaper/FigureGenerationScripts/3FixedCSVRawSetsExcessL/$(param1)_$(param2)_$(param3)")
+    path = mkpath("OscillatorPaper/FigureGenerationScripts/3FixedParams+ICsRawSets/$(param1)_$(param2)_$(param3)")
     i = 1
 
     #* make progress bar 
@@ -184,7 +195,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 @info fixed_values
 
                 #* make fitness function closure with fixed inputs
-                make_fitness_function_closure(evalfunc,prob; fitidx) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs; fitidx)
+                make_fitness_function_closure(evalfunc,prob; fitidx) = make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc, prob, fixed_values, fixedtrip_idxs; fitidx, fixedDF=fixedDF)
 
                 Random.seed!(1234)
                 oscillatory_points_results = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5, fitidx=fitidx) 

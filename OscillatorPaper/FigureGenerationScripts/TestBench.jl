@@ -107,14 +107,11 @@ ogjacsol[1:end] .= 0.1
 # fft_peakindexes, fft_peakvals = findmaxima(fftdata,1) #* get the indexes of the peaks in the fft
 # fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 0.0, distance = 1) #* get the indexes of the peaks in the fft
 
-param_constraints = define_parameter_constraints(ogprobjac; karange = (1e-3, 1e2), kbrange = (1e-2, 1e3), kcatrange = (1e-2, 1e3), dfrange = (1e2, 1e5))
+param_constraints = define_parameter_constraints(ogprobjac; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
 ic_constraints = define_initialcondition_constraints(ogprobjac; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
 
 allconstraints = AllConstraints(param_constraints, ic_constraints)
 
-testgaproblem = GAProblem(allconstraints, ogprobjac)
-
-generate_population(testgaproblem.constraints, 1000)
 
 # Modification to make_fitness_function_with_fixed_inputs function
 function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}; fitidx = 4)
