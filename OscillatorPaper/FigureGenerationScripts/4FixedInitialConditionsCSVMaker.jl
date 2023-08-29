@@ -211,9 +211,11 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                     
                         #* make dataframe from oscillatory_points_results
                         oscillatory_points_df = make_df(oscillatory_points_results)
+
+
                         
                         #* split parameter values into separate columns and add initial conditions
-                        split_dataframe!(oscillatory_points_df, newprob)
+                        split_dataframe!(oscillatory_points_df, newprob, fixedDF)
 
                         #* rewrite the L, K, P, A columns with the initial conditions
                         oscillatory_points_df.L .= icval1

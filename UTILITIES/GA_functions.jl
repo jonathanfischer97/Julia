@@ -423,6 +423,50 @@ function split_dataframe!(df, prob)
     end
 end
 
+function split_dataframe!(df, prob, fixedDF)
+    paramsymbols = [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka4,:kb4,:ka7,:kb7,:kcat7]
+    
+    if length(df.ind[1]) == 12
+
+        #* Split ind column into separate columns for each parameter
+        for (i,param) in enumerate(paramsymbols)
+            df[!, param] .= [x[i] for x in df.ind]
+        end
+
+        df[!, :DF] .= fixedDF
+
+        select!(df, Not(:ind))
+
+        #* Add initial conditions
+        df.L .= prob.u0[1]
+        df.K .= prob.u0[2]
+        df.P .= prob.u0[3]
+        df.A .= prob.u0[4]
+    elseif length(df.ind[1]) == 4
+        #* Add parameters
+        for (i,param) in paramsymbols
+            df[!, param] .= prob.p[i]
+        end
+        concsymbols = [:L,:K,:P,:A]
+        for (i,conc) in enumerate(concsymbols)
+            df[!, conc] .= [x[i] for x in df.ind]
+        end
+
+        df[!, :DF] .= fixedDF
+        select!(df, Not(:ind))
+    else 
+        concsymbols = [:L,:K,:P,:A]
+        allsymbols = vcat(paramsymbols, concsymbols)
+
+        for (i,conc) in enumerate(allsymbols)
+            df[!, conc] .= [x[i] for x in df.ind]
+        end
+
+        df[!, :DF] .= fixedDF
+        select!(df, Not(:ind))
+    end
+end
+
 
 """Find the indices of the inputs in a `NAME` array"""
 function find_indices(combination::Vector{String}, NAMES::Vector{String})
