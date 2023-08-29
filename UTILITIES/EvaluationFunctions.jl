@@ -86,7 +86,7 @@ function CostFunction(sol::ODESolution)::Vector{Float64}
     Amem_sol = Amem_sol[tstart:end] 
 
     indx_max, vals_max = findextrema(Amem_sol; height = 1e-2, distance = 5)
-    indx_min, vals_min = findextrema(Amem_sol; height = 1e-2, distance = 5, find_maxima=false)
+    indx_min, vals_min = findextrema(Amem_sol; height = 0.0, distance = 5, find_maxima=false)
 
     if length(indx_max) < 2 || length(indx_min) < 2 #* if there is no signal in the frequency domain,
         return [0.0, 0.0, 0.0]
