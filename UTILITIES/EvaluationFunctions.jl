@@ -1,23 +1,3 @@
-# Helper functions for cost function ## 
-
-# """Get summed difference of peaks in the frequency domain"""
-# function getDif(peakvals::Vector{Float64}) # fix normalization
-#     idxarrLen = length(peakvals)
-#     sum_diff = @inbounds sum(peakvals[i] - peakvals[i+1] for i in 1:(idxarrLen-1))
-#     # @info "Test sum diff of just first and last elements: $(peakvals[1] - peakvals[end])"
-#     sum_diff += peakvals[end]
-#     # @info "Old sum diff: $sum_diff"
-#     return sum_diff
-# end
-
-# function getDif_bidirectional(peakvals::Vector{Float64})
-#     idxarrLen = length(peakvals)
-
-#     # iterate from both ends simultaneously to deal with symmetry
-#     sum_diff = @inbounds sum((peakvals[i] - peakvals[idxarrLen + 1 - i]) for i in 1:(idxarrLen ÷ 2)) 
-
-#     return 2 * sum_diff # multiply by 2 to account for the fact that we're only summing half of the differences
-# end
 
 """
 # Module holding all evaluation functions for assesing oscillatory solutions
@@ -46,7 +26,6 @@ end
 function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; window::Int =1) #get average standard deviation of fft peak indexes
     arrLen = length(fft_arrayData)
     # window = max(1,cld(arrLen,window_ratio)) #* window size is 1% of array length, or 1 if array length is less than 100
-    # window = 5
     sum_std = sum(std(fft_arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in fft_peakindxs) #* sum rolling window of standard deviations
     return sum_std
     # return sum_std / length(fft_peakindxs) #* divide by number of peaks to get average std
@@ -58,45 +37,29 @@ function getFrequencies(timeseries)
     return res ./ cld(length(timeseries), 2) #* normalize by length of timeseries
 end
 
-function flip_about_mean(vec::Vector{Float64})
-    mean_value = mean(vec)
-    return [2 * mean_value - x for x in vec]
-end
-
-function flip_about_mean!(vec::Vector{Float64})
-    mean_value = mean(vec)
-    @inbounds for i in eachindex(vec)
-        vec[i] = 2 * mean_value - vec[i]
-    end
-    vec
-end
 
 
 
 """Calculates the period and amplitude of each individual in the population"""
-function getPerAmp(sol::ODESolution, idx::Int = 1)
+function getPerAmp(sol::ODESolution)
 
-    indx_max, vals_max = findextrema(sol[idx,:]; height = 1e-2, distance = 10)
-    return getPerAmp(sol, indx_max, vals_max, idx)
+    Amem_sol = map(sum, sol.u)
+
+    indx_max, vals_max = findextrema(Amem_sol; height = 1e-2, distance = 5)
+    indx_min, vals_min = findextrema(Amem_sol; height = 1e-2, distance = 5, find_maxima=false)
+    return getPerAmp(sol.t, indx_max, vals_max, indx_min, vals_min)
 end
 
 """Calculates the period and amplitude of each individual in the population"""
-function getPerAmp(sol::ODESolution, indx_max::Vector{Int}, vals_max::Vector{Float64}, idx::Int = 1)
-    #* Find peaks of the minima too 
-    indx_min, vals_min = findextrema(sol[idx,:]; height = 1e-2, distance = 10, find_maxima=false)
+function getPerAmp(solt::Vector{Float64}, indx_max::Vector{Int}, vals_max::Vector{Float64}, indx_min::Vector{Int}, vals_min::Vector{Float64})
 
     #* Calculate amplitudes and periods
-    # vals_max = maxprops["peak_heights"]
-    # vals_min = minprops["peak_heights"]
-
-    #* Calculate amplitudes and periods
-
-    pers = (sol.t[indx_max[i+1]] - sol.t[indx_max[i]] for i in 1:(length(indx_max)-1))
+    pers = (solt[indx_max[i+1]] - solt[indx_max[i]] for i in 1:(length(indx_max)-1))
     amps = ((vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min)))
-
 
     return maximum(pers), mean(amps) .|> abs #TODO fix this, why is amps empty sometimes
 end
+
 
 
 """Normalize a time series to have mean 0 and amplitude 1 before FFT"""
@@ -108,27 +71,29 @@ end
 
 
 """Cost function to be plugged into eval_fitness wrapper"""
-function CostFunction(sol::ODESolution; idx::Int = 1)::Vector{Float64}
+function CostFunction(sol::ODESolution)::Vector{Float64}
+
+    Amem_sol = map(sum, sol.u)
 
     #* Check if last half of the solution array is steady state
-    lasthalfsol = sol[cld(length(sol.t),2):end]
-    if std(lasthalfsol[idx,:]) < 0.05 
+    lasthalfsol = Amem_sol[cld(length(sol),2):end]
+    if std(lasthalfsol) < 0.05 
         return [0.0, 0.0, 0.0]
     end 
 
     #* Trim first 10% of the solution array to avoid initial spikes
-    tstart = cld(length(sol.t),10) 
-    trimsol = sol[tstart:end] 
+    tstart = cld(length(sol),10) 
+    Amem_sol = Amem_sol[tstart:end] 
 
-    indx_max, vals_max = findextrema(trimsol[idx,:]; height = 1e-2, distance = 10)
-    indx_min, vals_min = findextrema(trimsol[idx,:]; height = 1e-2, distance = 10, find_maxima=false)
+    indx_max, vals_max = findextrema(Amem_sol; height = 1e-2, distance = 5)
+    indx_min, vals_min = findextrema(Amem_sol; height = 1e-2, distance = 5, find_maxima=false)
 
     if length(indx_max) < 2 || length(indx_min) < 2 #* if there is no signal in the frequency domain,
         return [0.0, 0.0, 0.0]
     end
     
     #* Get the rfft of the solution
-    fftData = getFrequencies(trimsol[idx,:])
+    fftData = getFrequencies(Amem_sol)
 
     #* Normalize the solution array. WARNING: solarray is modified after this line
     normalize_time_series!(fftData)
@@ -138,43 +103,41 @@ function CostFunction(sol::ODESolution; idx::Int = 1)::Vector{Float64}
     if length(fft_peakindexes) < 2 #* if there is no signal in the frequency domain, return 0.0s
         return [0.0, 0.0, 0.0]
     else
-        # fft_peakvals = peakprops["peak_heights"]
-
         standard_deviation = getSTD(fft_peakindexes, fftData; window = 5) #* get the summed standard deviation of the peaks in frequency domain
         sum_diff = getDif(fft_peakvals) #* get the summed difference between the first and last peaks in frequency domain
     
         #* Compute the period and amplitude
-        period, amplitude = getPerAmp(sol, indx_max, vals_max, idx)
+        period, amplitude = getPerAmp(sol.t[tstart:end], indx_max, vals_max, indx_min, vals_min)
     
-        return [-standard_deviation - sum_diff - log(10,period), period, amplitude]
+        return [standard_deviation + sum_diff + log(10,period), period, amplitude]
     end
 end
 
 
 #! EVALUATION FUNCTIONS ## 
 """Evaluate the fitness of an individual with new parameters"""
-function eval_param_fitness(params::Vector{Float64},  prob::ODEProblem; idx::Int = 4)
+function eval_param_fitness(params::Vector{Float64},  prob::ODEProblem; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16])
     #* remake with new parameters
     new_prob = remake(prob, p=params)
     return solve_for_fitness_peramp(new_prob, idx)
 end
 
 """Evaluate the fitness of an individual with new initial conditions"""
-function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem; idx::Int = 4)
+function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16])
     #* remake with new initial conditions
     new_prob = remake(prob, u0=[initial_conditions; zeros(length(prob.u0)-length(initial_conditions))])
     return solve_for_fitness_peramp(new_prob, idx)
 end
 
 """Evaluate the fitness of an individual with new initial conditions and new parameters"""
-function eval_all_fitness(params::Vector{Float64}, initial_conditions::Vector{Float64}, prob::ODEProblem; idx::Int = 4)
+function eval_all_fitness(params::Vector{Float64}, initial_conditions::Vector{Float64}, prob::ODEProblem; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16])
     #* remake with new initial conditions
     new_prob = remake(prob, p = params, u0=[initial_conditions; zeros(length(prob.u0)-length(initial_conditions))])
     return solve_for_fitness_peramp(new_prob, idx)
 end
 
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
-function solve_for_fitness_peramp(prob::ODEProblem, idx::Int = 4)
+function solve_for_fitness_peramp(prob::ODEProblem, idx::Vector{Int})
 
     sol = solve(prob, Rosenbrock23(), saveat=0.1, save_idxs=idx, verbose=false)
     # return CostFunction(sol)
