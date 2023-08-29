@@ -172,7 +172,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                     fitness_function_maker(evalfunc, prob) = fixedDF_fitness_function_maker(evalfunc, prob, fixedDF)
 
                     #* run the GA on the new problem
-                    oscillatory_points_results = run_GA(ga_problem, fitness_function_maker; population_size = 100000, iterations = 5)
+                    oscillatory_points_results = run_GA(ga_problem, fitness_function_maker; population_size = 20000, iterations = 5)
 
                     #* get the number of oscillatory points
                     num_oscillatory_points = length(oscillatory_points_results.population)
@@ -253,5 +253,5 @@ end
 loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangelength=4, DFrange = [100.,1000.,10000.])
 
 
-scatter3d(df.Kinase, df.Phosphatase, df.AP2, color = df.num_oscillatory_points, zlims = (0, 100), colorbar_title = "Number of Oscillatory Points", title = "Number of Oscillatory Points vs. Initial Conditions", xlabel = "L", ylabel = "K", zlabel = "P", markersize = df.maximum_period, markerstrokewidth = 0, colormap = :viridis, camera = (30, 30),
-            xscale = :log10, yscale = :log10)  
+# scatter3d(df.Kinase, df.Phosphatase, df.AP2, color = df.num_oscillatory_points, zlims = (0, 100), colorbar_title = "Number of Oscillatory Points", title = "Number of Oscillatory Points vs. Initial Conditions", xlabel = "L", ylabel = "K", zlabel = "P", markersize = df.maximum_period, markerstrokewidth = 0, colormap = :viridis, camera = (30, 30),
+#             xscale = :log10, yscale = :log10)  

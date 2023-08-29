@@ -206,7 +206,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc, prob, fixed_values, fixedval_idxs, fixedDF)
 
                 Random.seed!(1234)
-                oscillatory_points_results = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 100000, iterations = 5) 
+                oscillatory_points_results = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 20000, iterations = 5) 
                 num_oscillatory_points = length(oscillatory_points_results.population)
 
                 #* if there are no oscillatory points, save the results to the results_df and continue
