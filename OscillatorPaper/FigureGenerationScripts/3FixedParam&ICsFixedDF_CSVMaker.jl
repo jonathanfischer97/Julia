@@ -65,12 +65,12 @@ de = modelingtoolkitize(ogprob)
 
 ogprobjac = ODEProblem(de, [], tspan, jac=true)
 
-ogsol = solve(ogprobjac, saveat=0.1, save_idxs = [6, 9, 10, 11, 12, 15, 16])
 
 
-Array(ogsol)
 
-map(sum,ogsol.u)
+# Array(ogsol)
+
+# map(sum,ogsol.u)
 # @code_warntype make_fitness_function(eval_param_fitness, ogprobjac; fitidx = 4)
 
 # @btime solve($ogprob, saveat = 0.1, save_idxs = 1)
@@ -107,10 +107,54 @@ map(sum,ogsol.u)
 
 
 #* Optimization of parameters to produce data for CSV
-param_constraints = define_parameter_constraints(ogprobjac; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
-ic_constraints = define_initialcondition_constraints(ogprobjac; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
+param_constraints = define_parameter_constraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
+ic_constraints = define_initialcondition_constraints(; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
 
 allconstraints = AllConstraints(param_constraints, ic_constraints)
+
+pop = generate_population(allconstraints, 1000)
+
+#* function to convert array of vectors into dataframe
+function make_df(pop::Vector{Vector{Float64}}, colnames)
+    df = DataFrame()
+    for (i,name) in enumerate(colnames)
+        colvals = [ind[i] for ind in pop]
+        df[!, name] = colvals
+    end
+    return df
+end
+
+make_df(pop, ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "L", "K", "P", "A"])
+
+
+using StatsPlots
+
+#* function visualize spread of each parameter in the population. histograms
+function visualize_population_spread(constraints::ConstraintType)
+    pop = generate_population(constraints, 1000)
+    colnames = [x.name for x in constraints.ranges]
+    popdf = make_df(pop, colnames)
+
+    plotarray = []
+
+    colors = palette(:tab10, length(colnames))
+
+    #* loop through each column and make a histogram
+    for (i,colname) in enumerate(names(popdf))
+        subplot = histogram(popdf[:,Symbol(colname)], bins=100, title = colname, legend = false, color = colors[i])
+        push!(plotarray, subplot)
+    end
+
+    plot(plotarray..., layout=(6,3), size=(1000,1000))
+end
+
+visualize_population_spread(allconstraints)
+
+
+colors = palette(:tab10, 17)
+
+
+histogram(rand(1000), color = colors[11], legend=false, bins=100)
 
 
 #* Modification to make_fitness_function_with_fixed_inputs function
@@ -185,10 +229,6 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
     maximum_amplitudes = Vector{Float64}(undef, num_rows)
     minimum_amplitudes = Vector{Float64}(undef, num_rows)
 
-    # results_df = DataFrame(param1 => Vector{Float64}(undef, rangelength^3), param2 => Vector{Float64}(undef, rangelength^3), param3 => Vector{Float64}(undef, rangelength^3), "num_oscillatory_points" => Vector{Int}(undef, rangelength^3), 
-    #                     "average_period" => Vector{Float64}(undef, rangelength^3), "maximum_period"=>Vector{Float64}(undef, rangelength^3), "minimum_period"=>Vector{Float64}(undef, rangelength^3),
-    #                     "average_amplitude" => Vector{Float64}(undef, rangelength^3), "maximum_amplitude"=>Vector{Float64}(undef, rangelength^3), "minimum_amplitude"=>Vector{Float64}(undef, rangelength^3))
-
     
     #* make folder to hold all the csv files 
     path = mkpath("OscillatorPaper/FigureGenerationScripts/3FixedParams+ICsRawSets/$(param1)_$(param2)_$(param3)/DF=$(round(fixedDF))")
@@ -261,12 +301,15 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
             end
         end
     end
+    results_df = DataFrame(param1 => vals1, param2 => vals2, param3 => vals3, "num_oscillatory_points" => num_oscillatory_points_array, 
+                        "average_period" => average_periods, "maximum_period"=>maximum_periods, "minimum_period"=>minimum_periods,
+                        "average_amplitude" => average_amplitudes, "maximum_amplitude"=>maximum_amplitudes, "minimum_amplitude"=>minimum_amplitudes)
     return results_df
 end
 
-param_triplet = ["kcat1", "kcat7", "DF"]
+param_triplet = ["ka1", "kb1", "kcat1"]
 
-results_df = fixed_triplet_csv_maker(param_triplet..., allconstraints, ogprobjac)
+@time results_df = fixed_triplet_csv_maker(param_triplet..., allconstraints, ogprobjac)
 
 
 # CSV.write("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVs/fixed_triplet_results-$(param_triplet[1]*param_triplet[2]*param_triplet[3]).csv", results_df)
