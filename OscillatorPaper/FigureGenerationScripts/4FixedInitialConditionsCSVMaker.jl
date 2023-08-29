@@ -103,23 +103,32 @@ ogprobjac = ODEProblem(de, [], tspan, jac=true)
 
 
 #* Optimization of parameters to produce data for CSV
-param_constraints = define_parameter_constraints(ogprob; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
-ic_constraints = define_initialcondition_constraints(ogprob; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
+param_constraints = define_parameter_constraints(;karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
+ic_constraints = define_initialcondition_constraints(; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
+
+
+function fixedDF_fitness_function_maker(evalfunc::Function, prob::ODEProblem, fixedDF::Float64)
+    let evalfunc = evalfunc, prob = prob, fixedDF = fixedDF
+        function fitness_function(input::Vector{Float64})
+            newprob = remake(prob, p = [input; fixedDF])
+            return evalfunc(input, newprob)
+        end
+    end
+end
 
 
 #* Function loops through 4D grid of different initial conditions, letting all parameters be freely optimized, and saves the results to a csv file
-function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; rangelength = 4)
+function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; rangelength = 4, fixedDF=1000.)
     #* get the ranges of the initial conditions
     icranges = [logrange(constraints.min, constraints.max, rangelength) for constraints in icconstraints.ranges]
 
     icnames = [constraints.name for constraints in icconstraints.ranges]
 
+    #* filter out DF because it will be fixed
+    filter!(x -> x.name != "DF", paramconstraints.ranges)
+
     num_rows = rangelength^length(icnames)
 
-    # results_df = DataFrame(icnames[1] => Vector{Float64}(undef, num_rows), icnames[2] => Vector{Float64}(undef, num_rows), icnames[3] => Vector{Float64}(undef, num_rows),icnames[4] => Vector{Float64}(undef, num_rows),
-    #                         "num_oscillatory_points" => Vector{Int}(undef, num_rows), 
-    #                         "average_period" => Vector{Float64}(undef, num_rows), "maximum_period"=>Vector{Float64}(undef, num_rows), "minimum_period"=>Vector{Float64}(undef, num_rows),
-    #                         "average_amplitude" => Vector{Float64}(undef, num_rows), "maximum_amplitude"=>Vector{Float64}(undef, num_rows), "minimum_amplitude"=>Vector{Float64}(undef, num_rows))
 
     icvals1 = Vector{Float64}(undef, num_rows)
     icvals2 = Vector{Float64}(undef, num_rows)
@@ -139,7 +148,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     #* make progress bar 
     loopprogress = Progress(num_rows, desc ="Looping thru fixed ICs: " , color=:red)
 
-    path = mkpath("./OscillatorPaper/FigureGenerationScripts/4FixedICRawSets/")
+    mainrawpath = mkpath("./OscillatorPaper/FigureGenerationScripts/4FixedICRawSets")
 
 
     #* loop through each ic range and run the GA on each set of initial conditions after remaking the problem with them
@@ -159,15 +168,17 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                     #* set seed for reproducibility
                     Random.seed!(1234)
 
+                    #* close fitness function maker 
+                    fitness_function_maker(evalfunc, prob) = fixedDF_fitness_function_maker(evalfunc, prob, fixedDF)
+
                     #* run the GA on the new problem
-                    oscillatory_points_results = run_GA(ga_problem; population_size = 100000, iterations = 5)
+                    oscillatory_points_results = run_GA(ga_problem, fitness_function_maker; population_size = 100000, iterations = 5)
 
                     #* get the number of oscillatory points
                     num_oscillatory_points = length(oscillatory_points_results.population)
 
                     #* if there are no oscillatory points, save the results to the results_df and continue
                     if iszero(num_oscillatory_points)
-                        # results_df[i, :] = (icval1, icval2, icval3, icval4, 0, NaN, NaN, NaN, NaN, NaN, NaN)
                         icvals1[i] = icval1
                         icvals2[i] = icval2
                         icvals3[i] = icval3
@@ -210,7 +221,9 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                         oscillatory_points_df.P .= icval3
                         oscillatory_points_df.A .= icval4
 
-                        CSV.write(path*"$(round(icval1; digits = 2))_$(round(icval2;digits = 2))_$(round(icval3; digits=2))_$(round(icval4; digits=2)).csv", oscillatory_points_df)
+                        innerrawpath = mkpath(mainrawpath*"/$(round(icval1; digits = 2))_$(round(icval2;digits = 2))_$(round(icval3; digits=2))_$(round(icval4; digits=2))")
+
+                        CSV.write(innerrawpath*"/DF=$(round(fixedDF)).csv", oscillatory_points_df)
                     end
                     next!(loopprogress)
                     i += 1
@@ -222,14 +235,22 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                             "num_oscillatory_points" => num_oscillatory_points_array, 
                             "average_period" => average_periods, "maximum_period"=>maximum_periods, "minimum_period"=>minimum_periods,
                             "average_amplitude" => average_amplitudes, "maximum_amplitude"=>maximum_amplitudes, "minimum_amplitude"=>minimum_amplitudes)
-    CSV.write("./OscillatorPaper/FigureGenerationScripts/4FixedICs.csv", results_df)
+                            
+    CSV.write("./OscillatorPaper/FigureGenerationScripts/4FixedICs_DF=$(round(fixedDF)).csv", results_df)
     return results_df                
 end
 
-df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=3)
+df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4)
 
 
 
+function loop_4fixedICs_thru_DFvals(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; rangelength = 4, DFrange = [100.,1000.,10000.])
+    for DF in DFrange
+        df = fixed_quadruplet_ic_searcher(paramconstraints, icconstraints, prob; rangelength=rangelength, fixedDF=DF)
+    end
+end
+
+loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangelength=4, DFrange = [100.,1000.,10000.])
 
 
 scatter3d(df.Kinase, df.Phosphatase, df.AP2, color = df.num_oscillatory_points, zlims = (0, 100), colorbar_title = "Number of Oscillatory Points", title = "Number of Oscillatory Points vs. Initial Conditions", xlabel = "L", ylabel = "K", zlabel = "P", markersize = df.maximum_period, markerstrokewidth = 0, colormap = :viridis, camera = (30, 30),

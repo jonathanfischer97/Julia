@@ -26,13 +26,15 @@ function plotsol(sol::ODESolution; title = "")
         # p = plot(sol, idxs = [1,5,2,3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 ,16], title = title, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600),
                 # color = [:blue :orange :purple :gold], label = ["PIP" "PIP2" "PIP5K" "Synaptojanin"], alpha = 0.5)
         # annotate!(p, (0, 0), text("Period = $per\nAmplitude = $amp", :left, 10))
-        p = plot(sol, alpha = 0.4)
+        p = plot(sol, title=title, alpha = 0.4)
         plot!(p, sol.t, Asol, label="AP2 in solution", ls = :dash, alpha=1.0, color=:red)
         plot!(p, sol.t, Amem, lw = 2, size = (1000, 600), label = "AP2 on membrane", ls = :dash, alpha=1.0, color=:green)
 
         # display(p)
         return p    
 end
+
+
 
 """
 Calculates the frequency per minute of the FFT vector in-place 
@@ -55,7 +57,6 @@ function frequencies_per_minute!(t::Vector{Float64}, freq_values::Vector{Float64
     end
     
     
-    
 
 
 """
@@ -76,7 +77,7 @@ function plotfft(sol::ODESolution; fitidx::Int=4)
         #* Normalize the FFT to have mean 0 and amplitude 1
         normalize_time_series!(solfft)
         # fft_peakindexes, fft_peakvals = findmaxima(solfft,1) #* get the indexes of the peaks in the fft
-        fft_peakindexes, peakprops = findpeaks1d(solfft; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
+        fft_peakindexes, fft_peakvals = findextrema(solfft; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
         
         #* If there are no peaks, return a plot with no peaks
         if isempty(fft_peakindexes)
@@ -84,7 +85,6 @@ function plotfft(sol::ODESolution; fitidx::Int=4)
                                 xlims = (0, 100), label="", titlefontsize = 18, titlefontcolor = :green)
                 return p1
         else
-                fft_peakvals = peakprops["peak_heights"]
                 diffs = round(getDif(fft_peakvals); digits=4)
                 standevs = round(getSTD(fft_peakindexes, solfft; window = 5);digits=4)
 
