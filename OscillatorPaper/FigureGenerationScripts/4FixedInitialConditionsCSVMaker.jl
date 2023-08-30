@@ -257,3 +257,68 @@ loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangele
 
 # scatter3d(df.Kinase, df.Phosphatase, df.AP2, color = df.num_oscillatory_points, zlims = (0, 100), colorbar_title = "Number of Oscillatory Points", title = "Number of Oscillatory Points vs. Initial Conditions", xlabel = "L", ylabel = "K", zlabel = "P", markersize = df.maximum_period, markerstrokewidth = 0, colormap = :viridis, camera = (30, 30),
 #             xscale = :log10, yscale = :log10)  
+
+
+
+df = CSV.read("./OscillatorPaper/FigureGenerationScripts/4FixedICs_DF=100.0.csv", DataFrame)
+
+
+using GLMakie; GLMakie.activate!()
+
+function scatters_in_3D(df; fig = Figure(resolution=(1600, 1200)),  angle=30)
+    pnames = names(df)[2:4]
+    xlog = log10.(df[:, pnames[1]])
+    ylog = log10.(df[:, pnames[2]])
+    zlog = log10.(df[:, pnames[3]])
+
+    x = df[:, pnames[1]]
+    y = df[:, pnames[2]]
+    z = df[:, pnames[3]]
+
+    # Identify non-NaN indices and values
+    nonan_indices = findall(!isnan, df[:, :average_period])
+    # nonan_amplitudes = df[:, :average_amplitude][nonan_indices]
+    nonan_numpoints = df[:, :num_oscillatory_points][nonan_indices]
+
+    nonan_periods = df[:, :average_period][nonan_indices]
+
+    # Normalize sizes for non-NaN values
+    sizes = fill(0.1, size(df, 1))
+    # sizes[nonan_indices] = ((nonan_amplitudes .- minimum(nonan_amplitudes)) ./ (maximum(nonan_amplitudes) - minimum(nonan_amplitudes))) ./ 2 
+    sizes[nonan_indices] = ((nonan_numpoints .- minimum(nonan_numpoints)) ./ (maximum(nonan_numpoints) - minimum(nonan_numpoints))) ./ 2 
+
+
+    # Normalize periods for non-NaN values
+    norm_periods = fill(NaN, size(df, 1))
+
+    norm_periods[nonan_indices] = (nonan_periods .- minimum(nonan_periods)) ./ (maximum(nonan_periods) - minimum(nonan_periods)) 
+
+    # Create the figure and axis
+    
+    ax = Axis3(fig[1:3,2]; aspect=:data, perspectiveness=0.5, title="Fixed ICs Oscillatory Regions", xlabel = pnames[1], ylabel = pnames[2], zlabel = pnames[3])
+
+    # Scatter plot for non-NaN values
+    hm = meshscatter!(ax, xlog, ylog, zlog; markersize=sizes, ssao=true, color=df.average_period, colormap=:thermal, transparency=false, nan_color=:gray,
+                        diffuse = Vec3f(0.5, 0.5, 0.5), specular = Vec3f(0.3, 0.3, 0.3), shininess = 100f0, ambient = Vec3f(0.1), shading=true)
+
+    # meshscatter!(ax, xlog, ylog; markersize=sizes, marker= Rect3f(Vec3f(0.,0.,0.1)), ssao=true, color=df.average_period, colormap=:thermal, transparency=false, nan_color=:gray,
+    #                     diffuse = Vec3f(0.0), specular = Vec3f(0.0), shininess = 0, ambient = Vec3f(0.0))
+
+    # Scatter plot for NaN values in gray
+    # nan_indices = findall(isnan, df[:, :average_period])
+    # meshscatter!(ax3, x[nan_indices], y[nan_indices], z[nan_indices]; markersize=sizes[nan_indices], color=:gray)
+
+    # Colorbar and labels
+    Colorbar(fig[2, 1], hm, label="Period (s)", height=Relative(2.0))
+    colgap!(fig.layout, 6)
+    # xlabel!(ax3, "log10(kb3)")
+    # ylabel!(ax3, "log10(kb4)")
+    # zlabel!(ax3, "log10(DF)")
+
+    # Display plot
+    fig
+end
+
+fig = scatters_in_3D(df)
+
+fig2 = scatters_in_3D(excessL_df; fig=fig)
