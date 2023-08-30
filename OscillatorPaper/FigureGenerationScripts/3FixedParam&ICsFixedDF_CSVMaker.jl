@@ -25,7 +25,7 @@ begin
     using Combinatorics
     # using LazySets, Polyhedra
     default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
-    # plotlyjs()
+    plotlyjs()
     # import CairoMakie as cm 
     # gr()
     # push!(LOAD_PATH, "../../UTILITIES")
@@ -59,6 +59,17 @@ tspan = (0., 2000.0)
 fullrn = make_fullrn()
 ogprob = ODEProblem(fullrn, [], tspan, [])
 
+p = [25.78701387,	0.51344506,	0.64734236,	8.970675451,	88.55107936,	0.134108335,
+    	0.556267399,	0.126,	876.2804444,	0.008704501,	0.001,	0.001,	100]
+u0 = 	[100,	0.215443469,	100,	100]
+
+ogprob = remake(ogprob, p = p, u0 = [u0; zeros(12)])
+
+sol = solve(ogprob, saveat = 0.1)
+
+plot(sol)
+
+plotsol(sol)
 
 
 de = modelingtoolkitize(ogprob)
