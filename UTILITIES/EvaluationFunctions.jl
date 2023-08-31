@@ -79,7 +79,7 @@ function CostFunction(sol::ODESolution)::Vector{Float64}
 
     #* Check if last half of the solution array is steady state
     lasthalfsol = Amem_sol[end-tstart:end]
-    if std(lasthalfsol) < 0.1 
+    if std(lasthalfsol) < 0.1 #TODO relative to mean, normalize 
         return [0.0, 0.0, 0.0]
     end 
 
