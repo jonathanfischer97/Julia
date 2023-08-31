@@ -197,6 +197,60 @@ function findextrema(x::AbstractVector{T};
     extrema_indices, extrema_heights
 end
 
+function findextrema(x::AbstractVector{T}; 
+                    height::Union{Nothing,<:Real,NTuple{2,<:Real}}=nothing,
+                    distance::Union{Nothing,Int}=nothing) where {T<:Real}
+    midpts = Vector{Int}(undef, 0)
+    i = 2
+    imax = length(x)
+
+    while i < imax
+        if x[i-1] < x[i]
+            iahead = i + 1
+            while (iahead < imax) && (x[iahead] == x[i])
+                iahead += 1
+            end
+            if x[iahead] < x[i]
+                push!(midpts, (i + iahead - 1) ÷ 2)
+                i = iahead
+            end
+        end
+        i += 1
+    end 
+
+    #* Filter by height if needed
+    if !isnothing(height)
+        hmin, hmax = height isa Number ? (height, nothing) : height
+        keepheight = (hmin === nothing || x[midpts] .>= hmin) .& (hmax === nothing || x[midpts] .<= hmax)
+        midpts = midpts[keepheight]
+    end
+
+    #* Filter by distance if needed
+    if !isnothing(distance)
+        priority = x[midpts]
+        keep = selectbypeakdistance(midpts, priority, distance)
+        midpts = midpts[keep]
+    end
+
+    extrema_indices = midpts
+    extrema_heights = x[extrema_indices]
+
+    extrema_indices, extrema_heights
+end
+
+function find_minima_between_maxima(x::AbstractVector{T}, maxima_indices::Vector{Int}) where {T<:Real}
+    minima_indices = Vector{Int}(undef, length(maxima_indices) - 1)
+    minima_values = Vector{T}(undef, length(maxima_indices) - 1)
+
+    for i in 1:(length(maxima_indices) - 1)
+        range = maxima_indices[i]:maxima_indices[i+1]
+        minima_indices[i] = argmin(x[range]).I[1] + range.start - 1
+        minima_values[i] = x[minima_indices[i]]
+    end
+
+    return minima_indices, minima_values
+end
+
 function selectbypeakdistance(pkindices, priority, distance)
     npkindices = length(pkindices)
     keep = trues(npkindices)
