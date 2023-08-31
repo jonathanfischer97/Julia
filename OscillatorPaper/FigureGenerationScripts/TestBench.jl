@@ -108,7 +108,7 @@ ogprobjac = ODEProblem(de, [], tspan, jac=true)
 # fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 0.0, distance = 1) #* get the indexes of the peaks in the fft
 
 param_constraints = define_parameter_constraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
-ic_constraints = define_initialcondition_constraints(; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
+ic_constraints = define_initialcondition_constraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
 
 allconstraints = AllConstraints(param_constraints, ic_constraints)
 
@@ -283,7 +283,7 @@ end
 function testbench(constraints::ConstraintType, prob::ODEProblem)
     test_gaproblem = GAProblem(constraints, prob)
     Random.seed!(1234)
-    test_results = run_GA(test_gaproblem; population_size = 20000, iterations = 5, show_trace=true)
+    test_results = run_GA(test_gaproblem; population_size = 10000, iterations = 5, show_trace=true)
 
     # avg_fitness = mean(test_results.fitvals)
     # @info "Average fitness: $avg_fitness"
@@ -291,14 +291,30 @@ function testbench(constraints::ConstraintType, prob::ODEProblem)
     # @info "Average period: $avg_period"
     # avg_amplitude = mean(test_results.amplitudes)
     # @info "Average amplitude: $avg_amplitude"
-    test_results_df = make_ga_dataframe(test_results, prob)
-    return test_results_df#, avg_fitness, avg_period, avg_amplitude
+    if length(test_results.fitvals) == 0
+        @info "No oscillatory points found."
+    else 
+        test_results_df = make_ga_dataframe(test_results, prob)
+        return test_results_df#, avg_fitness, avg_period, avg_amplitude
+    end
 end
 
 #* now testing Rosenbrock23 and new peak finder in getPerAmp for the ringing solutions
 @code_warntype testbench(param_constraints, ogprobjac)
+
+ogprobjac = remake(ogprobjac, u0 = [[100., 0.2, 0.2, 4.64]; zeros(12)])
+
 test_results_df = testbench(param_constraints, ogprobjac)
+
+plot_everything(test_results_df, ogprob; setnum=16, label="Testing", jump = 10)
+
 test_results_df = testbench(allconstraints, ogprobjac)
+
+stats_df = describe(test_results_df)
+
+using StatsPlots
+
+@df stats_df plot(:min, :max)
 
 test_results_df.amp_percentage = test_results_df.amp./test_results_df.A
 
