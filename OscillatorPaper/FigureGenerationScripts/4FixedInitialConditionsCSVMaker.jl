@@ -104,7 +104,7 @@ ogprobjac = ODEProblem(de, [], tspan, jac=true)
 
 #* Optimization of parameters to produce data for CSV
 param_constraints = define_parameter_constraints(;karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
-ic_constraints = define_initialcondition_constraints(; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
+ic_constraints = define_initialcondition_constraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
 
 gaproblem = GAProblem(param_constraints, ogprobjac)
 
@@ -246,7 +246,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     return results_df                
 end
 
-df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4, fixedDF=1000.)
+df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4, fixedDF=100.)
 
 df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4, fixedDF=10000.)
 
@@ -267,12 +267,15 @@ loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangele
 
 
 
-df = CSV.read("./OscillatorPaper/FigureGenerationScripts/4FixedICs_DF=100.0.csv", DataFrame)
+df100 = CSV.read("./OscillatorPaper/FigureGenerationScripts/4FixedICs_DF=100.0.csv", DataFrame)
+df1000 = CSV.read("./OscillatorPaper/FigureGenerationScripts/4FixedICs_DF=1000.0.csv", DataFrame)
+
+maximum(df1000.num_oscillatory_points)
 
 
 using GLMakie; GLMakie.activate!()
 
-function scatters_in_3D(df; fig = Figure(resolution=(1600, 1200)),  angle=30)
+function scatters_in_3D(df; fig = Figure(resolution=(1600, 1200)))
     pnames = names(df)[1:4]
     xlog = log10.(df[:, pnames[1]])
     ylog = log10.(df[:, pnames[2]])
@@ -326,9 +329,69 @@ function scatters_in_3D(df; fig = Figure(resolution=(1600, 1200)),  angle=30)
     fig
 end
 
-fig = scatters_in_3D(df)
+fig = scatters_in_3D(df1000)
 
-fig2 = scatters_in_3D(excessL_df; fig=fig)
+fig2 = scatters_in_3D(df1000; fig=fig)
+
+
+
+
+function plot4fixedIC(dfs; fig = Figure(resolution=(1600, 1200)))
+    for (i,df) in enumerate(dfs)
+
+        pnames = names(df)[2:4]
+        xlog = log10.(df[:, pnames[1]])
+        ylog = log10.(df[:, pnames[2]])
+        zlog = log10.(df[:, pnames[3]])
+        
+
+
+        # nonan_amplitudes = df[:, :average_amplitude][nonan_indices]
+        numpoints = df[:, :num_oscillatory_points]
+
+        periods = df[:, :average_period]
+
+        # Normalize sizes for non-NaN values
+        sizes = fill(0.1, size(df, 1))
+        # sizes[nonan_indices] = ((nonan_amplitudes .- minimum(nonan_amplitudes)) ./ (maximum(nonan_amplitudes) - minimum(nonan_amplitudes))) ./ 2 
+        sizes = ((numpoints .- minimum(numpoints)) ./ (maximum(numpoints) - minimum(numpoints))) ./ 2 
+
+
+        # Normalize periods for non-NaN values
+        norm_periods = fill(NaN, size(df, 1))
+
+        norm_periods = (periods .- minimum(periods)) ./ (maximum(periods) - minimum(periods)) 
+
+        # Create the figure and axis
+        
+        ax = Axis3(fig[1,i]; aspect=:data, perspectiveness=0.5, title="Fixed ICs Oscillatory Regions", xlabel = pnames[1], ylabel = pnames[2], zlabel = pnames[3])
+
+        # Scatter plot for non-NaN values
+        meshscatter!(ax, xlog, ylog, zlog; markersize=sizes, ssao=true, color=df.average_period, colormap=:thermal, transparency=false, nan_color=:gray,
+                            diffuse = Vec3f(0.5, 0.5, 0.5), specular = Vec3f(0.3, 0.3, 0.3), shininess = 100f0, ambient = Vec3f(0.1), shading=true)
+    end
+
+    # meshscatter!(ax, xlog, ylog; markersize=sizes, marker= Rect3f(Vec3f(0.,0.,0.1)), ssao=true, color=df.average_period, colormap=:thermal, transparency=false, nan_color=:gray,
+    #                     diffuse = Vec3f(0.0), specular = Vec3f(0.0), shininess = 0, ambient = Vec3f(0.0))
+
+
+    # Colorbar and labels
+    Colorbar(fig[2, 1], label="Period (s)", height=Relative(2.0))
+    colgap!(fig.layout, 6)
+    # xlabel!(ax3, "log10(kb3)")
+    # ylabel!(ax3, "log10(kb4)")
+    # zlabel!(ax3, "log10(DF)")
+
+    # Display plot
+    fig
+end
+
+fig = plot4fixedIC([df100, df1000])
+
+
+
+
+
 
 
 
