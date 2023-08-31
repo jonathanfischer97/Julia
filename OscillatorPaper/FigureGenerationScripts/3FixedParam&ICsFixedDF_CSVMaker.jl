@@ -25,7 +25,7 @@ begin
     using Combinatorics
     # using LazySets, Polyhedra
     default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
-    plotlyjs()
+    # plotlyjs()
     # import CairoMakie as cm 
     # gr()
     # push!(LOAD_PATH, "../../UTILITIES")
@@ -125,6 +125,10 @@ allconstraints = AllConstraints(param_constraints, ic_constraints)
 
 pop = generate_population(allconstraints, 1000)
 
+popdf = make_df(pop, ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "L", "K", "P", "A"])
+
+show(describe(popdf), allrows=true)
+
 #* function to convert array of vectors into dataframe
 function make_df(pop::Vector{Vector{Float64}}, colnames)
     df = DataFrame()
@@ -142,7 +146,7 @@ using StatsPlots
 
 #* function visualize spread of each parameter in the population. histograms
 function visualize_population_spread(constraints::ConstraintType)
-    pop = generate_population(constraints, 1000)
+    pop = generate_population(constraints, 10000)
     colnames = [x.name for x in constraints.ranges]
     popdf = make_df(pop, colnames)
 
@@ -152,7 +156,7 @@ function visualize_population_spread(constraints::ConstraintType)
 
     #* loop through each column and make a histogram
     for (i,colname) in enumerate(names(popdf))
-        subplot = histogram(popdf[:,Symbol(colname)], bins=100, title = colname, legend = false, color = colors[i])
+        subplot = histogram(popdf[:,Symbol(colname)], title = colname, legend = false, color = colors[i])
         push!(plotarray, subplot)
     end
 
