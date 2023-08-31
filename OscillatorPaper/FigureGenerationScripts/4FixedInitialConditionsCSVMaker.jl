@@ -106,6 +106,10 @@ ogprobjac = ODEProblem(de, [], tspan, jac=true)
 param_constraints = define_parameter_constraints(;karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
 ic_constraints = define_initialcondition_constraints(; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
 
+gaproblem = GAProblem(param_constraints, ogprobjac)
+
+garesults = run_GA(gaproblem; population_size = 20000, iterations = 5)
+
 
 function fixedDF_fitness_function_maker(evalfunc::Function, prob::ODEProblem, fixedDF::Float64)
     let evalfunc = evalfunc, prob = prob, fixedDF = fixedDF
@@ -210,18 +214,18 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
 
                     
                         #* make dataframe from oscillatory_points_results
-                        oscillatory_points_df = make_df(oscillatory_points_results)
+                        oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, newprob, fixedDF)
 
 
                         
-                        #* split parameter values into separate columns and add initial conditions
-                        split_dataframe!(oscillatory_points_df, newprob, fixedDF)
+                        # #* split parameter values into separate columns and add initial conditions
+                        # split_dataframe!(oscillatory_points_df, newprob, fixedDF)
 
-                        #* rewrite the L, K, P, A columns with the initial conditions
-                        oscillatory_points_df.L .= icval1
-                        oscillatory_points_df.K .= icval2
-                        oscillatory_points_df.P .= icval3
-                        oscillatory_points_df.A .= icval4
+                        # #* rewrite the L, K, P, A columns with the initial conditions
+                        # oscillatory_points_df.L .= icval1
+                        # oscillatory_points_df.K .= icval2
+                        # oscillatory_points_df.P .= icval3
+                        # oscillatory_points_df.A .= icval4
 
                         innerrawpath = mkpath(mainrawpath*"/$(round(icval1; digits = 2))_$(round(icval2;digits = 2))_$(round(icval3; digits=2))_$(round(icval4; digits=2))")
 
@@ -242,7 +246,10 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     return results_df                
 end
 
-df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4)
+df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4, fixedDF=1000.)
+
+df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4, fixedDF=10000.)
+
 
 
 
@@ -266,7 +273,7 @@ df = CSV.read("./OscillatorPaper/FigureGenerationScripts/4FixedICs_DF=100.0.csv"
 using GLMakie; GLMakie.activate!()
 
 function scatters_in_3D(df; fig = Figure(resolution=(1600, 1200)),  angle=30)
-    pnames = names(df)[2:4]
+    pnames = names(df)[1:4]
     xlog = log10.(df[:, pnames[1]])
     ylog = log10.(df[:, pnames[2]])
     zlog = log10.(df[:, pnames[3]])
@@ -322,3 +329,11 @@ end
 fig = scatters_in_3D(df)
 
 fig2 = scatters_in_3D(excessL_df; fig=fig)
+
+
+
+#* compare 1000 pop to 100000 pop 
+#* fix false positives, reduce std window, and height thresholding for find minima
+#* for 3d scatter plots, show another plot where size is function of amplitude, and make amplitude the relative amplitude (Amem/Asol )
+#* Maybe make plot for each value of L 
+#* Increase grid sampling 

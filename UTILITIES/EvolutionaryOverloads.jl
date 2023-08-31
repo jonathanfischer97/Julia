@@ -27,12 +27,6 @@ function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population
     record["fitvals"] = copy(state.fitvals[oscillatory_population_idxs])
     record["periods"] = copy(state.periods[oscillatory_population_idxs])
     record["amplitudes"] = copy(state.amplitudes[oscillatory_population_idxs])
-
-    # record["population"] = deepcopy(population)
-    # record["fitvals"] = deepcopy(state.fitvals)
-    # record["periods"] = deepcopy(state.periods)
-    # record["amplitudes"] = deepcopy(state.amplitudes)
-
 end
 
 
@@ -124,10 +118,10 @@ function Evolutionary.initial_state(method::GA, options, objfun, population) #TO
     #* Evaluate population fitness, period and amplitude
     Evolutionary.value!(objfun, fitvals, population, periods, amplitudes)
 
-    minfit, fitidx = findmin(fitvals)
+    maxfit, fitidx = findmax(fitvals)
 
     #* setup initial state
-    return CustomGAState(N, eliteSize, minfit, fitvals, copy(population[fitidx]), periods, amplitudes)
+    return CustomGAState(N, eliteSize, maxfit, fitvals, copy(population[fitidx]), periods, amplitudes)
 end
 
 """Modified evaluate! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
@@ -168,7 +162,7 @@ function Evolutionary.update_state!(objfun, constraints, state::CustomGAState, p
     Evolutionary.evaluate!(objfun, state.fitvals, offspring, state.periods, state.amplitudes, constraints)
 
     #* select the best individual
-    minfit, fitidx = findmin(state.fitvals)
+    maxfit, fitidx = findmax(state.fitvals)
     state.fittestInd = offspring[fitidx]
     state.fittestValue = state.fitvals[fitidx]
     

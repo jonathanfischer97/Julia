@@ -68,32 +68,32 @@ ogprobjac = ODEProblem(de, [], tspan, jac=true)
 
 
 
-ogjacsol = solve(ogprobjac, saveat=0.1)
-plot(ogjacsol)
+# ogjacsol = solve(ogprobjac, saveat=0.1)
+# plot(ogjacsol)
 
-maxpeaks = findextrema(ogjacsol[1,:]; height=1e-2, distance=2)
-minpeaks = findextrema(ogjacsol[1,:]; height=-1e-2, distance=2, find_maxima=false)
-minpeaks = findextrema(flip_about_mean(ogjacsol[1,:]); height=-1e-2, distance=2, find_maxima=false)
-
-
+# maxpeaks = findextrema(ogjacsol[1,:]; height=1e-2, distance=2)
+# minpeaks = findextrema(ogjacsol[1,:]; height=-1e-2, distance=2, find_maxima=false)
+# minpeaks = findextrema(flip_about_mean(ogjacsol[1,:]); height=-1e-2, distance=2, find_maxima=false)
 
 
 
-@btime CostFunction($ogjacsol)
-@code_warntype CostFunction(ogjacsol)
 
 
-@btime ogjacsol[1:100]
-plot(ogjacsol)
+# @btime CostFunction($ogjacsol)
+# @code_warntype CostFunction(ogjacsol)
 
-flipped = flip_about_mean(ogjacsol[1,:])
-plot(flipped)
-flip_about_mean!(ogjacsol[1,:])
 
-ogjacsol[1:end] .= 0.1
+# @btime ogjacsol[1:100]
+# plot(ogjacsol)
 
-@btime solve(ogprob, saveat=0.1, save_idxs=4)
-@btime solve(ogprobjac, saveat=0.1, save_idxs=4)
+# flipped = flip_about_mean(ogjacsol[1,:])
+# plot(flipped)
+# flip_about_mean!(ogjacsol[1,:])
+
+# ogjacsol[1:end] .= 0.1
+
+# @btime solve(ogprob, saveat=0.1, save_idxs=4)
+# @btime solve(ogprobjac, saveat=0.1, save_idxs=4)
 
 
 
@@ -107,8 +107,8 @@ ogjacsol[1:end] .= 0.1
 # fft_peakindexes, fft_peakvals = findmaxima(fftdata,1) #* get the indexes of the peaks in the fft
 # fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 0.0, distance = 1) #* get the indexes of the peaks in the fft
 
-param_constraints = define_parameter_constraints(ogprobjac; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
-ic_constraints = define_initialcondition_constraints(ogprobjac; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
+param_constraints = define_parameter_constraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
+ic_constraints = define_initialcondition_constraints(; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
 
 allconstraints = AllConstraints(param_constraints, ic_constraints)
 
@@ -280,18 +280,18 @@ end
 # fft_peakvals = peakprops["peak_heights"]
 
 
-function testbench(param_constraints::ConstraintType, prob::ODEProblem)
-    test_gaproblem = GAProblem(param_constraints, prob)
+function testbench(constraints::ConstraintType, prob::ODEProblem)
+    test_gaproblem = GAProblem(constraints, prob)
     Random.seed!(1234)
-    test_results = run_GA(test_gaproblem; population_size = 10000, iterations = 5, fitidx = 4, show_trace=true)
+    test_results = run_GA(test_gaproblem; population_size = 20000, iterations = 5, show_trace=true)
 
-    avg_fitness = mean(test_results.fitvals)
+    # avg_fitness = mean(test_results.fitvals)
     # @info "Average fitness: $avg_fitness"
-    avg_period = mean(test_results.periods)
+    # avg_period = mean(test_results.periods)
     # @info "Average period: $avg_period"
-    avg_amplitude = mean(test_results.amplitudes)
+    # avg_amplitude = mean(test_results.amplitudes)
     # @info "Average amplitude: $avg_amplitude"
-    test_results_df = make_df(test_results)
+    test_results_df = make_ga_dataframe(test_results, prob)
     return test_results_df#, avg_fitness, avg_period, avg_amplitude
 end
 
@@ -300,10 +300,20 @@ end
 test_results_df = testbench(param_constraints, ogprobjac)
 test_results_df = testbench(allconstraints, ogprobjac)
 
+test_results_df.amp_percentage = test_results_df.amp./test_results_df.A
+
+
+# split_dataframe!(test_results_df, ogprobjac)
+
+CSV.write("OscillatorPaper/FigureGenerationScripts/high_amp_Amem.csv", test_results_df)
+
 @btime testbench($param_constraints, $ogprob)
 @btime testbench($param_constraints, $ogprobjac)
 
-plot_everything(test_results_df, ogprob; setnum=14, label="IBR", jump = 10)
+plot_everything(test_results_df, ogprob; setnum=15, label="TestingSTDWindow", jump = 10)
+
+
+plotboth(test_results_df[1,:], ogprob)
 
 
 
@@ -318,6 +328,17 @@ testdf = CSV.read("OscillatorPaper/FigureGenerationScripts/test.csv", DataFrame)
 
 
 
+p = [param for param in test_results_df[1763, Between(:ka1, :DF)]]
+u0 = [ic for ic in test_results_df[1763, Between(:L, :A)]]
 
+reprob = remake(ogprob, p = p, u0 = [u0; zeros(length(ogprob.u0) - length(u0))])
 
+sol = solve(reprob, Rosenbrock23(), saveat=0.1, save_idxs = [6, 9, 10, 11, 12, 15, 16])
 
+Amem = map(sum, sol.u)
+
+findextrema(Amem; height=1e-2, distance=2)
+findextrema(Amem; height=0.0, distance=2, find_maxima=false)
+
+CostFunction(sol)
+plot(sol)

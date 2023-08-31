@@ -46,7 +46,7 @@ function getPerAmp(sol::ODESolution)
     Amem_sol = map(sum, sol.u)
 
     indx_max, vals_max = findextrema(Amem_sol; height = 1e-2, distance = 5)
-    indx_min, vals_min = findextrema(Amem_sol; height = 1e-2, distance = 5, find_maxima=false)
+    indx_min, vals_min = findextrema(Amem_sol; height = 0.0, distance = 5, find_maxima=false)
     return getPerAmp(sol.t, indx_max, vals_max, indx_min, vals_min)
 end
 
@@ -55,7 +55,7 @@ function getPerAmp(solt::Vector{Float64}, indx_max::Vector{Int}, vals_max::Vecto
 
     #* Calculate amplitudes and periods
     pers = (solt[indx_max[i+1]] - solt[indx_max[i]] for i in 1:(length(indx_max)-1))
-    amps = ((vals_max[i] - vals_min[i])/2 for i in 1:min(length(indx_max), length(indx_min)))
+    amps = (vals_max[i] - vals_min[i] for i in 1:min(length(indx_max), length(indx_min)))
 
     return maximum(pers), mean(amps) .|> abs #TODO fix this, why is amps empty sometimes
 end
@@ -75,20 +75,21 @@ function CostFunction(sol::ODESolution)::Vector{Float64}
 
     Amem_sol = map(sum, sol.u)
 
+    tstart = cld(length(sol),10) 
+
     #* Check if last half of the solution array is steady state
-    lasthalfsol = Amem_sol[cld(length(sol),2):end]
-    if std(lasthalfsol) < 0.05 
+    lasthalfsol = Amem_sol[end-tstart:end]
+    if std(lasthalfsol) < 0.1 
         return [0.0, 0.0, 0.0]
     end 
 
     #* Trim first 10% of the solution array to avoid initial spikes
-    tstart = cld(length(sol),10) 
     Amem_sol = Amem_sol[tstart:end] 
 
     indx_max, vals_max = findextrema(Amem_sol; height = 1e-2, distance = 5)
     indx_min, vals_min = findextrema(Amem_sol; height = 0.0, distance = 5, find_maxima=false)
 
-    if length(indx_max) < 2 || length(indx_min) < 2 #* if there is no signal in the frequency domain,
+    if length(indx_max) < 2 || length(indx_min) < 2 #* if there is no signal in the time domain,
         return [0.0, 0.0, 0.0]
     end
     
@@ -98,12 +99,12 @@ function CostFunction(sol::ODESolution)::Vector{Float64}
     #* Normalize the solution array. WARNING: solarray is modified after this line
     normalize_time_series!(fftData)
 
-    fft_peakindexes, fft_peakvals = findextrema(fftData; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
+    fft_peakindexes, fft_peakvals = findextrema(fftData; height = 1e-2, distance = 2) #* get the indexes of the peaks in the fft
     # @info length(fft_peakindexes)
     if length(fft_peakindexes) < 2 #* if there is no signal in the frequency domain, return 0.0s
         return [0.0, 0.0, 0.0]
     else
-        standard_deviation = getSTD(fft_peakindexes, fftData; window = 5) #* get the summed standard deviation of the peaks in frequency domain
+        standard_deviation = getSTD(fft_peakindexes, fftData; window = 1) #* get the summed standard deviation of the peaks in frequency domain
         sum_diff = getDif(fft_peakvals) #* get the summed difference between the first and last peaks in frequency domain
     
         #* Compute the period and amplitude
@@ -130,9 +131,9 @@ function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem; 
 end
 
 """Evaluate the fitness of an individual with new initial conditions and new parameters"""
-function eval_all_fitness(params::Vector{Float64}, initial_conditions::Vector{Float64}, prob::ODEProblem; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16])
+function eval_all_fitness(inputs::Vector{Float64}, prob::ODEProblem; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16])
     #* remake with new initial conditions
-    new_prob = remake(prob, p = params, u0=[initial_conditions; zeros(length(prob.u0)-length(initial_conditions))])
+    new_prob = remake(prob, p = inputs[1:13], u0=[inputs[14:end]; zeros(length(prob.u0)-length(inputs[14:end]))])
     return solve_for_fitness_peramp(new_prob, idx)
 end
 

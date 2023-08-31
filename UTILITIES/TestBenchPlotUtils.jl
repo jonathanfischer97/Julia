@@ -13,22 +13,23 @@
 
 """
 Plot the solution from a row of the DataFrame
+L(t) K(t) P(t) A(t) Lp(t) LpA(t) LK(t) LpP(t) LpAK(t) LpAP(t) LpAKL(t) LpAPLp(t) AK(t) AP(t) AKL(t) APLp(t)
 """
 function plotsol(sol::ODESolution; title = "")
 
-        """L(t) K(t) P(t) A(t) Lp(t) LpA(t) LK(t) LpP(t) LpAK(t) LpAP(t) LpAKL(t) LpAPLp(t) AK(t) AP(t) AKL(t) APLp(t)"""
         #* Sum up all A in solution 
         Asol = sol[4,:]  + sol[13,:] + sol[14, :]
 
         Amem = sol[6,:] + sol[9,:] + sol[10,:]+ sol[11,:] + sol[12,:]+ sol[15,:] + sol[16,:]
+        
 
         # cost, per, amp = CostFunction(sol)
-        # p = plot(sol, idxs = [1,5,2,3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 ,16], title = title, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600),
-                # color = [:blue :orange :purple :gold], label = ["PIP" "PIP2" "PIP5K" "Synaptojanin"], alpha = 0.5)
+        p = plot(sol, idxs = [1,5,2,3], title = title, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600),
+                color = [:blue :orange :purple :gold], label = ["PIP" "PIP2" "PIP5K" "Synaptojanin"], alpha = 0.5)
         # annotate!(p, (0, 0), text("Period = $per\nAmplitude = $amp", :left, 10))
-        p = plot(sol, title=title, alpha = 0.4)
-        plot!(p, sol.t, Asol, label="AP2 in solution", ls = :dash, alpha=1.0, color=:red)
-        plot!(p, sol.t, Amem, lw = 2, size = (1000, 600), label = "AP2 on membrane", ls = :dash, alpha=1.0, color=:green)
+        # p = plot(sol, title=title, alpha = 0.4)
+        plot!(p, sol.t, Asol, label="AP2 in solution", ls = :dash, alpha=1.0, color=:gray)
+        plot!(p, sol.t, Amem, lw = 2, size = (1000, 600), label = "AP2 on membrane", ls = :dash, alpha=1.0, color=:black)
 
         # display(p)
         return p    
@@ -62,14 +63,15 @@ function frequencies_per_minute!(t::Vector{Float64}, freq_values::Vector{Float64
 """
 Plot the FFT of a solution from a row of the DataFrame
 """
-function plotfft(sol::ODESolution; fitidx::Int=4)
+function plotfft(sol::ODESolution)
         #* Trim first 10% of the solution array to avoid initial spikes
         tstart = cld(length(sol.t),10) 
         trimsol = sol[tstart:end] 
 
         # normsol = normalize_time_series!(trimsol[fitidx,:])
         # normsol = sol[1,:]
-        solfft = getFrequencies(trimsol[fitidx,:])
+        Amem = trimsol[6,:] + trimsol[9,:] + trimsol[10,:]+ trimsol[11,:] + trimsol[12,:]+ trimsol[15,:] + trimsol[16,:]
+        solfft = getFrequencies(Amem)
 
         #* Get the frequencies per minute for x axis
         frequencies_per_minute!(sol.t, solfft)
@@ -77,7 +79,7 @@ function plotfft(sol::ODESolution; fitidx::Int=4)
         #* Normalize the FFT to have mean 0 and amplitude 1
         normalize_time_series!(solfft)
         # fft_peakindexes, fft_peakvals = findmaxima(solfft,1) #* get the indexes of the peaks in the fft
-        fft_peakindexes, fft_peakvals = findextrema(solfft; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
+        fft_peakindexes, fft_peakvals = findextrema(solfft; height = 1e-2, distance = 2) #* get the indexes of the peaks in the fft
         
         #* If there are no peaks, return a plot with no peaks
         if isempty(fft_peakindexes)
@@ -94,7 +96,7 @@ function plotfft(sol::ODESolution; fitidx::Int=4)
                 peaklabels = [text("$(round.(val; digits=4))", :bottom, 10) for val in fft_peakvals]
                 scatter!(p1, fft_peakindexes, fft_peakvals, text = peaklabels, label = "", color = :red, markersize = 5)
 
-                window = 1
+                window = 5
                 maxpeak_idx = fft_peakindexes[argmax(fft_peakvals)]
                 stdlines = [maxpeak_idx - window, maxpeak_idx + window]
 
@@ -112,28 +114,34 @@ end
 """
 Plot both the solution and the FFT of a solution from a row of the DataFrame
 """
-function plotboth(row, df::DataFrame, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)), fitidx::Int = 4)
+function plotboth(dfrow::DataFrameRow, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)))
 
-        # reprob = length(df.ind[row]) > 4 ? remake(prob, p = df.ind[row]) : remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
-        if length(df.ind[row]) == 13
-                reprob = remake(prob, p = df.ind[row])
-        elseif length(df.ind[row]) == 4
-                reprob = remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
-        else
-                reprob = remake(prob, p = df.ind[row][1:13], u0 = [df.ind[row][14:end]; zeros(length(prob.u0) - length(df.ind[row][14:end]))])
-        end
+        # if length(df.ind[row]) == 13
+        #         reprob = remake(prob, p = df.ind[row])
+        # elseif length(df.ind[row]) == 4
+        #         reprob = remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
+        # else
+        #         reprob = remake(prob, p = df.ind[row][1:13], u0 = [df.ind[row][14:end]; zeros(length(prob.u0) - length(df.ind[row][14:end]))])
+        # end
+        
+        newp = [param for param in dfrow[Between(:ka1, :DF)]]
+        newu0 = [ic for ic in dfrow[Between(:L, :A)]]
+
+        reprob = remake(prob, p = newp, u0 = [newu0; zeros(length(prob.u0) - length(newu0))])
+
         sol = solve(reprob, Rosenbrock23(), saveat=0.1, save_idxs=vars)
-        # cost, per, amp = CostFunction(sol; idx = fitidx)
+        cost, per, amp = CostFunction(solve(reprob, Rosenbrock23(), saveat=0.1, save_idxs=[6, 9, 10, 11, 12, 15, 16]))
+        amp_percentage = amp/sol[4,1]
 
         solplot = plotsol(sol)
-        # fftplot = plotfft(sol; fitidx = fitidx)
+        fftplot = plotfft(sol)
 
-        # bothplot = plot(solplot, fftplot, plot_title ="Fit: $(round(cost;digits=4))\nPeriod: $(round(per;digits=4)) s" , 
-        #                 plot_titlefontsize = 20, layout = (2,1), size = (1000, 800))
-        # display(bothplot)
-        # return bothplot
-        display(solplot)
-        return solplot
+        bothplot = plot(solplot, fftplot, plot_title ="Fit: $(round(cost;digits=4))\nPeriod: $(round(per;digits=4)) s\nAmplitude: $(round(amp_percentage;digits=4)) %" , 
+                        plot_titlefontsize = 20, layout = (2,1), size = (1000, 800))
+        display(bothplot)
+        return bothplot
+        # display(solplot)
+        # return solplot
 end
 
 """
@@ -147,7 +155,7 @@ function plot_everything(df::DataFrame, prob::ODEProblem; setnum::Int = 1, label
         CSV.write(path*"/Set$(setnum)-$(label).csv", df)
     
         for i in 1:jump:nrow(df)
-            p = plotboth(i, df, prob)
+            p = plotboth(df[i,:], prob)
             savefig(p, path*"/plot_$(i).png")
             next!(progbar)
         end

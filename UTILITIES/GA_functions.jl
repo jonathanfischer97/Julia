@@ -358,23 +358,22 @@ function GAResults(result::Evolutionary.EvolutionaryOptimizationResults, indleng
     return GAResults(result.trace, population, fitvals, periods, amplitudes)
 end
 
-function make_df(results::GAResults)
-    return DataFrame(ind = results.population, fit = results.fitvals, per = results.periods, amp = results.amplitudes)
+# function make_df(results::GAResults)
+#     return DataFrame(ind = results.population, fit = results.fitvals, per = results.periods, amp = results.amplitudes)
+# end
+
+
+function make_ga_dataframe(results::GAResults, prob::ODEProblem)
+    df = DataFrame(ind = results.population, fit = results.fitvals, per = results.periods, amp = results.amplitudes)
+    split_dataframe!(df, prob)
+    return df
 end
 
-
-
-# function trace_to_df(results)
-#     #* make a dataframe from the trace
-#     df = DataFrame(ind = [], fit = [], per = [], amp = [])
-#     for gen in results.trace
-#         push!(df.ind, gen.metadata["population"]...)
-#         push!(df.fit, gen.metadata["fitvals"]...)
-#         push!(df.per, gen.metadata["periods"]...)
-#         push!(df.amp, gen.metadata["amplitudes"]...)
-#     end
-#     return df
-# end
+function make_ga_dataframe(results::GAResults, prob::ODEProblem, fixedDF)
+    df = DataFrame(ind = results.population, fit = results.fitvals, per = results.periods, amp = results.amplitudes)
+    split_dataframe!(df, prob, fixedDF)
+    return df
+end
 
 
 #< MISCELLANEOUS FUNCTIONS ##
