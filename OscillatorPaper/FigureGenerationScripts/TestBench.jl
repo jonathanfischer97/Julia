@@ -342,3 +342,10 @@ findextrema(Amem; height=0.0, distance=2, find_maxima=false)
 
 CostFunction(sol)
 plot(sol)
+
+
+
+
+testdf = CSV.read("/Users/jonathanfischer/Desktop/PhD_ThesisWork/Julia/OscillatorPaper/FigureGenerationScripts/DF=100.0.csv", DataFrame)
+
+plot_everything(testdf, ogprob; setnum=15, label="TestingSTDWindow", jump = 10)
