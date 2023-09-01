@@ -100,7 +100,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     #* make progress bar 
     # loopprogress = Progress(num_rows, desc ="Looping thru fixed ICs: " , color=:red)
 
-    mainrawpath = mkpath("./OscillatorPaper/FigureGenerationScripts/4FixedICRawSets")
+    mainrawpath = mkpath("./ROCKFISH_DATA/4FixedICRawSets")
 
 
     #* loop through each ic range and run the GA on each set of initial conditions after remaking the problem with them
@@ -177,7 +177,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                             "average_period" => average_periods, "maximum_period"=>maximum_periods, "minimum_period"=>minimum_periods,
                             "average_amplitude" => average_amplitudes, "maximum_amplitude"=>maximum_amplitudes, "minimum_amplitude"=>minimum_amplitudes)
                             
-    CSV.write("./OscillatorPaper/FigureGenerationScripts/4FixedICs_DF=$(round(fixedDF)).csv", results_df)
+    CSV.write("./ROCKFISH_DATA/4FixedICs_DF=$(round(fixedDF)).csv", results_df)
     return results_df                
 end
 
