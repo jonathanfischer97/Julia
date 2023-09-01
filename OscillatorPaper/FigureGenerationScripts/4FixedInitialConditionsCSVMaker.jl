@@ -257,8 +257,9 @@ loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangele
 
 df100 = CSV.read("./OscillatorPaper/FigureGenerationScripts/4FixedICs_DF=100.0.csv", DataFrame)
 df1000 = CSV.read("./OscillatorPaper/FigureGenerationScripts/4FixedICs_DF=1000.0.csv", DataFrame)
+df10000 = CSV.read("./OscillatorPaper/FigureGenerationScripts/4FixedICs_DF=10000.0.csv", DataFrame)
 
-maximum(df1000.num_oscillatory_points)
+maximum(df10000.num_oscillatory_points)
 
 
 using GLMakie; GLMakie.activate!()

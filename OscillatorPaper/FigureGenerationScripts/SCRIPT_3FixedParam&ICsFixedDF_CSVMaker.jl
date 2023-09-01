@@ -74,12 +74,11 @@ function make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc::Function
             end
         end
 
-        new_param_input = new_input[1:12]
-        new_ic_input = new_input[13:end]
 
-        push!(new_param_input, fixedDF)
 
-        return evalfunc(new_param_input, new_ic_input, prob)
+        insert!(new_input, 13, fixedDF)
+
+        return evalfunc(new_input, prob)
     end
     return fitness_function
 end
