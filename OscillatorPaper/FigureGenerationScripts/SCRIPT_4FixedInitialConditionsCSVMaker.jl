@@ -48,8 +48,9 @@ begin
     const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 
     numthreads = Threads.nthreads()
-    BLAS.set_num_threads(numthreads/2)
-    FFTW.set_num_threads(numthreads/2)
+    numcores = numthreads÷2
+    BLAS.set_num_threads(numcores)
+    FFTW.set_num_threads(numcores)
 end
 
 
@@ -181,36 +182,32 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
 end
 
 
-# function run_4fixedIC(fixedDF::Float64=1000.)
-#     tspan = (0., 2000.0)
-#     fullrn = make_fullrn()
-#     ogprob = ODEProblem(fullrn, [], tspan, [])
-
-#     de = modelingtoolkitize(ogprob)
-
-#     ogprobjac = ODEProblem(de, [], tspan, jac=true)
 
 
-#     #* Optimization of parameters to produce data for CSV
-#     param_constraints = define_parameter_constraints(;karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
-#     ic_constraints = define_initialcondition_constraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
-
-#     fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4, fixedDF=fixedDF)
-# end
-
-# @time run_4fixedIC()
-
-# df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4, fixedDF=10000.)
-
-
-
-
-function loop_4fixedICs_thru_DFvals(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; rangelength = 4, DFrange = [100.,1000.,10000.])
+function loop_4fixedICs_thru_DFvals(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; rangelength::Int = 4, DFrange = [100.,1000.,10000.])
     for DF in DFrange
         fixed_quadruplet_ic_searcher(paramconstraints, icconstraints, prob; rangelength=rangelength, fixedDF=DF)
     end
 end
 
-loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangelength=4, DFrange = [100.,1000.,10000.])
 
 
+function run_4fixedIC()
+    tspan = (0., 2000.0)
+    fullrn = make_fullrn()
+    ogprob = ODEProblem(fullrn, [], tspan, [])
+
+    de = modelingtoolkitize(ogprob)
+
+    ogprobjac = ODEProblem(de, [], tspan, jac=true)
+
+
+    #* Optimization of parameters to produce data for CSV
+    param_constraints = define_parameter_constraints(;karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
+    ic_constraints = define_initialcondition_constraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
+
+    # fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4, fixedDF=fixedDF)
+    loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangelength=4, DFrange = [100.,1000.,10000.])
+end
+
+run_4fixedIC()
