@@ -281,8 +281,8 @@ Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 """
 function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; 
                                             threshold=10000, population_size = 5000, abstol=1e-4, reltol=1e-2, successive_f_tol = 2, iterations=5, parallelization = :thread, show_trace=true)
-    blas_threads = BLAS.get_num_threads()
-    BLAS.set_num_threads(1)
+    # blas_threads = BLAS.get_num_threads()
+    # BLAS.set_num_threads(1)
 
     #* Generate the initial population.
     pop = generate_population(ga_problem.constraints, population_size)
@@ -301,11 +301,18 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     #* Define the range of possible values for each parameter when mutated, and the mutation scalar.
     mutation_scalar = 0.5
     mutation_range = fill(mutation_scalar, length(ga_problem.constraints.ranges))
+    mutation_scheme = BGA(mutation_range, 2)
+
+
+    # lowerbound = [constraint.min/10 for constraint in ga_problem.constraints.ranges]
+    # upperbound = [constraint.max*10 for constraint in ga_problem.constraints.ranges]
+    # mutation_scheme = PM(lowerbound, upperbound, 2.)
+
 
     #* Define the GA method.
     mthd = GA(populationSize = population_size, selection = tournament(Int(population_size/10), select=argmax),
-    crossover = TPX, crossoverRate = 1.0, # Two-point crossover event
-    mutation  = BGA(mutation_range, 2), mutationRate = 1.0)
+            crossover = TPX, crossoverRate = 1.0, # Two-point crossover event
+            mutation  = mutation_scheme, mutationRate = 1.0)
 
     #* Make fitness function. Makes closure of evaluation function and ODE problem
     fitness_function = fitnessfunction_factory(ga_problem.eval_function, ga_problem.ode_problem)
@@ -314,14 +321,9 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
     result = Evolutionary.optimize(fitness_function, [0.0,0.0,0.0], boxconstraints, mthd, pop, opts)
     # return result
 
-    #* Get the individual, fitness, period/amplitude, for each oscillatory individual evaluated
-    # record::Vector{NamedTuple{(:ind,:fit,:per,:amp),Tuple{Vector{Float64},Float64, Float64, Float64}}} = reduce(vcat,[gen.metadata["staterecord"] for gen in result.trace[2:end]])
-    # num_oscillatory = sum([gen.metadata["num_oscillatory"] for gen in result.trace[2:end]])
-
-    BLAS.set_num_threads(blas_threads)
+    # BLAS.set_num_threads(blas_threads)
     # return result
     return GAResults(result, length(ga_problem.constraints.ranges))
-    # return trace_to_df(result)
 end
 #> END
 

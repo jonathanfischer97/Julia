@@ -68,10 +68,14 @@ ogprobjac = ODEProblem(de, [], tspan, jac=true)
 
 
 
-# ogjacsol = solve(ogprobjac, saveat=0.1)
+ogjacsol = solve(ogprobjac, saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
+
+tstart = cld(length(ogjacsol[1,:]), 1000)
+
+std(ogjacsol[1,end-tstart:end])
 # plot(ogjacsol)
 
-# maxpeaks = findextrema(ogjacsol[1,:]; height=1e-2, distance=2)
+maxpeaks = findextrema(ogjacsol[1,:]; height=1e-2, distance=2)
 # minpeaks = findextrema(ogjacsol[1,:]; height=-1e-2, distance=2, find_maxima=false)
 # minpeaks = findextrema(flip_about_mean(ogjacsol[1,:]); height=-1e-2, distance=2, find_maxima=false)
 
@@ -79,8 +83,9 @@ ogprobjac = ODEProblem(de, [], tspan, jac=true)
 
 
 
-# @btime CostFunction($ogjacsol)
-# @code_warntype CostFunction(ogjacsol)
+@btime CostFunction($ogjacsol)
+@code_warntype CostFunction(ogjacsol)
+
 
 
 # @btime ogjacsol[1:100]
@@ -112,7 +117,7 @@ ic_constraints = define_initialcondition_constraints(; Lrange = (1e-1, 1e2), Kra
 
 allconstraints = AllConstraints(param_constraints, ic_constraints)
 
-
+filter!(x -> x.name != "DF", param_constraints.ranges)
 # Modification to make_fitness_function_with_fixed_inputs function
 function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}; fitidx = 4)
     function fitness_function(input::Vector{Float64})
@@ -279,11 +284,15 @@ end
 # fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
 # fft_peakvals = peakprops["peak_heights"]
 
-
+#!NOTES 
+#* Need to play around with PM mutation scheme. Not working as well as BGA, but has benefits
+#* Adapt some sort of PM scheme for the initial population generation. Need to make sure it's diverse enough
+#* Need to make this GA more rigorous as far as what it tells about a regime. Having more oscillatory points but where each point isn't that different from the next isn't a good comparitive metric.
+#* DE instead of GA? Want global optimization and search, not trapped in local minima
 function testbench(constraints::ConstraintType, prob::ODEProblem)
     test_gaproblem = GAProblem(constraints, prob)
     Random.seed!(1234)
-    test_results = run_GA(test_gaproblem; population_size = 10000, iterations = 5, show_trace=true)
+    test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, show_trace=true)
 
     # avg_fitness = mean(test_results.fitvals)
     # @info "Average fitness: $avg_fitness"
@@ -306,11 +315,50 @@ ogprobjac = remake(ogprobjac, u0 = [[100., 0.2, 0.2, 4.64]; zeros(12)])
 
 test_results_df = testbench(param_constraints, ogprobjac)
 
-plot_everything(test_results_df, ogprob; setnum=16, label="Testing", jump = 10)
-
 test_results_df = testbench(allconstraints, ogprobjac)
 
+
+function testBGA(valrange::Vector, m::Int = 2)
+    prob = 1.0 / m
+    function mutation(recombinant::T;
+                      rng::AbstractRNG=Random.default_rng()
+                     ) where {T <: AbstractVector}
+        d = length(recombinant)
+        @assert length(valrange) == d "Range matrix must have $(d) columns"
+        δ = zeros(m)
+        for i in 1:length(recombinant)
+            for j in 1:m
+                δ[j] = (rand(rng) < prob) ? δ[j] = 2.0^(-j) : 0.0
+            end
+            if rand(rng, Bool)
+                recombinant[i] += sum(δ)*valrange[i]
+            else
+                recombinant[i] -= sum(δ)*valrange[i]
+            end
+        end
+        return recombinant
+    end
+    return mutation
+end
+
+valrange = fill(2.0, 13)
+
+mutationfunc = testBGA(valrange, 1)
+
+params = copy(ogprob.p)
+
+mutationfunc(params)
+
+
+plotboth(test_results_df[9,:], ogprob)
+
+@btime testbench($param_constraints, $ogprobjac)
+
+plot_everything(test_results_df, ogprob; setnum=16, label="Testing", jump = 10)
+
+
 stats_df = describe(test_results_df)
+show(stats_df, allrows=true)
 
 using StatsPlots
 

@@ -24,10 +24,10 @@ end
 
 """Get summed average standard deviation of peaks in the frequency domain"""
 function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; window::Int =1) #get average standard deviation of fft peak indexes
-    arrLen = length(fft_arrayData)
+    # arrLen = length(fft_arrayData)
     # window = max(1,cld(arrLen,window_ratio)) #* window size is 1% of array length, or 1 if array length is less than 100
-    sum_std = sum(std(fft_arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in fft_peakindxs) #* sum rolling window of standard deviations
-    return sum_std
+    sum(std(fft_arrayData[max(1, ind - window):min(length(fft_arrayData), ind + window)]) for ind in fft_peakindxs) #* sum rolling window of standard deviations
+
     # return sum_std / length(fft_peakindxs) #* divide by number of peaks to get average std
 end 
 
@@ -78,8 +78,8 @@ function CostFunction(sol::ODESolution)::Vector{Float64}
     tstart = cld(length(sol),10) 
 
     #* Check if last half of the solution array is steady state
-    lasthalfsol = Amem_sol[end-tstart:end]
-    if std(lasthalfsol) < 0.1 #TODO relative to mean, normalize 
+    testwindow = Amem_sol[end-tstart:end]
+    if std(testwindow; mean=mean(testwindow)) < 0.01 #TODO relative to mean, normalize 
         return [0.0, 0.0, 0.0]
     end 
 
@@ -88,6 +88,7 @@ function CostFunction(sol::ODESolution)::Vector{Float64}
 
     indx_max, vals_max = findextrema(Amem_sol; height = 1e-2, distance = 5)
     indx_min, vals_min = findextrema(Amem_sol; height = 0.0, distance = 5, find_maxima=false)
+    # indx_min, vals_min = find_minima_between_maxima(Amem_sol, indx_max)
 
     if length(indx_max) < 2 || length(indx_min) < 2 #* if there is no signal in the time domain,
         return [0.0, 0.0, 0.0]
@@ -197,59 +198,59 @@ function findextrema(x::AbstractVector{T};
     extrema_indices, extrema_heights
 end
 
-function findextrema(x::AbstractVector{T}; 
-                    height::Union{Nothing,<:Real,NTuple{2,<:Real}}=nothing,
-                    distance::Union{Nothing,Int}=nothing) where {T<:Real}
-    midpts = Vector{Int}(undef, 0)
-    i = 2
-    imax = length(x)
+# function findextrema(x::AbstractVector{T}; 
+#                     height::Union{Nothing,<:Real,NTuple{2,<:Real}}=nothing,
+#                     distance::Union{Nothing,Int}=nothing) where {T<:Real}
+#     midpts = Vector{Int}(undef, 0)
+#     i = 2
+#     imax = length(x)
 
-    while i < imax
-        if x[i-1] < x[i]
-            iahead = i + 1
-            while (iahead < imax) && (x[iahead] == x[i])
-                iahead += 1
-            end
-            if x[iahead] < x[i]
-                push!(midpts, (i + iahead - 1) ÷ 2)
-                i = iahead
-            end
-        end
-        i += 1
-    end 
+#     while i < imax
+#         if x[i-1] < x[i]
+#             iahead = i + 1
+#             while (iahead < imax) && (x[iahead] == x[i])
+#                 iahead += 1
+#             end
+#             if x[iahead] < x[i]
+#                 push!(midpts, (i + iahead - 1) ÷ 2)
+#                 i = iahead
+#             end
+#         end
+#         i += 1
+#     end 
 
-    #* Filter by height if needed
-    if !isnothing(height)
-        hmin, hmax = height isa Number ? (height, nothing) : height
-        keepheight = (hmin === nothing || x[midpts] .>= hmin) .& (hmax === nothing || x[midpts] .<= hmax)
-        midpts = midpts[keepheight]
-    end
+#     #* Filter by height if needed
+#     if !isnothing(height)
+#         hmin, hmax = height isa Number ? (height, nothing) : height
+#         keepheight = (hmin === nothing || x[midpts] .>= hmin) .& (hmax === nothing || x[midpts] .<= hmax)
+#         midpts = midpts[keepheight]
+#     end
 
-    #* Filter by distance if needed
-    if !isnothing(distance)
-        priority = x[midpts]
-        keep = selectbypeakdistance(midpts, priority, distance)
-        midpts = midpts[keep]
-    end
+#     #* Filter by distance if needed
+#     if !isnothing(distance)
+#         priority = x[midpts]
+#         keep = selectbypeakdistance(midpts, priority, distance)
+#         midpts = midpts[keep]
+#     end
 
-    extrema_indices = midpts
-    extrema_heights = x[extrema_indices]
+#     extrema_indices = midpts
+#     extrema_heights = x[extrema_indices]
 
-    extrema_indices, extrema_heights
-end
+#     extrema_indices, extrema_heights
+# end
 
-function find_minima_between_maxima(x::AbstractVector{T}, maxima_indices::Vector{Int}) where {T<:Real}
-    minima_indices = Vector{Int}(undef, length(maxima_indices) - 1)
-    minima_values = Vector{T}(undef, length(maxima_indices) - 1)
+# function find_minima_between_maxima(x::AbstractVector{T}, maxima_indices::Vector{Int}) where {T<:Real}
+#     minima_indices = Vector{Int}(undef, length(maxima_indices) - 1)
+#     minima_values = Vector{T}(undef, length(maxima_indices) - 1)
 
-    for i in 1:(length(maxima_indices) - 1)
-        range = maxima_indices[i]:maxima_indices[i+1]
-        minima_indices[i] = argmin(x[range]).I[1] + range.start - 1
-        minima_values[i] = x[minima_indices[i]]
-    end
+#     for i in 1:(length(maxima_indices) - 1)
+#         range = maxima_indices[i]:maxima_indices[i+1]
+#         minima_indices[i] = argmin(x[range]) + range.start - 1
+#         minima_values[i] = x[minima_indices[i]]
+#     end
 
-    return minima_indices, minima_values
-end
+#     return minima_indices, minima_values
+# end
 
 function selectbypeakdistance(pkindices, priority, distance)
     npkindices = length(pkindices)

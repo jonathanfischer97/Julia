@@ -106,9 +106,9 @@ ogprobjac = ODEProblem(de, [], tspan, jac=true)
 param_constraints = define_parameter_constraints(;karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
 ic_constraints = define_initialcondition_constraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
 
-gaproblem = GAProblem(param_constraints, ogprobjac)
+# gaproblem = GAProblem(param_constraints, ogprobjac)
 
-garesults = run_GA(gaproblem; population_size = 20000, iterations = 5)
+# garesults = run_GA(gaproblem; population_size = 20000, iterations = 5)
 
 
 function fixedDF_fitness_function_maker(evalfunc::Function, prob::ODEProblem, fixedDF::Float64)
@@ -211,21 +211,9 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                         icvals4[i] = icval4
                         num_oscillatory_points_array[i] = num_oscillatory_points
                         
-
-                    
                         #* make dataframe from oscillatory_points_results
                         oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, newprob, fixedDF)
 
-
-                        
-                        # #* split parameter values into separate columns and add initial conditions
-                        # split_dataframe!(oscillatory_points_df, newprob, fixedDF)
-
-                        # #* rewrite the L, K, P, A columns with the initial conditions
-                        # oscillatory_points_df.L .= icval1
-                        # oscillatory_points_df.K .= icval2
-                        # oscillatory_points_df.P .= icval3
-                        # oscillatory_points_df.A .= icval4
 
                         innerrawpath = mkpath(mainrawpath*"/$(round(icval1; digits = 2))_$(round(icval2;digits = 2))_$(round(icval3; digits=2))_$(round(icval4; digits=2))")
 
