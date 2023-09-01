@@ -10,19 +10,20 @@ begin
     using CSV
     # using Unitful
     # using Unitful: µM, M, nm, µm, s, μs, Na, L, 𝐍
-    using StaticArrays
-    using BenchmarkTools, Profile, ProgressMeter
+    # using StaticArrays
+    # using BenchmarkTools, Profile
+    using ProgressMeter
     # using Cthulhu
     # using JET
     # using MultivariateStats, UMAP, TSne, StatsPlots
     # using GlobalSensitivity, QuasiMonteCarlo
     using LinearAlgebra
     # using BifurcationKit, Setfield, ForwardDiff, Parameters; const BK = BifurcationKit
-    using ColorSchemes, Plots.PlotMeasures
+    # using ColorSchemes, Plots.PlotMeasures
     # using OrderedCollections
     using Combinatorics
     # using LazySets, Polyhedra
-    default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
+    # default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
     # plotlyjs()
     # import CairoMakie as cm 
     # gr()
@@ -45,129 +46,12 @@ begin
     # include("../../UTILITIES/UnitTools.jl")
 
 
-    const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
+    numthreads = Threads.nthreads()
+    numcores = numthreads÷2
+    BLAS.set_num_threads(numcores)
+    FFTW.set_num_threads(numcores)
 end
 
-
-# debuglogger = ConsoleLogger(stderr, Logging.Debug)
-# infologger = ConsoleLogger(stderr, Logging.Info)
-# global_logger(infologger)
-
-tspan = (0., 2000.0)
-fullrn = make_fullrn()
-ogprob = ODEProblem(fullrn, [], tspan, [])
-
-p = [25.78701387,	0.51344506,	0.64734236,	8.970675451,	88.55107936,	0.134108335,
-    	0.556267399,	0.126,	876.2804444,	0.008704501,	0.001,	0.001,	100]
-u0 = 	[100,	0.215443469,	100,	100]
-
-ogprob = remake(ogprob, p = p, u0 = [u0; zeros(12)])
-
-sol = solve(ogprob, saveat = 0.1)
-
-plot(sol)
-
-plotsol(sol)
-
-
-de = modelingtoolkitize(ogprob)
-
-ogprobjac = ODEProblem(de, [], tspan, jac=true)
-
-
-
-
-# Array(ogsol)
-
-# map(sum,ogsol.u)
-# @code_warntype make_fitness_function(eval_param_fitness, ogprobjac; fitidx = 4)
-
-# @btime solve($ogprob, saveat = 0.1, save_idxs = 1)
-# @btime solve($ogprobjac, saveat = 0.1, save_idxs = 1)
-
-# newprobjac = remake(ogprobjac, p = ogprobjac.p .* 10)
-# @btime solve($newprobjac, saveat = 0.1, save_idxs = 1)
-
-
-
-# new_u0 = ogprob.u0 .* 10
-# ogprob = remake(ogprob, u0 = new_u0)
-# # @benchmark solve($ogprob, saveat = 0.1, save_idxs = 1)
-
-# @benchmark solve($ogprob, saveat=0.1, save_idxs = 1)
-# ogsol = solve(ogprob, saveat=0.1, save_idxs = 1)
-# peakidxs, props = findpeaks1d(ogsol[1,:]; height = 0.1)
-# plot(ogsol)
-# testfunc(ogprob) = solve(ogprob, saveat=0.1, save_idxs = 1)
-
-# using Cthulhu
-# using ProfileView
-# descend_code_warntype(testfunc, (ODEProblem,))
-# @code_warntype solve(ogprob, saveat=0.1, save_idxs = 1)
-# # plot(ogsol)
-# @code_warntype solve_for_fitness_peramp(ogprob)
-
-# @benchmark solve_for_fitness_peramp($ogprob)
-
-# @code_warntype CostFunction(ogsol)
-# @benchmark CostFunction($ogsol)
-# @benchmark getPerAmp($ogsol)
-
-
-
-#* Optimization of parameters to produce data for CSV
-param_constraints = define_parameter_constraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
-ic_constraints = define_initialcondition_constraints(; Lrange = (1e-2, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-2, 1e2))
-
-allconstraints = AllConstraints(param_constraints, ic_constraints)
-
-pop = generate_population(allconstraints, 1000)
-
-popdf = make_df(pop, ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "L", "K", "P", "A"])
-
-show(describe(popdf), allrows=true)
-
-#* function to convert array of vectors into dataframe
-function make_df(pop::Vector{Vector{Float64}}, colnames)
-    df = DataFrame()
-    for (i,name) in enumerate(colnames)
-        colvals = [ind[i] for ind in pop]
-        df[!, name] = colvals
-    end
-    return df
-end
-
-make_df(pop, ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "L", "K", "P", "A"])
-
-
-using StatsPlots
-
-#* function visualize spread of each parameter in the population. histograms
-function visualize_population_spread(constraints::ConstraintType)
-    pop = generate_population(constraints, 10000)
-    colnames = [x.name for x in constraints.ranges]
-    popdf = make_df(pop, colnames)
-
-    plotarray = []
-
-    colors = palette(:tab10, length(colnames))
-
-    #* loop through each column and make a histogram
-    for (i,colname) in enumerate(names(popdf))
-        subplot = histogram(popdf[:,Symbol(colname)], title = colname, legend = false, color = colors[i])
-        push!(plotarray, subplot)
-    end
-
-    plot(plotarray..., layout=(6,3), size=(1000,1000))
-end
-
-visualize_population_spread(allconstraints)
-
-
-colors = palette(:tab10, 17)
-
-
-histogram(rand(1000), color = colors[11], legend=false, bins=100)
 
 
 #* Modification to make_fitness_function_with_fixed_inputs function
@@ -244,7 +128,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
 
     
     #* make folder to hold all the csv files 
-    path = mkpath("OscillatorPaper/FigureGenerationScripts/3FixedParams+ICsRawSets/$(param1)_$(param2)_$(param3)/DF=$(round(fixedDF))")
+    path = mkpath("./ROCKFISH_DATA/3FixedParams+ICsRawSets/$(param1)_$(param2)_$(param3)/DF=$(round(fixedDF))")
     i = 1
 
     #* make progress bar 
@@ -259,7 +143,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc, prob, fixed_values, fixedval_idxs, fixedDF)
 
                 Random.seed!(1234)
-                oscillatory_points_results = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 20000, iterations = 5) 
+                oscillatory_points_results = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5) 
                 num_oscillatory_points = length(oscillatory_points_results.population)
 
                 #* if there are no oscillatory points, save the results to the results_df and continue
@@ -290,21 +174,21 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                     num_oscillatory_points_array[i] = num_oscillatory_points
                 
                     #* make dataframe from oscillatory_points_results
-                    oscillatory_points_df = make_df(oscillatory_points_results)
+                    oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, prob, fixedDF)
                     
-                    #* insert the fixed params into each ind of oscillatory_points_df
-                    for ind in oscillatory_points_df.ind
-                        for (j,fixedidx) in enumerate(fixedval_idxs)
-                            if fixedidx <= length(ind)
-                                insert!(ind, fixedval_idxs[j], fixed_values[j])
-                            else
-                                push!(ind, fixed_values[j])
-                            end
-                        end
-                        insert!(ind, 13, fixedDF)
-                    end
-                    #* split parameter values into separate columns and add initial conditions
-                    split_dataframe!(oscillatory_points_df, prob)
+                    # #* insert the fixed params into each ind of oscillatory_points_df
+                    # for ind in oscillatory_points_df.ind
+                    #     for (j,fixedidx) in enumerate(fixedval_idxs)
+                    #         if fixedidx <= length(ind)
+                    #             insert!(ind, fixedval_idxs[j], fixed_values[j])
+                    #         else
+                    #             push!(ind, fixed_values[j])
+                    #         end
+                    #     end
+                    #     insert!(ind, 13, fixedDF)
+                    # end
+                    # #* split parameter values into separate columns and add initial conditions
+                    # split_dataframe!(oscillatory_points_df, prob)
 
                     #* rewrite the L, K, P, A columns with the initial conditions
                     CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
@@ -320,30 +204,23 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
     return results_df
 end
 
-param_triplet = ["ka1", "kb1", "kcat1"]
-
-@time results_df = fixed_triplet_csv_maker(param_triplet..., allconstraints, ogprobjac)
 
 
-# CSV.write("OscillatorPaper/FigureGenerationScripts/3FixedResultsCSVs/fixed_triplet_results-$(param_triplet[1]*param_triplet[2]*param_triplet[3]).csv", results_df)
 
 
 #< loop through combinations of parameters and run the function of each triplet
 
-function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; startinput::String="ka1", rangelength = 4)
+function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; startinput::String="ka1", rangelength = 4, DFrange = [100., 1000., 10000.])
     names = ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "DF", "L", "K", "P", "A"]
     triplets = collect(combinations(names, 3))
     start_idx = findfirst(x -> x[1] == startinput, triplets)
 
-    mainpath = mkpath("OscillatorPaper/FigureGenerationScripts/3FixedParams+ICsFixedDF_CSVs")
-
-    #* loops through these fixed DF values for each triplet
-    df_range = [100., 1000., 10000.]
+    mainpath = mkpath("./ROCKFISH_DATA/3FixedParams+ICsFixedDF_CSVs")
 
     for triplet in triplets[start_idx:end]
         @info triplet
         tripletpath = mkpath(mainpath*"/$(triplet[1])_$(triplet[2])_$(triplet[3])")
-        for df in df_range
+        for df in DFrange
             @info df
             results_df = fixed_triplet_csv_maker(triplet..., constraints, prob; rangelength=rangelength, fixedDF=df)
             CSV.write(tripletpath*"/DF=$(df).csv", results_df)
@@ -351,9 +228,27 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; startin
     end
 end
 
-# @code_warntype run_all_triplets(allconstraints, ogprobjac)
 
-run_all_triplets(allconstraints, ogprobjac; startinput="ka1", rangelength=4)
+function run_MAIN()
+    tspan = (0., 2000.0)
+    fullrn = make_fullrn()
+    ogprob = ODEProblem(fullrn, [], tspan, [])
+
+    de = modelingtoolkitize(ogprob)
+
+    ogprobjac = ODEProblem(de, [], tspan, jac=true)
+
+    #* Optimization of parameters to produce data for CSV
+    param_constraints = define_parameter_constraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
+    ic_constraints = define_initialcondition_constraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
+
+    allconstraints = AllConstraints(param_constraints, ic_constraints)
+
+    run_all_triplets(allconstraints, ogprobjac; startinput="ka1", rangelength=4)
+end
+
+
+run_MAIN()
 
 
 

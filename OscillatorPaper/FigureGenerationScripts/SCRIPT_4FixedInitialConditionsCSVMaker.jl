@@ -18,7 +18,7 @@ begin
     # using MultivariateStats, UMAP, TSne, StatsPlots
     # using GlobalSensitivity, QuasiMonteCarlo
     using LinearAlgebra
-    # using ProgressMeter
+    using ProgressMeter
     # using BifurcationKit, Setfield, ForwardDiff, Parameters; const BK = BifurcationKit
     # using OrderedCollections
     using Combinatorics
