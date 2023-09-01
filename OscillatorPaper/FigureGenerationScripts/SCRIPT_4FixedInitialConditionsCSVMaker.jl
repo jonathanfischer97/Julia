@@ -12,13 +12,13 @@ begin
     using CSV
     # using Unitful
     # using Unitful: µM, M, nm, µm, s, μs, Na, L, 𝐍
-    using StaticArrays
+    # using StaticArrays
     # using Cthulhu
     # using JET
     # using MultivariateStats, UMAP, TSne, StatsPlots
     # using GlobalSensitivity, QuasiMonteCarlo
     using LinearAlgebra
-    using ProgressMeter
+    # using ProgressMeter
     # using BifurcationKit, Setfield, ForwardDiff, Parameters; const BK = BifurcationKit
     # using OrderedCollections
     using Combinatorics
@@ -45,7 +45,7 @@ begin
     # include("../../UTILITIES/UnitTools.jl")
 
 
-    const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
+    # const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 
     numthreads = Threads.nthreads()
     numcores = numthreads÷2
@@ -98,7 +98,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     i = 1
 
     #* make progress bar 
-    loopprogress = Progress(num_rows, desc ="Looping thru fixed ICs: " , color=:red)
+    # loopprogress = Progress(num_rows, desc ="Looping thru fixed ICs: " , color=:red)
 
     mainrawpath = mkpath("./OscillatorPaper/FigureGenerationScripts/4FixedICRawSets")
 
@@ -166,7 +166,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
 
                         CSV.write(innerrawpath*"/DF=$(round(fixedDF)).csv", oscillatory_points_df)
                     end
-                    next!(loopprogress)
+                    # next!(loopprogress)
                     i += 1
                 end
             end
@@ -207,7 +207,7 @@ function run_4fixedIC()
     ic_constraints = define_initialcondition_constraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
 
     # fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4, fixedDF=fixedDF)
-    loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangelength=4, DFrange = [100.,1000.,10000.])
+    loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangelength=5, DFrange = [100.,1000.,10000.])
 end
 
 run_4fixedIC()
