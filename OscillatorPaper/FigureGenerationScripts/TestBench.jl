@@ -73,7 +73,6 @@ end
 
 
 
-
 # ogjacsol = solve(ogprobjac, saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
 
 # tstart = cld(length(ogjacsol[1,:]), 1000)
@@ -94,12 +93,12 @@ ogprobjac, ogprob = make_ODE_problem();
 
 
 
-param_constraints = define_parameter_constraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
-ic_constraints = define_initialcondition_constraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
+param_constraints = ParameterConstraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
+ic_constraints = InitialConditionConstraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
 
 allconstraints = AllConstraints(param_constraints, ic_constraints)
 
-fix_value!(allconstraints.DF, 1000.0)
+
 
 gaproblem = GAProblem(allconstraints, ogprobjac)
 
@@ -110,8 +109,13 @@ fitfunc = make_fitness_function(gaproblem)
 
 @code_warntype make_fitness_function(gaproblem)
 
+@btime generate_population($allconstraints, 5000)
+pop = generate_population(allconstraints, 5000)
+@btime generate_population!($pop, $allconstraints)
 
-@btime generate_population(allconstraints, 5000)
+@code_llvm generate_population(allconstraints, 5000)
+
+pop[1]
 
 # Modification to make_fitness_function_with_fixed_inputs function
 function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int})
@@ -168,36 +172,37 @@ function make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc::Function
 end
 
 
+fixed_inputs = (L = 100.0, K = 1.0, P = 1.0, A = 10.0)
 
-function test_fixedparam(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; fixed_values = [0.001, 0.01, 0.001], fixedDF=1000.)
-    variable_constraints = deepcopy(constraints)
-    # fixedtrip = [x for x in variable_constraints.ranges if x.name == param1 || x.name == param2 || x.name == param3]
-    filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.ranges)
-    # filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.icranges)
+set_fixed_constraints!(gaproblem.constraints, fixed_inputs)
 
 
-    #* remove DF from range because it'll be fixed
-    filter!(x -> x.name != "DF", variable_constraints.ranges)
 
-    fixed_ga_problem = GAProblem(variable_constraints, prob)
-    fixedtrip_idxs = find_indices(param1, param2, param3, constraints.ranges) 
+"""
+    Takes a named tuple of fixed inputs and a GAProblem and sets the constraints of the GAProblem to the fixed inputs.
+    Returns `DataFrame` of the optimization results.
+"""
+function test_fixedparam(fixed_inputs::NamedTuple, gaprob::GAProblem, fixedDF=1000.)
 
-    # make_fitness_function_closure(evalfunc,prob; fitidx) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs; fitidx)
-    make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc, prob, fixed_values, fixedtrip_idxs, fixedDF)
+    constraints = gaprob.constraints
 
+    set_fixed_constraints!(constraints, fixed_inputs)
+
+    set_fixed_constraints!(constraints, (DF = fixedDF,))
 
     Random.seed!(1234)
 
-    oscillatory_points_df = make_ga_dataframe(run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5), prob, fixedDF) 
-    num_oscillatory_points = length(oscillatory_points_df.fit)
-    @info num_oscillatory_points
+    ga_results = run_GA(gaprob; population_size = 5000, iterations = 5)
 
+    oscillatory_points_df = make_ga_dataframe(ga_results, constraints) 
+    num_oscillatory_points = nrow(oscillatory_points_df)
+    @info num_oscillatory_points
 
     return oscillatory_points_df
 end
 
-param_triplet = ["L", "K", "P"]
-testfixed_df = test_fixedparam(param_triplet..., allconstraints, ogprob; fixed_values = [100.0,1.,1.])
+
+testfixed_df = test_fixedparam(fixed_inputs, gaproblem)
 
 CSV.write("OscillatorPaper/FigureGenerationScripts/test.csv", testfixed_df)
 
@@ -393,3 +398,8 @@ plot(sol)
 testdf = CSV.read("/Users/jonathanfischer/Desktop/PhD_ThesisWork/Julia/OscillatorPaper/FigureGenerationScripts/DF=100.0.csv", DataFrame)
 
 plot_everything(testdf, ogprob; setnum=15, label="TestingSTDWindow", jump = 10)
+
+#! diversity metric
+#* PCA?
+#* minimum distance between points in the population
+#* need to figure out convergence metric to compare 
