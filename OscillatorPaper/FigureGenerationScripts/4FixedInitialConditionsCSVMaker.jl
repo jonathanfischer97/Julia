@@ -261,6 +261,9 @@ df10000 = CSV.read("./OscillatorPaper/FigureGenerationScripts/4FixedICs_DF=10000
 
 maximum(df10000.num_oscillatory_points)
 
+testdf = CSV.read("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/FigureGenerationScripts/4FixedICRawSets/100.0_0.22_0.22_1.0/DF=10000.0.csv", DataFrame)
+plot_everything(testdf, ogprob; setnum=17, label="DF=100")
+
 
 using GLMakie; GLMakie.activate!()
 
@@ -294,7 +297,7 @@ function scatters_in_3D(df; fig = Figure(resolution=(1600, 1200)))
 
     # Create the figure and axis
     
-    ax = Axis3(fig[1:3,2]; aspect=:data, perspectiveness=0.5, title="Fixed ICs Oscillatory Regions", xlabel = pnames[1], ylabel = pnames[2], zlabel = pnames[3])
+    ax = Axis3(fig[1:3,3]; aspect=:data, perspectiveness=0.5, title="Fixed ICs Oscillatory Regions", xlabel = pnames[1], ylabel = pnames[2], zlabel = pnames[3])
 
     # Scatter plot for non-NaN values
     hm = meshscatter!(ax, xlog, ylog, zlog; markersize=sizes, ssao=true, color=df.average_period, colormap=:thermal, transparency=false, nan_color=:gray,
@@ -308,7 +311,7 @@ function scatters_in_3D(df; fig = Figure(resolution=(1600, 1200)))
     # meshscatter!(ax3, x[nan_indices], y[nan_indices], z[nan_indices]; markersize=sizes[nan_indices], color=:gray)
 
     # Colorbar and labels
-    Colorbar(fig[2, 1], hm, label="Period (s)", height=Relative(2.0))
+    # Colorbar(fig[2, 1], hm, label="Period (s)", height=Relative(2.0))
     colgap!(fig.layout, 6)
     # xlabel!(ax3, "log10(kb3)")
     # ylabel!(ax3, "log10(kb4)")
@@ -318,7 +321,7 @@ function scatters_in_3D(df; fig = Figure(resolution=(1600, 1200)))
     fig
 end
 
-fig = scatters_in_3D(df1000)
+fig = scatters_in_3D(df100)
 
 fig2 = scatters_in_3D(df1000; fig=fig)
 

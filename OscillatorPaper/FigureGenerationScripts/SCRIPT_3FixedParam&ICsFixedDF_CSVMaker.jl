@@ -173,7 +173,7 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                     num_oscillatory_points_array[i] = num_oscillatory_points
                 
                     #* make dataframe from oscillatory_points_results
-                    oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, prob, fixedDF)
+                    oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, constraints)
                     
                     # #* insert the fixed params into each ind of oscillatory_points_df
                     # for ind in oscillatory_points_df.ind

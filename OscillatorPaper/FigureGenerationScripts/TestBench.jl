@@ -21,32 +21,34 @@ begin
     # using GlobalSensitivity, QuasiMonteCarlo
     using LinearAlgebra
     # using BifurcationKit, Setfield, ForwardDiff, Parameters; const BK = BifurcationKit
-    using ColorSchemes, Plots.PlotMeasures
     # using OrderedCollections
     # using Combinatorics
     # using LazySets, Polyhedra
+    
+    using ColorSchemes, Plots.PlotMeasures
     default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
     # plotlyjs()
     # import CairoMakie as cm 
     # gr()
     # push!(LOAD_PATH, "../../UTILITIES")
 
+    #* import the overloads for Evolutionary.jl
     include("../../UTILITIES/EvolutionaryOverloads.jl")
 
-    # import the Catalyst model "fullrn"
+    #* import the Catalyst model "fullrn"
     include("../../UTILITIES/ReactionNetwork.jl")
 
-    # import the cost function and other evaluation functions
+    #* import the cost function and other evaluation functions
     include("../../UTILITIES/EvaluationFunctions.jl")
     # using .EvaluationFunctions
 
-    # import the genetic algorithm and associated functions
+    #* import the genetic algorithm and associated functions
     include("../../UTILITIES/GA_functions.jl")
 
+    #* import the plotting functions
     include("../../UTILITIES/TestBenchPlotUtils.jl")
 
     # include("../../UTILITIES/UnitTools.jl")
-
 
     const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 end
@@ -56,70 +58,63 @@ end
 # infologger = ConsoleLogger(stderr, Logging.Info)
 # global_logger(infologger)
 
-tspan = (0., 2000.0)
-fullrn = make_fullrn()
-# ogsys = convert(ODESystem, fullrn)
-# @unpack L, K, P, A = ogsys
-ogprob = ODEProblem(fullrn, [], tspan, [])
-de = modelingtoolkitize(ogprob)
+function make_ODE_problem()
+    tspan = (0., 2000.0)
 
-ogprobjac = ODEProblem(de, [], tspan, jac=true)
+    fullrn = make_fullrn()
 
+    ogprob = ODEProblem(fullrn, [], tspan, [])
 
+    de = modelingtoolkitize(ogprob)
 
-
-ogjacsol = solve(ogprobjac, saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
-
-tstart = cld(length(ogjacsol[1,:]), 1000)
-
-std(ogjacsol[1,end-tstart:end])
-# plot(ogjacsol)
-
-maxpeaks = findextrema(ogjacsol[1,:]; height=1e-2, distance=2)
-# minpeaks = findextrema(ogjacsol[1,:]; height=-1e-2, distance=2, find_maxima=false)
-# minpeaks = findextrema(flip_about_mean(ogjacsol[1,:]); height=-1e-2, distance=2, find_maxima=false)
+    ogprobjac::ODEProblem = ODEProblem(de, [], tspan, jac=true)
+    return ogprobjac, ogprob
+end
 
 
 
 
+# ogjacsol = solve(ogprobjac, saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
 
-@btime CostFunction($ogjacsol)
-@code_warntype CostFunction(ogjacsol)
+# tstart = cld(length(ogjacsol[1,:]), 1000)
 
+# std(ogjacsol[1,end-tstart:end])
+# # plot(ogjacsol)
 
-
-# @btime ogjacsol[1:100]
-# plot(ogjacsol)
-
-# flipped = flip_about_mean(ogjacsol[1,:])
-# plot(flipped)
-# flip_about_mean!(ogjacsol[1,:])
-
-# ogjacsol[1:end] .= 0.1
-
-# @btime solve(ogprob, saveat=0.1, save_idxs=4)
-# @btime solve(ogprobjac, saveat=0.1, save_idxs=4)
+# maxpeaks = findextrema(ogjacsol[1,:]; height=1e-2, distance=2)
+# # minpeaks = findextrema(ogjacsol[1,:]; height=-1e-2, distance=2, find_maxima=false)
+# # minpeaks = findextrema(flip_about_mean(ogjacsol[1,:]); height=-1e-2, distance=2, find_maxima=false)
 
 
+# @btime CostFunction($ogjacsol)
+# @code_warntype CostFunction(ogjacsol)
 
-# ogsol = solve(ogprob, saveat=0.1, save_idxs=4)
 
-# fftdata = getFrequencies(ogsol[1,:])
-# frequencies_per_minute!(ogsol.t, fftdata)
-# fftdata
+ogprobjac, ogprob = make_ODE_problem();
 
-# cld(length(fftdata), 1000)
-# fft_peakindexes, fft_peakvals = findmaxima(fftdata,1) #* get the indexes of the peaks in the fft
-# fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 0.0, distance = 1) #* get the indexes of the peaks in the fft
+
 
 param_constraints = define_parameter_constraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
 ic_constraints = define_initialcondition_constraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
 
 allconstraints = AllConstraints(param_constraints, ic_constraints)
 
-filter!(x -> x.name != "DF", param_constraints.ranges)
+fix_value!(allconstraints.DF, 1000.0)
+
+gaproblem = GAProblem(allconstraints, ogprobjac)
+
+
+
+
+fitfunc = make_fitness_function(gaproblem)
+
+@code_warntype make_fitness_function(gaproblem)
+
+
+@btime generate_population(allconstraints, 5000)
+
 # Modification to make_fitness_function_with_fixed_inputs function
-function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}; fitidx = 4)
+function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int})
     function fitness_function(input::Vector{Float64})
         # Create a new input vector that includes the fixed inputs.
         new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
@@ -138,14 +133,14 @@ function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEPr
             end
         end
 
-        return evalfunc(new_input, prob; idx = fitidx)
+        return evalfunc(new_input, prob)
     end
     return fitness_function
 end
 
 
 # Modification to make_fitness_function_with_fixed_inputs function
-function make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}, fixedDF=1000.; fitidx = 4)
+function make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}, fixedDF=1000.)
     function fitness_function(input::Vector{Float64})
         # Create a new input vector that includes the fixed inputs.
         new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
@@ -164,12 +159,10 @@ function make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc::Function
             end
         end
 
-        new_param_input = new_input[1:12]
-        new_ic_input = new_input[13:end]
 
-        push!(new_param_input, fixedDF)
+        insert!(new_input, 13, fixedDF)
 
-        return evalfunc(new_param_input, new_ic_input, prob; idx = fitidx)
+        return evalfunc(new_input, prob)
     end
     return fitness_function
 end
@@ -177,7 +170,6 @@ end
 
 
 function test_fixedparam(param1::String, param2::String, param3::String, constraints::ConstraintType, prob::ODEProblem; fixed_values = [0.001, 0.01, 0.001], fixedDF=1000.)
-    Random.seed!(1234)
     variable_constraints = deepcopy(constraints)
     # fixedtrip = [x for x in variable_constraints.ranges if x.name == param1 || x.name == param2 || x.name == param3]
     filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.ranges)
@@ -191,34 +183,22 @@ function test_fixedparam(param1::String, param2::String, param3::String, constra
     fixedtrip_idxs = find_indices(param1, param2, param3, constraints.ranges) 
 
     # make_fitness_function_closure(evalfunc,prob; fitidx) = make_fitness_function_with_fixed_inputs(evalfunc, prob, fixed_values, fixedtrip_idxs; fitidx)
-    make_fitness_function_closure(evalfunc,prob; fitidx) = make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc, prob, fixed_values, fixedtrip_idxs, fixedDF; fitidx)
+    make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc, prob, fixed_values, fixedtrip_idxs, fixedDF)
 
 
+    Random.seed!(1234)
 
-    oscillatory_points_df = make_df(run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5)) 
-    num_oscillatory_points = length(oscillatory_points_df.ind)
+    oscillatory_points_df = make_ga_dataframe(run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5), prob, fixedDF) 
+    num_oscillatory_points = length(oscillatory_points_df.fit)
     @info num_oscillatory_points
 
-    #* insert the fixed params into each ind of oscillatory_points_df
-    for ind in oscillatory_points_df.ind
-        for (j,fixedidx) in enumerate(fixedtrip_idxs)
-            if fixedidx <= length(ind)
-                insert!(ind, fixedtrip_idxs[j], fixed_values[j])
-            else
-                push!(ind, fixed_values[j])
-            end
-        end
-        insert!(ind, 13, fixedDF)
-    end
-    # return oscillatory_points_df
-    #* split parameter values into separate columns and add initial conditions
-    # split_dataframe!(oscillatory_points_df, prob)
+
     return oscillatory_points_df
 end
 
-param_triplet = ["ka1", "kcat1", "kcat7"]
-testfixed_df = test_fixedparam(param_triplet..., allconstraints, ogprob; fixed_values = [0.1,1000.,1000.])
-split_dataframe!(testfixed_df, ogprob)
+param_triplet = ["L", "K", "P"]
+testfixed_df = test_fixedparam(param_triplet..., allconstraints, ogprob; fixed_values = [100.0,1.,1.])
+
 CSV.write("OscillatorPaper/FigureGenerationScripts/test.csv", testfixed_df)
 
 
