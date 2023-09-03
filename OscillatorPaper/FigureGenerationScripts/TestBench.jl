@@ -2,7 +2,7 @@ begin
     using Plots; #theme(:juno)
     # using Compose
     using Catalyst
-    using DifferentialEquations, ModelingToolkit
+    using OrdinaryDiffEq, ModelingToolkit
     using Statistics
     # using Peaks
     using FindPeaks1D
@@ -24,6 +24,8 @@ begin
     # using OrderedCollections
     # using Combinatorics
     # using LazySets, Polyhedra
+
+    using Setfield
     
     using ColorSchemes, Plots.PlotMeasures
     default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
@@ -71,9 +73,23 @@ function make_ODE_problem()
     return ogprobjac, ogprob
 end
 
+ogprobjac, ogprob = make_ODE_problem();
 
 
-# ogjacsol = solve(ogprobjac, saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
+ogjacsol = solve(ogprobjac, Rosenbrock23(), saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
+
+@code_warntype eval_all_fitness(rand(17), ogprobjac)
+
+@code_warntype CostFunction(ogjacsol)
+
+@btime CostFunction($ogjacsol)
+
+
+solu = map(sum, ogjacsol.u)
+
+
+
+@btime CostFunction($solu, $ogjacsol.t)
 
 # tstart = cld(length(ogjacsol[1,:]), 1000)
 
@@ -102,12 +118,12 @@ allconstraints = AllConstraints(param_constraints, ic_constraints)
 
 gaproblem = GAProblem(allconstraints, ogprobjac)
 
+@code_warntype GAProblem(allconstraints, ogprobjac)
 
 
 
-fitfunc = make_fitness_function(gaproblem)
 
-@code_warntype make_fitness_function(gaproblem)
+
 
 @btime generate_population($allconstraints, 5000)
 pop = generate_population(allconstraints, 5000)
@@ -115,7 +131,7 @@ pop = generate_population(allconstraints, 5000)
 
 @code_llvm generate_population(allconstraints, 5000)
 
-pop[1]
+
 
 # Modification to make_fitness_function_with_fixed_inputs function
 function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int})
@@ -182,17 +198,18 @@ set_fixed_constraints!(gaproblem.constraints, fixed_inputs)
     Takes a named tuple of fixed inputs and a GAProblem and sets the constraints of the GAProblem to the fixed inputs.
     Returns `DataFrame` of the optimization results.
 """
-function test_fixedparam(fixed_inputs::NamedTuple, gaprob::GAProblem, fixedDF=1000.)
+function test_fixedparam(gaprob::GAProblem, fixedDF=1000.; fixed_inputs)
 
     constraints = gaprob.constraints
 
-    set_fixed_constraints!(constraints, fixed_inputs)
+    set_fixed_constraints!(gaprob; fixed_inputs..., DF=fixedDF)
 
-    set_fixed_constraints!(constraints, (DF = fixedDF,))
 
     Random.seed!(1234)
 
-    ga_results = run_GA(gaprob; population_size = 5000, iterations = 5)
+    initial_population = generate_population(constraints, 10000)
+
+    ga_results = run_GA(gaprob, initial_population; iterations = 5)
 
     oscillatory_points_df = make_ga_dataframe(ga_results, constraints) 
     num_oscillatory_points = nrow(oscillatory_points_df)
@@ -202,27 +219,19 @@ function test_fixedparam(fixed_inputs::NamedTuple, gaprob::GAProblem, fixedDF=10
 end
 
 
-testfixed_df = test_fixedparam(fixed_inputs, gaproblem)
+fixed_inputs = (L = 100.0, K = 1.0, P = 1.0, A = 10.0)
 
-CSV.write("OscillatorPaper/FigureGenerationScripts/test.csv", testfixed_df)
-
-
-plot_everything(testfixed_df, ogprob; setnum=13, label="Params&Inits", jump=50)
-
-testfixed_df = CSV.read("OscillatorPaper/FigureGenerationScripts/test.csv", DataFrame)
-testsol = solve(remake(ogprob, p = testfixed_df.ind[401]), saveat=0.1)
-
-newprob = remake(ogprob, u0 = [[97.23405302393168, 76.78427415397275, 8.928095154587805, 22.611353860124073]; zeros(12)],p = [0.1, 249.16082412239868, 1000.0, 4.969336136315573, 115.12839147825775, 3.399727998677895, 50.40303569894044, 0.001, 0.01, 34.13205544050995, 903.6369655144391, 1000.0, 1000.0])
-testsol = solve(newprob, saveat=0.1)
-plotsol(testsol)
-plotboth(401, testfixed_df, ogprob)
+testfixed_df = test_fixedparam(gaproblem; fixed_inputs)
 
 
-plotboth(row) = plotboth(row, testfixed_df, ogprob)
-plotboth(1)
 
-test_fitness(row) = eval_param_fitness(testfixed_df.ind[row], ogprob)
-test_fitness(2)
+set_fixed_constraints!(allconstraints, fixed_inputs)
+
+fitfunc = gaproblem.fitness_function
+
+input = ogprob.p
+
+fitfunc(input)
 #########################
 
 #* OBSERVATIONS FROM THE TESTBENCH
@@ -233,41 +242,8 @@ test_fitness(2)
 #* Peak height threshold seems to be important
 
 
-#< Regular GA testbench
-# Random.seed!(1234)
-test_gaproblem = GAProblem(param_constraints, ogprob)
-test_results = run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4)
-@code_warntype run_GA(test_gaproblem; population_size = 5000, iterations = 5, fitidx = 4)
-typeof(test_results)
-test_results_df = trace_to_df(test_results)
 
 
-function foo(gaprob::GAProblem)
-    test_results = run_GA(gaprob; population_size = 5000, iterations = 5, fitidx = 4)
-    results_df = trace_to_df(test_results)
-    mean_fitness = mean(results_df.fit)
-    mean_period = mean(results_df.per)
-    mean_amplitude = mean(results_df.amp)
-    return mean_fitness, mean_period, mean_amplitude
-end
-
-@code_warntype foo(test_gaproblem)
-
-# avg_fitness = mean(test_results.fit)
-# avg_period = mean(test_results.per)
-# avg_amplitude = mean(test_results.amp)
-
-# plotboth(row) = plotboth(row, test_results, ogprob)
-# plotboth(1338)
-
-# testprob = remake(ogprob, p = test_results.ind[1338])
-# testsol = solve(testprob, saveat=0.1)
-# fftdata = getFrequencies(testsol[4,:])
-# normalize_time_series!(fftdata)
-# plot(fftdata, xlims=(0,100))
-# plotfft(testsol; fitidx=4)
-# fft_peakindexes, peakprops = findpeaks1d(fftdata; height = 1e-3, distance = 2) #* get the indexes of the peaks in the fft
-# fft_peakvals = peakprops["peak_heights"]
 
 #!NOTES 
 #* Need to play around with PM mutation scheme. Not working as well as BGA, but has benefits

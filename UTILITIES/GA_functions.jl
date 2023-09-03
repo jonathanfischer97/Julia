@@ -49,7 +49,7 @@ Struct for defining parameter or initial condition ranges. Each instance contain
 - `active::Bool`: Whether or not the constraint will be used for optimization.
 - `fixed_value::Float64`: Fixed value if inactive.
 """
-mutable struct ConstraintRange
+struct ConstraintRange
     name::Symbol
     min::Float64
     max::Float64
@@ -58,8 +58,8 @@ mutable struct ConstraintRange
 end
 
 function fix_constraint!(conrange::ConstraintRange, value::Float64)
-    conrange.active = false
-    conrange.fixed_value = value
+    @set conrange.active = false
+    @set conrange.fixed_value = value
 end
 
 """
@@ -223,16 +223,37 @@ end
 
 #> END
 
-function set_fixed_constraints!(constraints::ConstraintType, fixedinputs::NamedTuple)
-    for (name, value) in pairs(fixedinputs)
-        if name in fieldnames(typeof(constraints))
-            fix_constraint!(getfield(constraints, name), value)
+
+
+
+"""Fitness function constructor called during GAProblem construction that captures the fixed indices and ODE problem"""
+function make_fitness_function(constraints::ConstraintType, ode_problem::ODEProblem, eval_function)
+
+    let fixed_idxs = get_fixed_indices(constraints), ode_problem = ode_problem, eval_function = eval_function
+        
+        function fitness_function(input::Vector{Float64})
+            # Preallocate a new input array, merging fixed and variable parameters
+            merged_input = Vector{Float64}(undef, length(input) + length(fixed_idxs))
+            
+            var_idx = 1
+            for idx in eachindex(merged_input)
+                if idx in fixed_idxs
+                    merged_input[idx] = constraints[idx].fixed_value
+                else
+                    merged_input[idx] = input[var_idx]
+                    var_idx += 1
+                end
+            end
+            
+            return eval_function(merged_input, ode_problem)
         end
+        return fitness_function
     end
-    return constraints
 end
 
-
+make_fitness_function(constraints::ParameterConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_param_fitness)
+make_fitness_function(constraints::InitialConditionConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_ic_fitness)
+make_fitness_function(constraints::AllConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_all_fitness)
 
 
 #< GA PROBLEM TYPE
@@ -242,32 +263,44 @@ end
 Struct encapsulating a Genetic Algorithm (GA) optimization problem. It holds the constraints for the problem, the ODE problem to be solved, the fitness function, and any additional keyword arguments.
 
 # Fields
-- `constraints::T`: Constraints for the problem. Either `ParameterConstraints` or `InitialConditionConstraints`.
+- `constraints::T`: Constraints for the problem. Either `ParameterConstraints` or `InitialConditionConstraints` or `AllConstraints`.
 - `ode_problem::ODEProblem`: ODE problem to be solved.
 - `fitness_function::Function`: Fitness function, automatically generated with constructor
-- `options::NamedTuple`: Additional keyword arguments for `Evolutionary.Options`.
 """
-struct GAProblem{T <: ConstraintType}
-    constraints::T
-    ode_problem::ODEProblem
-    eval_function::Function
+struct GAProblem{CT <: ConstraintType, OT <: ODEProblem, FT <: Function}
+    constraints::CT
+    ode_problem::OT
+    fitness_function::FT
 
-    function GAProblem(constraints::ParameterConstraints, ode_problem::ODEProblem) 
-        new{ParameterConstraints}(constraints, ode_problem, eval_param_fitness)
+    function GAProblem(constraints::CT, ode_problem::OT, fitness_function::FT = make_fitness_function(constraints, ode_problem)) where {CT<:ConstraintType, OT<:ODEProblem, FT<:Function}
+        # fitness_function = make_fitness_function(constraints, ode_problem)
+        new{CT,OT,FT}(constraints, ode_problem, fitness_function)
     end
+end
 
-    function GAProblem(constraints::InitialConditionConstraints, ode_problem::ODEProblem) 
-        new{InitialConditionConstraints}(constraints, ode_problem, eval_ic_fitness)
+function set_fixed_constraints!(constraints::ConstraintType; fixedinputs...)
+    for (name, value) in pairs(fixedinputs)
+        if name in fieldnames(typeof(constraints))
+            fix_constraint!(getfield(constraints, name), value)
+        end
     end
+    return constraints
+end
 
-    function GAProblem(constraints::AllConstraints, ode_problem::ODEProblem) 
-        new{AllConstraints}(constraints, ode_problem, eval_all_fitness)
+"""Sets the fixed values for a GAProblem and reconstructs the fitness function"""
+function set_fixed_constraints!(ga_problem::GAProblem; fixedinputs...)
+    for (name, value) in pairs(fixedinputs)
+        if name in fieldnames(typeof(constraints))
+            fix_constraint!(getfield(constraints, name), value)
+        end
     end
+    @set ga_problem.fitness_function = make_fitness_function(ga_problem.constraints, ga_problem.ode_problem)
+    return ga_problem
 end
 
 
 function Base.show(io::IO, ::MIME"text/plain", prob::GAProblem) 
-    printstyled(io, "GAProblem with constraints:\n"; bold = true, underline=true, color = :green)
+    printstyled(io, typeof(prob), ":\n"; bold = true, underline=true, color = :green)
     printstyled(io, prob.constraints, "\n")
     printstyled(io, "\nNominal parameter values:\n"; bold = true, color = :blue)
     printstyled(io, prob.ode_problem.p, "\n")
@@ -298,14 +331,20 @@ population = generate_population(constraints, 100)
 #     return [population[:, i] for i in 1:n]
 # end
 
-function generate_population(constraint::ConstraintType, n::Int)
+function generate_empty_population(constraint::ConstraintType, n::Int)
     num_params = activelength(constraint)
     
     # Preallocate the population array of arrays
-    population = [Vector{Float64}(undef, num_params) for _ in 1:n]
+    [Vector{Float64}(undef, num_params) for _ in 1:n]
+end
+
+function generate_population(constraint::ConstraintType, n::Int)
+    # Preallocate the population array of arrays
+    population = generate_empty_population(constraint, n)
     
     generate_population!(population, constraint)
 end
+
 
 function generate_population!(population::Vector{Vector{Float64}}, constraint::ConstraintType)
 
@@ -322,39 +361,10 @@ function generate_population!(population::Vector{Vector{Float64}}, constraint::C
             end
         end
     end
-    
     return population
 end
 
-"""
-    generate_population(constraints::InitialConditionConstraints, n::Int)
 
-generate_population(constraints::InitialConditionConstraints, n::Int)
-
-Generate a population of `n` individuals for the given initial condition constraints. Each individual is sampled from a uniform distribution within the valid range for each initial condition.
-
-# Example
-```julia
-constraints = define_initialcondition_constraints(lipidrange = (0.1, 10.0), kinaserange = (0.1, 10.0))
-population = generate_population(constraints, 100)
-```
-"""
-# function generate_population(constraint::InitialConditionConstraints, n::Int)
-#     population = [rand(Uniform(conrange.min, conrange.max), n) for conrange in constraint.ranges]
-#     population = transpose(hcat(population...))
-#     return [population[:, i] for i in 1:n]
-# end
-
-# function generate_population(constraint::AllConstraints, n::Int)
-#     #* find index where initial conditions start, will be named either L, K, P, or A
-#     icstartidx = findfirst(x -> x.name ∈ ["L", "K", "P", "A"], constraint.ranges)
-#     parampopulation = [exp10.(rand(Uniform(log10(conrange.min), log10(conrange.max)), n)) for conrange in constraint.ranges[1:icstartidx-1]]
-#     icpopulation = [rand(Uniform(conrange.min, conrange.max), n) for conrange in constraint.ranges[icstartidx:end]]
-#     parampopulation = transpose(hcat(parampopulation...))
-#     icpopulation = transpose(hcat(icpopulation...))
-#     return [[parampopulation[:,i]; icpopulation[:,i]] for i in 1:n]
-#     # return [population[:, i] for i in 1:n]
-# end
 
 """For calculating volume when optimizing for NERDSS solutions"""
 function generate_population(constraint::Vector{ConstraintRange}, n::Int)
@@ -386,27 +396,27 @@ function make_fitness_function_with_let(evalfunc::Function, prob::ODEProblem)
 end
 
 """Returns the `fitness function(input)` for the cost function, referencing the GA problem with closure"""
-    function make_fitness_function(gaprob::GAProblem)
-        fixed_idxs = get_fixed_indices(gaprob.constraints)
+function make_fitness_function(gaprob::GAProblem)
+    fixed_idxs = get_fixed_indices(gaprob.constraints)
+    
+    function fitness_function(input::Vector{Float64})
+        # Preallocate a new input array, merging fixed and variable parameters
+        merged_input = Vector{Float64}(undef, length(input) + length(fixed_idxs))
         
-        function fitness_function(input::Vector{Float64})
-            # Preallocate a new input array, merging fixed and variable parameters
-            merged_input = Vector{Float64}(undef, length(input) + length(fixed_idxs))
-            
-            var_idx = 1
-            for idx in eachindex(merged_input)
-                if idx in fixed_idxs
-                    merged_input[idx] = gaprob.constraints[idx].fixed_value
-                else
-                    merged_input[idx] = input[var_idx]
-                    var_idx += 1
-                end
+        var_idx = 1
+        for idx in eachindex(merged_input)
+            if idx in fixed_idxs
+                merged_input[idx] = gaprob.constraints[idx].fixed_value
+            else
+                merged_input[idx] = input[var_idx]
+                var_idx += 1
             end
-            
-            return gaprob.evalfunc(merged_input, gaprob.ode_problem)
         end
-        return fitness_function
+        
+        return gaprob.eval_function(merged_input, gaprob.ode_problem)
     end
+    return fitness_function
+end
 #> END
 
 
@@ -428,13 +438,15 @@ end
 """
 Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 """
-function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fitness_function; 
-                                            population_size = 5000, abstol=1e-4, reltol=1e-2, successive_f_tol = 2, iterations=5, parallelization = :thread, show_trace=true)#, threshold=10000)
+function run_GA(ga_problem::GAProblem, population::Vector{Vector{Float64}} = generate_population(ga_problem.constraints, 10000); 
+                abstol=1e-4, reltol=1e-2, successive_f_tol = 2, iterations=5, parallelization = :thread, show_trace=true)#, threshold=10000)
     # blas_threads = BLAS.get_num_threads()
     # BLAS.set_num_threads(1)
 
-    #* Generate the initial population.
-    pop = generate_population(ga_problem.constraints, population_size)
+    population_size = length(population)
+
+    # #* Generate the initial population.
+    # pop = generate_population!(population, ga_problem.constraints)
 
     #* Create constraints using the min and max values from constraints if they are active for optimization.
     boxconstraints = BoxConstraints([constraint.min for constraint in ga_problem.constraints if constraint.active], [constraint.max for constraint in ga_problem.constraints if constraint.active])
@@ -465,16 +477,16 @@ function run_GA(ga_problem::GAProblem, fitnessfunction_factory::Function=make_fi
                 crossover = TPX, crossoverRate = 1.0, # Two-point crossover event
                 mutation  = mutation_scheme, mutationRate = 1.0)
 
-    #* Make fitness function. Makes closure of evaluation function and ODE problem
-    fitness_function = fitnessfunction_factory(ga_problem)
+    # #* Make fitness function. Makes closure of evaluation function and ODE problem
+    # fitness_function = fitnessfunction_factory(ga_problem)
 
     #* Run the optimization.
-    result = Evolutionary.optimize(fitness_function, [0.0,0.0,0.0], boxconstraints, mthd, pop, opts)
+    result = Evolutionary.optimize(ga_problem.fitness_function, [0.0,0.0,0.0], boxconstraints, mthd, population, opts)
 
 
     # BLAS.set_num_threads(blas_threads)
     # return result
-    return GAResults(result, length(ga_problem.constraints))
+    return GAResults(result, activelength(ga_problem.constraints))
 end
 #> END
 

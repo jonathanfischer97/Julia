@@ -33,10 +33,9 @@ end
 
 """Return normalized FFT of solution vector. Modifies the solution vector in place"""
 function getFrequencies(timeseries) 
-    res = abs.(rfft(timeseries))
-    return res ./ cld(length(timeseries), 2) #* normalize by length of timeseries
+    abs.(rfft(timeseries)) ./ cld(length(timeseries), 2)
+    # return res ./ cld(length(timeseries), 2) #* normalize by length of timeseries
 end
-
 
 
 
@@ -72,33 +71,37 @@ end
 
 """Cost function to be plugged into eval_fitness wrapper"""
 function CostFunction(sol::ODESolution)::Vector{Float64}
-
     Amem_sol = map(sum, sol.u)
+    CostFunction(Amem_sol, sol.t)
+end
 
-    tstart = cld(length(sol),10) 
+
+function CostFunction(solu::Vector{Float64}, solt::Vector{Float64})::Vector{Float64}
+
+    tstart = cld(length(solt),10) 
 
     #* Check if last half of the solution array is steady state
-    testwindow = Amem_sol[end-tstart:end]
-    if std(testwindow; mean=mean(testwindow)) < 0.01 #TODO relative to mean, normalize 
+    testwindow = solu[end-tstart:end]
+    if std(testwindow; mean=mean(testwindow)) < 0.01  
         return [0.0, 0.0, 0.0]
     end 
 
     #* Trim first 10% of the solution array to avoid initial spikes
-    Amem_sol = Amem_sol[tstart:end] 
+    solu = solu[tstart:end] 
 
-    indx_max, vals_max = findextrema(Amem_sol; height = 1e-2, distance = 5)
-    indx_min, vals_min = findextrema(Amem_sol; height = 0.0, distance = 5, find_maxima=false)
-    # indx_min, vals_min = find_minima_between_maxima(Amem_sol, indx_max)
+    indx_max, vals_max = findextrema(solu; height = 1e-2, distance = 5)
+    indx_min, vals_min = findextrema(solu; height = 0.0, distance = 5, find_maxima=false)
+    # indx_min, vals_min = find_minima_between_maxima(solu, indx_max)
 
     if length(indx_max) < 2 || length(indx_min) < 2 #* if there is no signal in the time domain,
         return [0.0, 0.0, 0.0]
     end
     
     #* Get the rfft of the solution
-    fftData = getFrequencies(Amem_sol)
+    fftData = getFrequencies(solu) |> normalize_time_series!
 
     #* Normalize the solution array. WARNING: solarray is modified after this line
-    normalize_time_series!(fftData)
+    # normalize_time_series!(fftData)
 
     fft_peakindexes, fft_peakvals = findextrema(fftData; height = 1e-2, distance = 2) #* get the indexes of the peaks in the fft
     # @info length(fft_peakindexes)
@@ -109,7 +112,7 @@ function CostFunction(sol::ODESolution)::Vector{Float64}
         sum_diff = getDif(fft_peakvals) #* get the summed difference between the first and last peaks in frequency domain
     
         #* Compute the period and amplitude
-        period, amplitude = getPerAmp(sol.t[tstart:end], indx_max, vals_max, indx_min, vals_min)
+        period, amplitude = getPerAmp(solt[tstart:end], indx_max, vals_max, indx_min, vals_min)
     
         return [standard_deviation + sum_diff + log(10,period), period, amplitude]
     end
@@ -118,28 +121,28 @@ end
 
 #! EVALUATION FUNCTIONS ## 
 """Evaluate the fitness of an individual with new parameters"""
-function eval_param_fitness(params::Vector{Float64},  prob::ODEProblem; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16])
+function eval_param_fitness(params::Vector{Float64},  prob::OT; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16]) where OT <: ODEProblem
     #* remake with new parameters
     new_prob = remake(prob, p=params)
     return solve_for_fitness_peramp(new_prob, idx)
 end
 
 """Evaluate the fitness of an individual with new initial conditions"""
-function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::ODEProblem; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16])
+function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::OT; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16]) where OT <: ODEProblem
     #* remake with new initial conditions
     new_prob = remake(prob, u0=[initial_conditions; zeros(length(prob.u0)-length(initial_conditions))])
     return solve_for_fitness_peramp(new_prob, idx)
 end
 
 """Evaluate the fitness of an individual with new initial conditions and new parameters"""
-function eval_all_fitness(inputs::Vector{Float64}, prob::ODEProblem; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16])
+function eval_all_fitness(inputs::Vector{Float64}, prob::OT; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16]) where OT <: ODEProblem
     #* remake with new initial conditions
     new_prob = remake(prob, p = inputs[1:13], u0=[inputs[14:end]; zeros(length(prob.u0)-length(inputs[14:end]))])
     return solve_for_fitness_peramp(new_prob, idx)
 end
 
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
-function solve_for_fitness_peramp(prob::ODEProblem, idx::Vector{Int})
+function solve_for_fitness_peramp(prob::OT, idx::Vector{Int}) where OT <: ODEProblem
 
     sol = solve(prob, Rosenbrock23(), saveat=0.1, save_idxs=idx, verbose=false)
     # return CostFunction(sol)
@@ -155,7 +158,7 @@ end
 
 #< CUSTOM PEAK FINDER
 
-function findextrema(x::AbstractVector{T}; 
+function findextrema(x::Vector{T}; 
                     height::Union{Nothing,<:Real,NTuple{2,<:Real}}=nothing,
                     distance::Union{Nothing,Int}=nothing,
                     find_maxima::Bool=true) where {T<:Real}
