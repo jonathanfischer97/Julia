@@ -8,24 +8,19 @@ begin
     using Distributions
     using DataFrames#, DataFrameMacros
     using CSV
-    # using Unitful
-    # using Unitful: µM, M, nm, µm, s, μs, Na, L, 𝐍
+
     # using StaticArrays
     # using BenchmarkTools, Profile
     using ProgressMeter
-    # using Cthulhu
-    # using JET
-    # using MultivariateStats, UMAP, TSne, StatsPlots
-    # using GlobalSensitivity, QuasiMonteCarlo
+
     using LinearAlgebra
-    # using BifurcationKit, Setfield, ForwardDiff, Parameters; const BK = BifurcationKit
+
     # using ColorSchemes, Plots.PlotMeasures
-    # using OrderedCollections
+
     using Combinatorics
-    # using LazySets, Polyhedra
+
     # default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
-    # plotlyjs()
-    # import CairoMakie as cm 
+
     # gr()
     # push!(LOAD_PATH, "../../UTILITIES")
 
@@ -43,8 +38,6 @@ begin
 
     include("../../UTILITIES/TestBenchPlotUtils.jl")
 
-    # include("../../UTILITIES/UnitTools.jl")
-
 
     numthreads = Threads.nthreads()
     numcores = numthreads÷2
@@ -54,63 +47,15 @@ end
 
 
 
-#* Modification to make_fitness_function_with_fixed_inputs function
-function make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}, fixedDF=1000.)
-    function fitness_function(input::Vector{Float64})
-        # Create a new input vector that includes the fixed inputs.
-        new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
-
-        # Keep track of the number of fixed inputs that have been inserted.
-        fixed_inputs_inserted = 0
-
-        for i in eachindex(new_input)
-            if i in triplet_idxs
-                # If the current index matches the index of a fixed input, insert the fixed input.
-                new_input[i] = fixed_input_triplet[fixed_inputs_inserted + 1]
-                fixed_inputs_inserted += 1
-            else
-                # Otherwise, insert the next value from the input vector.
-                new_input[i] = input[i - fixed_inputs_inserted]
-            end
-        end
-
-
-
-        insert!(new_input, 13, fixedDF)
-
-        return evalfunc(new_input, prob)
-    end
-    return fitness_function
-end
-
-
 
 
 #* Modification to fixed_triplet_csv_maker function
-function fixed_triplet_csv_maker(param1::String, param2::String, param3::String, constraints::AllConstraints, prob::ODEProblem; rangelength = 4, fixedDF = 1000.) 
-    variable_constraints = deepcopy(constraints)
+function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProblem, fixed_names; rangelength = 4, fixedDF = 1000.) 
 
-    #* get the fixed parameters from the variable constraints
-    fixedval_constraints = [x for x in variable_constraints.ranges if x.name == param1 || x.name == param2 || x.name == param3]
-
-    #* remove the fixed parameters from the variable constraints so only the variable parameters are used in the GA
-    filter!(x -> x.name != param1 && x.name != param2 && x.name != param3, variable_constraints.ranges)
-
-    #* filter out DF because it will be fixed
-    filter!(x -> x.name != "DF", variable_constraints.ranges)
-
-
-    fixed_ga_problem = GAProblem(variable_constraints, prob)
-
-    #* get the indices of the fixed parameters in the input vector so that they can be inserted after GA
-    fixedval_idxs = find_indices(param1, param2, param3, constraints.ranges) 
-
+    fixedval_idxs = find_indices(constraints)
     
-    fixed_valrange1 = logrange(fixedval_constraints[1].min, fixedval_constraints[1].max, rangelength)
+    fixed_valrange1, fixed_valrange2, fixed_valrange3 = (logrange(constraints[fixedval_idx].min, constraints[fixedval_idx].max, rangelength) for fixedval_idx in fixedval_idxs)
     
-    fixed_valrange2 = logrange(fixedval_constraints[2].min, fixedval_constraints[2].max, rangelength)
-    
-    fixed_valrange3 = logrange(fixedval_constraints[3].min, fixedval_constraints[3].max, rangelength)
 
     num_rows = rangelength^3
 
@@ -138,12 +83,17 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                 fixed_values = [val1, val2, val3]
                 @info fixed_values
 
-                #* make fitness function closure with fixed inputs
-                make_fitness_function_closure(evalfunc,prob) = make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc, prob, fixed_values, fixedval_idxs, fixedDF)
+                set_fixed_constraints!(gaprob; fixed_inputs..., DF=fixedDF)
+
 
                 Random.seed!(1234)
-                oscillatory_points_results = run_GA(fixed_ga_problem, make_fitness_function_closure; population_size = 10000, iterations = 5) 
-                num_oscillatory_points = length(oscillatory_points_results.population)
+            
+                initial_population = generate_population(constraints, 20000)
+            
+                oscillatory_points_results = run_GA(ga_prob, initial_population; iterations = 5)
+            
+                num_oscillatory_points = length(oscillatory_points_results.fitvals)
+
 
                 #* if there are no oscillatory points, save the results to the results_df and continue
                 if iszero(num_oscillatory_points)
@@ -175,19 +125,6 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
                     #* make dataframe from oscillatory_points_results
                     oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, constraints)
                     
-                    # #* insert the fixed params into each ind of oscillatory_points_df
-                    # for ind in oscillatory_points_df.ind
-                    #     for (j,fixedidx) in enumerate(fixedval_idxs)
-                    #         if fixedidx <= length(ind)
-                    #             insert!(ind, fixedval_idxs[j], fixed_values[j])
-                    #         else
-                    #             push!(ind, fixed_values[j])
-                    #         end
-                    #     end
-                    #     insert!(ind, 13, fixedDF)
-                    # end
-                    # #* split parameter values into separate columns and add initial conditions
-                    # split_dataframe!(oscillatory_points_df, prob)
 
                     #* rewrite the L, K, P, A columns with the initial conditions
                     CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
@@ -197,7 +134,8 @@ function fixed_triplet_csv_maker(param1::String, param2::String, param3::String,
             end
         end
     end
-    results_df = DataFrame(param1 => vals1, param2 => vals2, param3 => vals3, "num_oscillatory_points" => num_oscillatory_points_array, 
+    fixed_input_names = [constraints[fixedval_idx].name for fixedval_idx in fixedval_idxs]
+    results_df = DataFrame(fixed_input_names[1] => vals1, fixed_input_names[2] => vals2, fixed_input_names[3] => vals3, "DF" => fixedDF, "num_oscillatory_points" => num_oscillatory_points_array, 
                         "average_period" => average_periods, "maximum_period"=>maximum_periods, "minimum_period"=>minimum_periods,
                         "average_amplitude" => average_amplitudes, "maximum_amplitude"=>maximum_amplitudes, "minimum_amplitude"=>minimum_amplitudes)
     return results_df

@@ -1,38 +1,22 @@
 begin 
     using Plots; #theme(:juno)
-    # using Compose
     using Catalyst
     using OrdinaryDiffEq, ModelingToolkit
     using Statistics
-    # using Peaks
-    using FindPeaks1D
     using Evolutionary, FFTW
     using Random
     using Distributions
     using DataFrames#, DataFrameMacros
     using CSV
-    # using Unitful
-    # using Unitful: µM, M, nm, µm, s, μs, Na, L, 𝐍
     using StaticArrays
-    using BenchmarkTools, Profile, ProgressMeter
-    # using Cthulhu
-    # using JET
-    # using MultivariateStats, UMAP, TSne, StatsPlots
-    # using GlobalSensitivity, QuasiMonteCarlo
+    using BenchmarkTools, ProgressMeter
+
     using LinearAlgebra
-    # using BifurcationKit, Setfield, ForwardDiff, Parameters; const BK = BifurcationKit
-    # using OrderedCollections
-    # using Combinatorics
-    # using LazySets, Polyhedra
 
     using Setfield
     
     using ColorSchemes, Plots.PlotMeasures
     default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
-    # plotlyjs()
-    # import CairoMakie as cm 
-    # gr()
-    # push!(LOAD_PATH, "../../UTILITIES")
 
     #* import the overloads for Evolutionary.jl
     include("../../UTILITIES/EvolutionaryOverloads.jl")
@@ -50,7 +34,6 @@ begin
     #* import the plotting functions
     include("../../UTILITIES/TestBenchPlotUtils.jl")
 
-    # include("../../UTILITIES/UnitTools.jl")
 
     const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 end
@@ -69,7 +52,7 @@ function make_ODE_problem()
 
     de = modelingtoolkitize(ogprob)
 
-    ogprobjac::ODEProblem = ODEProblem(de, [], tspan, jac=true)
+    ogprobjac::ODEProblem = ODEProblem{true,SciMLBase.FullSpecialize}(de, [], tspan, jac=true)
     return ogprobjac, ogprob
 end
 
@@ -91,22 +74,10 @@ solu = map(sum, ogjacsol.u)
 
 @btime CostFunction($solu, $ogjacsol.t)
 
-# tstart = cld(length(ogjacsol[1,:]), 1000)
 
-# std(ogjacsol[1,end-tstart:end])
-# # plot(ogjacsol)
-
-# maxpeaks = findextrema(ogjacsol[1,:]; height=1e-2, distance=2)
-# # minpeaks = findextrema(ogjacsol[1,:]; height=-1e-2, distance=2, find_maxima=false)
-# # minpeaks = findextrema(flip_about_mean(ogjacsol[1,:]); height=-1e-2, distance=2, find_maxima=false)
-
-
-# @btime CostFunction($ogjacsol)
-# @code_warntype CostFunction(ogjacsol)
 
 
 ogprobjac, ogprob = make_ODE_problem();
-
 
 
 param_constraints = ParameterConstraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
@@ -132,65 +103,10 @@ pop = generate_population(allconstraints, 5000)
 @code_llvm generate_population(allconstraints, 5000)
 
 
-
-# Modification to make_fitness_function_with_fixed_inputs function
-function make_fitness_function_with_fixed_inputs(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int})
-    function fitness_function(input::Vector{Float64})
-        # Create a new input vector that includes the fixed inputs.
-        new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
-
-        # Keep track of the number of fixed inputs that have been inserted.
-        fixed_inputs_inserted = 0
-
-        for i in eachindex(new_input)
-            if i in triplet_idxs
-                # If the current index matches the index of a fixed input, insert the fixed input.
-                new_input[i] = fixed_input_triplet[fixed_inputs_inserted + 1]
-                fixed_inputs_inserted += 1
-            else
-                # Otherwise, insert the next value from the input vector.
-                new_input[i] = input[i - fixed_inputs_inserted]
-            end
-        end
-
-        return evalfunc(new_input, prob)
-    end
-    return fitness_function
-end
-
-
-# Modification to make_fitness_function_with_fixed_inputs function
-function make_fitness_function_with_fixed_inputs_bothparamsIC(evalfunc::Function, prob::ODEProblem, fixed_input_triplet::Vector{Float64}, triplet_idxs::Tuple{Int, Int, Int}, fixedDF=1000.)
-    function fitness_function(input::Vector{Float64})
-        # Create a new input vector that includes the fixed inputs.
-        new_input = Vector{Float64}(undef, length(input) + length(fixed_input_triplet))
-
-        # Keep track of the number of fixed inputs that have been inserted.
-        fixed_inputs_inserted = 0
-
-        for i in eachindex(new_input)
-            if i in triplet_idxs
-                # If the current index matches the index of a fixed input, insert the fixed input.
-                new_input[i] = fixed_input_triplet[fixed_inputs_inserted + 1]
-                fixed_inputs_inserted += 1
-            else
-                # Otherwise, insert the next value from the input vector.
-                new_input[i] = input[i - fixed_inputs_inserted]
-            end
-        end
-
-
-        insert!(new_input, 13, fixedDF)
-
-        return evalfunc(new_input, prob)
-    end
-    return fitness_function
-end
-
-
+#< START
 fixed_inputs = (L = 100.0, K = 1.0, P = 1.0, A = 10.0)
 
-set_fixed_constraints!(gaproblem.constraints, fixed_inputs)
+set_fixed_constraints!(gaproblem.constraints, fixed_inputs...)
 
 
 
@@ -207,7 +123,7 @@ function test_fixedparam(gaprob::GAProblem, fixedDF=1000.; fixed_inputs)
 
     Random.seed!(1234)
 
-    initial_population = generate_population(constraints, 10000)
+    initial_population = generate_population(constraints, 5000)
 
     ga_results = run_GA(gaprob, initial_population; iterations = 5)
 
@@ -222,6 +138,15 @@ end
 fixed_inputs = (L = 100.0, K = 1.0, P = 1.0, A = 10.0)
 
 testfixed_df = test_fixedparam(gaproblem; fixed_inputs)
+
+@btime test_fixedparam($gaproblem; fixed_inputs)
+#*  112.566 s (1484360277 allocations: 196.73 GiB)
+
+#* when eval is broadcasted
+#* 118.019 s (1484282110 allocations: 196.73 GiB)
+
+#* actually in place updating of F
+#* 16.831 s (403801713 allocations: 60.82 GiB)
 
 
 

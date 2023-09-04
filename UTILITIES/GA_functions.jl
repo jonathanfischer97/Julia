@@ -227,29 +227,85 @@ end
 
 
 """Fitness function constructor called during GAProblem construction that captures the fixed indices and ODE problem"""
-function make_fitness_function(constraints::ConstraintType, ode_problem::ODEProblem, eval_function)
+# function make_fitness_function(constraints::ConstraintType, ode_problem::ODEProblem, eval_function)
 
-    let fixed_idxs = get_fixed_indices(constraints), ode_problem = ode_problem, eval_function = eval_function
+#     let fixed_idxs = get_fixed_indices(constraints), ode_problem = ode_problem, eval_function = eval_function
         
-        function fitness_function(input::Vector{Float64})
-            # Preallocate a new input array, merging fixed and variable parameters
-            merged_input = Vector{Float64}(undef, length(input) + length(fixed_idxs))
+#         function fitness_function(input::Vector{Float64})
+#             #* Preallocate a new input array, merging fixed and variable parameters
+#             merged_input = Vector{Float64}(undef, length(input) + length(fixed_idxs))
             
-            var_idx = 1
-            for idx in eachindex(merged_input)
-                if idx in fixed_idxs
-                    merged_input[idx] = constraints[idx].fixed_value
-                else
-                    merged_input[idx] = input[var_idx]
-                    var_idx += 1
-                end
+#             var_idx = 1
+#             for idx in eachindex(merged_input)
+#                 if idx in fixed_idxs #* If the index is fixed in the constraints, assign that value at the same index in the merged input
+#                     merged_input[idx] = constraints[idx].fixed_value
+#                 else #* Otherwise, assign the value from the input array
+#                     merged_input[idx] = input[var_idx]
+#                     var_idx += 1
+#                 end
+#             end
+            
+#             return eval_function(merged_input, ode_problem)
+#         end
+#         return fitness_function
+#     end
+# end
+
+function make_fitness_function(constraints::ConstraintType, ode_problem::ODEProblem, eval_function)
+    fixed_idxs = get_fixed_indices(constraints)
+    fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
+    n_fixed = length(fixed_idxs)
+    n_total = n_fixed + length(ode_problem.p)  # Assuming ode_problem.p contains the initial variable parameters
+
+    function fitness_function(input::Vector{Float64})
+        merged_input = Vector{Float64}(undef, n_total)
+        merged_input[fixed_idxs] .= fixed_values  # Fill in fixed values
+
+        # Fill in variable values
+        j = 1
+        for i in 1:n_total
+            if !(i in fixed_idxs)
+                merged_input[i] = input[j]
+                j += 1
             end
-            
-            return eval_function(merged_input, ode_problem)
         end
-        return fitness_function
+
+        return eval_function(merged_input, ode_problem)
     end
+
+    return fitness_function
 end
+
+# Preallocate thread-local storage for merged_input
+# const merged_input_tls = [Vector{Float64}(undef, 17) for _ in 1:Threads.nthreads()]
+
+# function make_fitness_function(constraints::ConstraintType, ode_problem::ODEProblem, eval_function)
+#     fixed_idxs = get_fixed_indices(constraints)
+#     fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
+
+#     function fitness_function(input::Vector{Float64})
+#         # Get the thread-specific merged_input
+#         merged_input = merged_input_tls[Threads.threadid()]
+        
+#         # Fill in fixed values
+#         merged_input[fixed_idxs] .= fixed_values
+
+#         # Fill in variable values
+#         j = 1
+#         for i in eachindex(merged_input)
+#             if !(i in fixed_idxs)
+#                 merged_input[i] = input[j]
+#                 j += 1
+#             end
+#         end
+
+#         return eval_function(merged_input, ode_problem)
+#     end
+
+#     return fitness_function
+# end
+
+
 
 make_fitness_function(constraints::ParameterConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_param_fitness)
 make_fitness_function(constraints::InitialConditionConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_ic_fitness)
@@ -356,13 +412,40 @@ function generate_population!(population::Vector{Vector{Float64}}, constraint::C
             min_val, max_val = log10(conrange.min), log10(conrange.max)
             rand_vals .= exp10.(rand(Uniform(min_val, max_val), length(population)))
             
-            for j in 1:length(population)
+            for j in eachindex(population)
                 population[j][i] = rand_vals[j]
             end
         end
     end
     return population
 end
+
+#! MATRIX VERSIONS
+# Generate an empty population as a 2D array
+# function generate_empty_population(constraint::ConstraintType, n::Int)
+#     num_params = activelength(constraint)
+#     return Matrix{Float64}(undef, num_params, n)
+# end
+
+# # Generate a population as a 2D array
+# function generate_population(constraint::ConstraintType, n::Int)
+#     population = generate_empty_population(constraint, n)
+#     generate_population!(population, constraint)
+#     return population
+# end
+
+# # Populate the 2D array in-place
+# function generate_population!(population::Matrix{Float64}, constraint::ConstraintType)
+#     n = size(population, 2)
+    
+#     for (i, conrange) in enumerate(constraint)
+#         if conrange.active
+#             min_val, max_val = log10(conrange.min), log10(conrange.max)
+#             population[i, :] .= exp10.(rand(Uniform(min_val, max_val), n))
+#         end
+#     end
+# end
+
 
 
 
@@ -417,6 +500,10 @@ function make_fitness_function(gaprob::GAProblem)
     end
     return fitness_function
 end
+
+
+
+
 #> END
 
 
@@ -481,7 +568,7 @@ function run_GA(ga_problem::GAProblem, population::Vector{Vector{Float64}} = gen
     # fitness_function = fitnessfunction_factory(ga_problem)
 
     #* Run the optimization.
-    result = Evolutionary.optimize(ga_problem.fitness_function, [0.0,0.0,0.0], boxconstraints, mthd, population, opts)
+    result = Evolutionary.optimize(ga_problem.fitness_function, zeros(3,population_size), boxconstraints, mthd, population, opts)
 
 
     # BLAS.set_num_threads(blas_threads)
