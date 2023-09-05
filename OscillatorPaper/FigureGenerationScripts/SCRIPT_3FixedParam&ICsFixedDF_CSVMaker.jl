@@ -8,6 +8,7 @@ begin
     using Distributions
     using DataFrames#, DataFrameMacros
     using CSV
+    using Setfield
 
     # using StaticArrays
     # using BenchmarkTools, Profile
@@ -50,9 +51,9 @@ end
 
 
 #* Modification to fixed_triplet_csv_maker function
-function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProblem, fixed_names; rangelength = 4, fixedDF = 1000.) 
+function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProblem, fixed_names; rangelength = 4, fixedDF = 1000., popsize = 20000) 
 
-    fixedval_idxs = find_indices(constraints)
+    fixedval_idxs = (find_field_index(fixed_name, constraints) for fixed_name in fixed_names)
     
     fixed_valrange1, fixed_valrange2, fixed_valrange3 = (logrange(constraints[fixedval_idx].min, constraints[fixedval_idx].max, rangelength) for fixedval_idx in fixedval_idxs)
     
@@ -72,7 +73,7 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
 
     
     #* make folder to hold all the csv files 
-    path = mkpath("./ROCKFISH_DATA/3FixedParams+ICsRawSets/$(param1)_$(param2)_$(param3)/DF=$(round(fixedDF))")
+    path = mkpath("./ROCKFISH_DATA/3Fixed/3FixedParams+ICsRawSets/$(fixed_names[1])_$(fixed_names[2])_$(fixed_names[3])/DF=$(round(fixedDF))")
     i = 1
 
     #* make progress bar 
@@ -80,17 +81,27 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
     for val1 in fixed_valrange1
         for val2 in fixed_valrange2
             for val3 in fixed_valrange3
-                fixed_values = [val1, val2, val3]
-                @info fixed_values
+                # fixed_inputs = [fixed_name => val for (fixed_name, val) in zip(fixed_names, [val1, val2, val3])]
+                # push!(fixed_inputs, "DF" => fixedDF)
 
-                set_fixed_constraints!(gaprob; fixed_inputs..., DF=fixedDF)
+                fixed_inputs = Dict(zip(fixed_names, [val1, val2, val3]))
+                fixed_inputs["DF"] = fixedDF
+                # @info fixed_values
+
+                fixed_constraints = deepcopy(constraints)
+                
+                set_fixed_constraints!(fixed_constraints; fixed_inputs)
+
+                @info get_fixed_indices(fixed_constraints)
+
+                ga_problem = GAProblem(fixed_constraints, ode_prob)
 
 
                 Random.seed!(1234)
             
-                initial_population = generate_population(constraints, 20000)
+                initial_population = generate_population(fixed_constraints, popsize)
             
-                oscillatory_points_results = run_GA(ga_prob, initial_population; iterations = 5)
+                oscillatory_points_results = run_GA(ga_problem, initial_population; iterations = 5)
             
                 num_oscillatory_points = length(oscillatory_points_results.fitvals)
 
@@ -123,7 +134,7 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
                     num_oscillatory_points_array[i] = num_oscillatory_points
                 
                     #* make dataframe from oscillatory_points_results
-                    oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, constraints)
+                    oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, fixed_constraints)
                     
 
                     #* rewrite the L, K, P, A columns with the initial conditions
@@ -134,15 +145,29 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
             end
         end
     end
-    fixed_input_names = [constraints[fixedval_idx].name for fixedval_idx in fixedval_idxs]
-    results_df = DataFrame(fixed_input_names[1] => vals1, fixed_input_names[2] => vals2, fixed_input_names[3] => vals3, "DF" => fixedDF, "num_oscillatory_points" => num_oscillatory_points_array, 
+    
+    results_df = DataFrame(fixed_names[1] => vals1, fixed_names[2] => vals2, fixed_names[3] => vals3, "DF" => fixedDF, "num_oscillatory_points" => num_oscillatory_points_array, 
                         "average_period" => average_periods, "maximum_period"=>maximum_periods, "minimum_period"=>minimum_periods,
                         "average_amplitude" => average_amplitudes, "maximum_amplitude"=>maximum_amplitudes, "minimum_amplitude"=>minimum_amplitudes)
     return results_df
 end
 
+fixed_names = ["L", "K", "P"]
+fixed_names = ["L" => 1.0, "K" => 2.0, "P" => 1.0]
+
+for (name, val) in pairs(fixed_names)
+    @info name
+    @info val
+end
 
 
+fixed_dict = Dict(zip(fixed_names, [100., 1., 1.]))
+pairs(fixed_dict)
+
+set_fixed_constraints!(allconstraints, fixed_names)
+
+set_fixed_constraints!(allconstraints; L = 1.0, K = 2.0, P = 1.0, A = 10.0, DF = 1000.0)
+fixed_triplet_csv_maker(allconstraints, ogprobjac, fixed_names; rangelength = 4, fixedDF = 1000., popsize = 2000)
 
 
 #< loop through combinations of parameters and run the function of each triplet
@@ -152,7 +177,7 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; startin
     triplets = collect(combinations(names, 3))
     start_idx = findfirst(x -> x[1] == startinput, triplets)
 
-    mainpath = mkpath("./ROCKFISH_DATA/3FixedParams+ICsFixedDF_CSVs")
+    mainpath = mkpath("./ROCKFISH_DATA/3Fixed/3FixedParams+ICsFixedDF_CSVs")
 
     for triplet in triplets[start_idx:end]
         @info triplet

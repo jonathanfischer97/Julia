@@ -16,6 +16,18 @@ function Base.getindex(constraint::ConstraintType, idx::Int)
     return getfield(constraint, field_name)
 end
 
+function find_field_index(field_name::Union{Symbol, String}, constraint::ConstraintType)
+    fields = fieldnames(typeof(constraint))
+    idx = findfirst(x -> x == Symbol(field_name), fields)
+    
+    if idx === nothing
+        throw(ArgumentError("Field name '$field_name' not found in ConstraintType."))
+    end
+    
+    return idx
+end
+
+
 # To make it iterable, define start, next and done methods
 Base.iterate(constraint::ConstraintType, state=1) = state > length(constraint) ? nothing : (getfield(constraint, fieldnames(typeof(constraint))[state]), state + 1)
 
@@ -100,7 +112,7 @@ end
 
 Struct encapsulating all constraints. Each field represents a different parameter or initial condition, holding a `ConstraintRange` object that defines the valid range for that parameter or initial condition.
 """
-struct AllConstraints <: ConstraintType
+mutable struct AllConstraints <: ConstraintType
     ka1::ConstraintRange
     kb1::ConstraintRange
     kcat1::ConstraintRange
@@ -323,7 +335,7 @@ Struct encapsulating a Genetic Algorithm (GA) optimization problem. It holds the
 - `ode_problem::ODEProblem`: ODE problem to be solved.
 - `fitness_function::Function`: Fitness function, automatically generated with constructor
 """
-struct GAProblem{CT <: ConstraintType, OT <: ODEProblem, FT <: Function}
+mutable struct GAProblem{CT <: ConstraintType, OT <: ODEProblem, FT <: Function}
     constraints::CT
     ode_problem::OT
     fitness_function::FT
@@ -336,8 +348,21 @@ end
 
 function set_fixed_constraints!(constraints::ConstraintType; fixedinputs...)
     for (name, value) in pairs(fixedinputs)
-        if name in fieldnames(typeof(constraints))
-            fix_constraint!(getfield(constraints, name), value)
+        symbolic_name = Symbol(name)
+        if symbolic_name in fieldnames(typeof(constraints))
+            fix_constraint!(getfield(constraints, symbolic_name), value)
+        end
+    end
+    return constraints
+end
+
+function set_fixed_constraints!(constraints::ConstraintType, fixedinputs)
+    for (name, value) in fixedinputs
+        symbolic_name = Symbol(name)
+        if symbolic_name in fieldnames(typeof(constraints))
+            @info "Fixing $symbolic_name to $value"
+            # fix_constraint!(getfield(constraints, symbolic_name), value)
+            setfield!()
         end
     end
     return constraints
@@ -346,8 +371,9 @@ end
 """Sets the fixed values for a GAProblem and reconstructs the fitness function"""
 function set_fixed_constraints!(ga_problem::GAProblem; fixedinputs...)
     for (name, value) in pairs(fixedinputs)
-        if name in fieldnames(typeof(constraints))
-            fix_constraint!(getfield(constraints, name), value)
+        symbolic_name = Symbol(name)
+        if symbolic_name in fieldnames(typeof(constraints))
+            fix_constraint!(getfield(constraints, symbolic_name), value)
         end
     end
     @set ga_problem.fitness_function = make_fitness_function(ga_problem.constraints, ga_problem.ode_problem)
@@ -626,24 +652,6 @@ function make_ga_dataframe(results::GAResults, constraints::ConstraintType)
 end
 
 
-# function make_ga_dataframe(results::GAResults, prob::ODEProblem)
-#     df = DataFrame(ind = results.population, fit = results.fitvals, per = results.periods, amp = results.amplitudes)
-#     split_dataframe!(df, prob)
-#     return df
-# end
-
-# function make_ga_dataframe(results::GAResults, prob::ODEProblem, fixedDF::Float64)
-#     df = DataFrame(ind = results.population, fit = results.fitvals, per = results.periods, amp = results.amplitudes)
-#     split_dataframe!(df, prob, fixedDF)
-#     return df
-# end
-
-# function make_ga_dataframe(results::GAResults, prob::ODEProblem, fixedval_idxs::Vector{Int}, fixedvals::Vector{Float64}, fixedDF::Float64)
-#     df = DataFrame(fit = results.fitvals, per = results.periods, amp = results.amplitudes)
-#     split_dataframe!(df, prob, fixedDF)
-#     insertcols!(df, fixedval_idxs, fixedvals)
-#     return df
-# end
 
 
 #< MISCELLANEOUS FUNCTIONS ##
@@ -652,89 +660,7 @@ logrange(start, stop, length::Int) = exp10.(collect(range(start=log10(start), st
 
 
 
-"""Splits ind column into separate columns for each parameter, adds initial conditions for writing DataFrame to CSV"""
-function split_dataframe!(df, prob)
-    paramsymbols = [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka4,:kb4,:ka7,:kb7,:kcat7,:DF]
-    
-    if length(df.ind[1]) == 13
 
-        #* Split ind column into separate columns for each parameter
-        for (i,param) in enumerate(paramsymbols)
-            df[!, param] .= [x[i] for x in df.ind]
-        end
-
-        select!(df, Not(:ind))
-
-        #* Add initial conditions
-        df.L .= prob.u0[1]
-        df.K .= prob.u0[2]
-        df.P .= prob.u0[3]
-        df.A .= prob.u0[4]
-    elseif length(df.ind[1]) == 4
-        concsymbols = [:L,:K,:P,:A]
-        for (i,conc) in enumerate(concsymbols)
-            df[!, conc] .= [x[i] for x in df.ind]
-        end
-        select!(df, Not(:ind))
-
-        #* Add parameters
-        for (i,param) in paramsymbols
-            df[!, param] .= prob.p[i]
-        end
-    else 
-        concsymbols = [:L,:K,:P,:A]
-        allsymbols = vcat(paramsymbols, concsymbols)
-
-        for (i,conc) in enumerate(allsymbols)
-            df[!, conc] .= [x[i] for x in df.ind]
-        end
-        select!(df, Not(:ind))
-    end
-end
-
-function split_dataframe!(df, prob, fixedDF)
-    paramsymbols = [:ka1,:kb1,:kcat1,:ka2,:kb2,:ka3,:kb3,:ka4,:kb4,:ka7,:kb7,:kcat7]
-    
-    if length(df.ind[1]) == 12
-
-        #* Split ind column into separate columns for each parameter
-        for (i,param) in enumerate(paramsymbols)
-            df[!, param] .= [x[i] for x in df.ind]
-        end
-
-        df[!, :DF] .= fixedDF
-
-        select!(df, Not(:ind))
-
-        #* Add initial conditions
-        df.L .= prob.u0[1]
-        df.K .= prob.u0[2]
-        df.P .= prob.u0[3]
-        df.A .= prob.u0[4]
-    elseif length(df.ind[1]) == 4
-        #* Add parameters
-        for (i,param) in paramsymbols
-            df[!, param] .= prob.p[i]
-        end
-        concsymbols = [:L,:K,:P,:A]
-        for (i,conc) in enumerate(concsymbols)
-            df[!, conc] .= [x[i] for x in df.ind]
-        end
-
-        df[!, :DF] .= fixedDF
-        select!(df, Not(:ind))
-    else 
-        concsymbols = [:L,:K,:P,:A]
-        allsymbols = vcat(paramsymbols, concsymbols)
-
-        for (i,conc) in enumerate(allsymbols)
-            df[!, conc] .= [x[i] for x in df.ind]
-        end
-
-        df[!, :DF] .= fixedDF
-        select!(df, Not(:ind))
-    end
-end
 
 
 """Find the indices of the inputs in a `NAME` array"""
