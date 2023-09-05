@@ -11,6 +11,8 @@ begin
     using StaticArrays
     using BenchmarkTools, ProgressMeter
 
+    using JET
+
     using LinearAlgebra
 
     using Setfield
@@ -59,7 +61,9 @@ end
 ogprobjac, ogprob = make_ODE_problem();
 
 
-ogjacsol = solve(ogprobjac, Rosenbrock23(), saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
+@report_opt solve(ogprobjac, Rosenbrock23(), saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
+
+@code_typed solve(ogprobjac, Rosenbrock23(), saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
 
 @code_warntype eval_all_fitness(rand(17), ogprobjac)
 
@@ -88,6 +92,7 @@ allconstraints = AllConstraints(param_constraints, ic_constraints)
 
 
 gaproblem = GAProblem(allconstraints, ogprobjac)
+@report_opt GAProblem(allconstraints, ogprobjac)
 
 @code_warntype GAProblem(allconstraints, ogprobjac)
 
