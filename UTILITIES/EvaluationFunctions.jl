@@ -50,7 +50,7 @@ function getPerAmp(sol::ODESolution)
 end
 
 """Calculates the period and amplitude of each individual in the population"""
-function getPerAmp(solt::Vector{Float64}, indx_max::Vector{Int}, vals_max::Vector{Float64}, indx_min::Vector{Int}, vals_min::Vector{Float64})
+function getPerAmp(solt, indx_max::Vector{Int}, vals_max::Vector{Float64}, indx_min::Vector{Int}, vals_min::Vector{Float64})
 
     #* Calculate amplitudes and periods
     pers = (solt[indx_max[i+1]] - solt[indx_max[i]] for i in 1:(length(indx_max)-1))
@@ -81,7 +81,7 @@ function CostFunction(solu::Vector{Float64}, solt::Vector{Float64})::Vector{Floa
     tstart = cld(length(solt),10) 
 
     #* Check if last half of the solution array is steady state
-    testwindow = solu[end-tstart:end]
+    testwindow = @view solu[end-tstart:end]
     if std(testwindow; mean=mean(testwindow)) < 0.01  
         return [0.0, 0.0, 0.0]
     end 
@@ -112,7 +112,8 @@ function CostFunction(solu::Vector{Float64}, solt::Vector{Float64})::Vector{Floa
         sum_diff = getDif(fft_peakvals) #* get the summed difference between the first and last peaks in frequency domain
     
         #* Compute the period and amplitude
-        period, amplitude = getPerAmp(solt[tstart:end], indx_max, vals_max, indx_min, vals_min)
+        tview = @view solt[tstart:end]
+        period, amplitude = getPerAmp(tview, indx_max, vals_max, indx_min, vals_min)
     
         return [standard_deviation + sum_diff + log(10,period), period, amplitude]
     end

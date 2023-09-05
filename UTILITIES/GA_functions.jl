@@ -1,27 +1,27 @@
 #< CONSTRAINT RANGE STRUCTS
 
-abstract type ConstraintType end
+abstract type ConstraintSet end
 
 """
-    iterate(constraint::ConstraintType)
+    iterate(constraint::ConstraintSet)
 
-Iterate over the constraint ranges in a `ConstraintType` object.
+Iterate over the constraint ranges in a `ConstraintSet` object.
 """
 # Define the length method
-Base.length(constraint::ConstraintType) = length(fieldnames(typeof(constraint)))
+Base.length(constraint::ConstraintSet) = length(fieldnames(typeof(constraint)))
 
 # Define the getindex method for index-based access
-function Base.getindex(constraint::ConstraintType, idx::Int)
+function Base.getindex(constraint::ConstraintSet, idx::Int)
     field_name = fieldnames(typeof(constraint))[idx]
     return getfield(constraint, field_name)
 end
 
-function find_field_index(field_name::Union{Symbol, String}, constraint::ConstraintType)
+function find_field_index(field_name::Union{Symbol, String}, constraint::ConstraintSet)
     fields = fieldnames(typeof(constraint))
     idx = findfirst(x -> x == Symbol(field_name), fields)
     
     if idx === nothing
-        throw(ArgumentError("Field name '$field_name' not found in ConstraintType."))
+        throw(ArgumentError("Field name '$field_name' not found in ConstraintSet."))
     end
     
     return idx
@@ -29,24 +29,23 @@ end
 
 
 # To make it iterable, define start, next and done methods
-Base.iterate(constraint::ConstraintType, state=1) = state > length(constraint) ? nothing : (getfield(constraint, fieldnames(typeof(constraint))[state]), state + 1)
+Base.iterate(constraint::ConstraintSet, state=1) = state > length(constraint) ? nothing : (getfield(constraint, fieldnames(typeof(constraint))[state]), state + 1)
 
 # Required for the `in` keyword
-Base.eltype(::Type{ConstraintType}) = ConstraintRange
+Base.eltype(::Type{ConstraintSet}) = ConstraintRange
 
 # Required for length
-activelength(constraint::ConstraintType) = length(filter(x -> getfield(constraint, x).active, fieldnames(typeof(constraint))))
+activelength(constraint::ConstraintSet) = length(filter(x -> !isfixed(constraint[x]), fieldnames(typeof(constraint))))
 
-function get_fixed_indices(constraints::ConstraintType)
+function get_fixed_indices(constraints::ConstraintSet)
     inactive_indices = Int[]  # Initialize an empty array to store the indices of inactive elements
     for (idx, constraint) in enumerate(constraints)  # Loop through each element along with its index
-        if !constraint.active  # Check if the element is inactive
+        if isfixed(constraint)  # Check if the element is fixed
             push!(inactive_indices, idx)  # Add the index to the array
         end
     end
     return inactive_indices  # Return the array of indices
 end
-
 
 
 """
@@ -58,28 +57,31 @@ Struct for defining parameter or initial condition ranges. Each instance contain
 - `name::String`: Name of the parameter or initial condtion.
 - `min::Float64`: Minimum allowed value.
 - `max::Float64`: Maximum allowed value.
-- `active::Bool`: Whether or not the constraint will be used for optimization.
-- `fixed_value::Float64`: Fixed value if inactive.
+- `fixed_value::Float64`: Fixed value is a float if inactive. 0.0 if it's to be optimized
 """
-struct ConstraintRange
-    name::Symbol
-    min::Float64
-    max::Float64
-    active::Bool
-    fixed_value::Union{Nothing, Float64}
+mutable struct ConstraintRange
+    const name::Symbol
+    const min::Float64
+    const max::Float64
+    fixed_value::Float64
 end
 
-function fix_constraint!(conrange::ConstraintRange, value::Float64)
-    @set conrange.active = false
-    @set conrange.fixed_value = value
+"Tests whether a ConstraintRange is fixed or active. Will return true if fixed."
+function isfixed(conrange::ConstraintRange)
+    return !isnan(conrange.fixed_value)
 end
+
+# """Uses Setfield.jl to set the active field of a ConstraintRange"""
+# function fix_constraint!(conrange::ConstraintRange, value::Float64)
+#     @set conrange.fixed_value = value
+# end
 
 """
     ParameterConstraints
 
 Struct encapsulating parameter constraints. Each field represents a different parameter, holding a `ConstraintRange` object that defines the valid range for that parameter.
 """
-struct ParameterConstraints <: ConstraintType
+struct ParameterConstraints <: ConstraintSet
     ka1::ConstraintRange
     kb1::ConstraintRange
     kcat1::ConstraintRange
@@ -100,7 +102,7 @@ end
 
 Struct encapsulating initial condition constraints. Each field represents a different initial condition, holding a `ConstraintRange` object that defines the valid range for that initial condition.
 """
-struct InitialConditionConstraints <: ConstraintType 
+struct InitialConditionConstraints <: ConstraintSet 
     L::ConstraintRange
     K::ConstraintRange
     P::ConstraintRange
@@ -112,7 +114,7 @@ end
 
 Struct encapsulating all constraints. Each field represents a different parameter or initial condition, holding a `ConstraintRange` object that defines the valid range for that parameter or initial condition.
 """
-mutable struct AllConstraints <: ConstraintType
+struct AllConstraints <: ConstraintSet
     ka1::ConstraintRange
     kb1::ConstraintRange
     kcat1::ConstraintRange
@@ -160,19 +162,19 @@ function ParameterConstraints(; karange = (1e-3, 1e1), kbrange = (1e-3, 1e3), kc
     df_min, df_max = dfrange # for DF, log scale
 
     return ParameterConstraints(
-        ConstraintRange(:ka1, ka_min, ka_max, true, nothing),
-        ConstraintRange(:kb1, kb_min, kb_max, true, nothing),
-        ConstraintRange(:kcat1, kcat_min, kcat_max, true, nothing),
-        ConstraintRange(:ka2, ka_min, ka_max, true, nothing),
-        ConstraintRange(:kb2, kb_min, kb_max, true, nothing),
-        ConstraintRange(:ka3, ka_min, ka_max, true, nothing),
-        ConstraintRange(:kb3, kb_min, kb_max, true, nothing),
-        ConstraintRange(:ka4, ka_min, ka_max, true, nothing),
-        ConstraintRange(:kb4, kb_min, kb_max, true, nothing),
-        ConstraintRange(:ka7, ka_min, ka_max, true, nothing),
-        ConstraintRange(:kb7, kb_min, kb_max, true, nothing),
-        ConstraintRange(:kcat7, kcat_min, kcat_max, true, nothing),
-        ConstraintRange(:DF, df_min, df_max, true, nothing)
+        ConstraintRange(:ka1, ka_min, ka_max, NaN),
+        ConstraintRange(:kb1, kb_min, kb_max, NaN),
+        ConstraintRange(:kcat1, kcat_min, kcat_max, NaN),
+        ConstraintRange(:ka2, ka_min, ka_max, NaN),
+        ConstraintRange(:kb2, kb_min, kb_max, NaN),
+        ConstraintRange(:ka3, ka_min, ka_max, NaN),
+        ConstraintRange(:kb3, kb_min, kb_max, NaN),
+        ConstraintRange(:ka4, ka_min, ka_max, NaN),
+        ConstraintRange(:kb4, kb_min, kb_max, NaN),
+        ConstraintRange(:ka7, ka_min, ka_max, NaN),
+        ConstraintRange(:kb7, kb_min, kb_max, NaN),
+        ConstraintRange(:kcat7, kcat_min, kcat_max, NaN),
+        ConstraintRange(:DF, df_min, df_max, NaN)
     )
 end
 
@@ -201,10 +203,10 @@ function InitialConditionConstraints(;Lrange = (0.1, 10.0), Krange = (0.1, 5.0),
     ap2_min, ap2_max = Arange # uM
 
     return InitialConditionConstraints(
-        ConstraintRange(:L, lipid_min, lipid_max, true, nothing),
-        ConstraintRange(:K, kinase_min, kinase_max, true, nothing),
-        ConstraintRange(:P, phosphatase_min, phosphatase_max, true, nothing),
-        ConstraintRange(:A, ap2_min, ap2_max, true, nothing)
+        ConstraintRange(:L, lipid_min, lipid_max, NaN),
+        ConstraintRange(:K, kinase_min, kinase_max, NaN),
+        ConstraintRange(:P, phosphatase_min, phosphatase_max, NaN),
+        ConstraintRange(:A, ap2_min, ap2_max, NaN)
     )
 end
 
@@ -239,7 +241,7 @@ end
 
 
 """Fitness function constructor called during GAProblem construction that captures the fixed indices and ODE problem"""
-# function make_fitness_function(constraints::ConstraintType, ode_problem::ODEProblem, eval_function)
+# function make_fitness_function(constraints::ConstraintSet, ode_problem::ODEProblem, eval_function)
 
 #     let fixed_idxs = get_fixed_indices(constraints), ode_problem = ode_problem, eval_function = eval_function
         
@@ -263,7 +265,7 @@ end
 #     end
 # end
 
-function make_fitness_function(constraints::ConstraintType, ode_problem::ODEProblem, eval_function)
+function make_fitness_function(constraints::ConstraintSet, ode_problem::ODEProblem, eval_function)
     fixed_idxs = get_fixed_indices(constraints)
     fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
     n_fixed = length(fixed_idxs)
@@ -288,37 +290,6 @@ function make_fitness_function(constraints::ConstraintType, ode_problem::ODEProb
     return fitness_function
 end
 
-# Preallocate thread-local storage for merged_input
-# const merged_input_tls = [Vector{Float64}(undef, 17) for _ in 1:Threads.nthreads()]
-
-# function make_fitness_function(constraints::ConstraintType, ode_problem::ODEProblem, eval_function)
-#     fixed_idxs = get_fixed_indices(constraints)
-#     fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
-
-#     function fitness_function(input::Vector{Float64})
-#         # Get the thread-specific merged_input
-#         merged_input = merged_input_tls[Threads.threadid()]
-        
-#         # Fill in fixed values
-#         merged_input[fixed_idxs] .= fixed_values
-
-#         # Fill in variable values
-#         j = 1
-#         for i in eachindex(merged_input)
-#             if !(i in fixed_idxs)
-#                 merged_input[i] = input[j]
-#                 j += 1
-#             end
-#         end
-
-#         return eval_function(merged_input, ode_problem)
-#     end
-
-#     return fitness_function
-# end
-
-
-
 make_fitness_function(constraints::ParameterConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_param_fitness)
 make_fitness_function(constraints::InitialConditionConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_ic_fitness)
 make_fitness_function(constraints::AllConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_all_fitness)
@@ -326,7 +297,7 @@ make_fitness_function(constraints::AllConstraints, ode_problem::ODEProblem) = ma
 
 #< GA PROBLEM TYPE
 """
-    GAProblem{T <: ConstraintType}
+    GAProblem{T <: ConstraintSet}
 
 Struct encapsulating a Genetic Algorithm (GA) optimization problem. It holds the constraints for the problem, the ODE problem to be solved, the fitness function, and any additional keyword arguments.
 
@@ -335,34 +306,34 @@ Struct encapsulating a Genetic Algorithm (GA) optimization problem. It holds the
 - `ode_problem::ODEProblem`: ODE problem to be solved.
 - `fitness_function::Function`: Fitness function, automatically generated with constructor
 """
-mutable struct GAProblem{CT <: ConstraintType, OT <: ODEProblem, FT <: Function}
+mutable struct GAProblem{CT <: ConstraintSet, OT <: ODEProblem, FT <: Function}
     constraints::CT
     ode_problem::OT
     fitness_function::FT
 
-    function GAProblem(constraints::CT, ode_problem::OT, fitness_function::FT = make_fitness_function(constraints, ode_problem)) where {CT<:ConstraintType, OT<:ODEProblem, FT<:Function}
-        # fitness_function = make_fitness_function(constraints, ode_problem)
+    function GAProblem(constraints::CT, ode_problem::OT, fitness_function::FT = make_fitness_function(constraints, ode_problem)) where {CT<:ConstraintSet, OT<:ODEProblem, FT<:Function}
         new{CT,OT,FT}(constraints, ode_problem, fitness_function)
     end
 end
 
-function set_fixed_constraints!(constraints::ConstraintType; fixedinputs...)
+"""Fixes constraints prior to GAProblem"""
+function set_fixed_constraints!(constraints::ConstraintSet; fixedinputs...)
     for (name, value) in pairs(fixedinputs)
         symbolic_name = Symbol(name)
         if symbolic_name in fieldnames(typeof(constraints))
-            fix_constraint!(getfield(constraints, symbolic_name), value)
+            fix_constraint!(getfield(constraints, symbolic_name), value) #! THIS DOESN'T WORK FOR SOME REASON IN SETTING NESTED IMMUTABLE STRUCT PROPERTIES
         end
     end
     return constraints
 end
 
-function set_fixed_constraints!(constraints::ConstraintType, fixedinputs)
+function set_fixed_constraints!(constraints::ConstraintSet, fixedinputs)
     for (name, value) in fixedinputs
         symbolic_name = Symbol(name)
         if symbolic_name in fieldnames(typeof(constraints))
             @info "Fixing $symbolic_name to $value"
             # fix_constraint!(getfield(constraints, symbolic_name), value)
-            setfield!()
+            setfield!(constraints[symbolic_name], :fixed_value, value)
         end
     end
     return constraints
@@ -399,7 +370,7 @@ end
 """
     generate_population(constraints::ParameterConstraints, n::Int)
 
-Generate a population of `n` individuals for the given generic `constraints <: ConstraintType`. Each individual is sampled from a log-uniform distribution within the valid range for each parameter or initial condition.
+Generate a population of `n` individuals for the given generic `constraints <: ConstraintSet`. Each individual is sampled from a log-uniform distribution within the valid range for each parameter or initial condition.
 
 # Example
 ```julia
@@ -407,20 +378,20 @@ constraints = define_parameter_constraints(karange = (-3.0, 1.0), kbrange = (-3.
 population = generate_population(constraints, 100)
 ```
 """
-# function generate_population(constraint::ConstraintType, n::Int)
+# function generate_population(constraint::ConstraintSet, n::Int)
 #     population = [exp10.(rand(Uniform(log10(conrange.min), log10(conrange.max)), n)) for conrange in constraint]
 #     population = transpose(hcat(population...))
 #     return [population[:, i] for i in 1:n]
 # end
 
-function generate_empty_population(constraint::ConstraintType, n::Int)
+function generate_empty_population(constraint::ConstraintSet, n::Int)
     num_params = activelength(constraint)
     
     # Preallocate the population array of arrays
     [Vector{Float64}(undef, num_params) for _ in 1:n]
 end
 
-function generate_population(constraint::ConstraintType, n::Int)
+function generate_population(constraint::ConstraintSet, n::Int)
     # Preallocate the population array of arrays
     population = generate_empty_population(constraint, n)
     
@@ -428,13 +399,13 @@ function generate_population(constraint::ConstraintType, n::Int)
 end
 
 
-function generate_population!(population::Vector{Vector{Float64}}, constraint::ConstraintType)
+function generate_population!(population::Vector{Vector{Float64}}, constraint::ConstraintSet)
 
     rand_vals = Vector{Float64}(undef, length(population))
     
     # Populate the array
     for (i, conrange) in enumerate(constraint)
-        if conrange.active
+        if !isfixed(conrange)
             min_val, max_val = log10(conrange.min), log10(conrange.max)
             rand_vals .= exp10.(rand(Uniform(min_val, max_val), length(population)))
             
@@ -448,20 +419,20 @@ end
 
 #! MATRIX VERSIONS
 # Generate an empty population as a 2D array
-# function generate_empty_population(constraint::ConstraintType, n::Int)
+# function generate_empty_population(constraint::ConstraintSet, n::Int)
 #     num_params = activelength(constraint)
 #     return Matrix{Float64}(undef, num_params, n)
 # end
 
 # # Generate a population as a 2D array
-# function generate_population(constraint::ConstraintType, n::Int)
+# function generate_population(constraint::ConstraintSet, n::Int)
 #     population = generate_empty_population(constraint, n)
 #     generate_population!(population, constraint)
 #     return population
 # end
 
 # # Populate the 2D array in-place
-# function generate_population!(population::Matrix{Float64}, constraint::ConstraintType)
+# function generate_population!(population::Matrix{Float64}, constraint::ConstraintSet)
 #     n = size(population, 2)
     
 #     for (i, conrange) in enumerate(constraint)
@@ -471,16 +442,6 @@ end
 #         end
 #     end
 # end
-
-
-
-
-"""For calculating volume when optimizing for NERDSS solutions"""
-function generate_population(constraint::Vector{ConstraintRange}, n::Int)
-    population = [rand(Uniform(conrange.min, conrange.max), n) for conrange in constraint if conrange.active]
-    population = transpose(hcat(population...))
-    return [population[:, i] for i in 1:n]
-end
 #> END
 
 
@@ -526,10 +487,6 @@ function make_fitness_function(gaprob::GAProblem)
     end
     return fitness_function
 end
-
-
-
-
 #> END
 
 
@@ -590,8 +547,7 @@ function run_GA(ga_problem::GAProblem, population::Vector{Vector{Float64}} = gen
                 crossover = TPX, crossoverRate = 1.0, # Two-point crossover event
                 mutation  = mutation_scheme, mutationRate = 1.0)
 
-    # #* Make fitness function. Makes closure of evaluation function and ODE problem
-    # fitness_function = fitnessfunction_factory(ga_problem)
+
 
     #* Run the optimization.
     result = Evolutionary.optimize(ga_problem.fitness_function, zeros(3,population_size), boxconstraints, mthd, population, opts)
@@ -639,10 +595,10 @@ end
 
 
 """Makes a DataFrame from the results of a GA optimization"""
-function make_ga_dataframe(results::GAResults, constraints::ConstraintType)
+function make_ga_dataframe(results::GAResults, constraints::ConstraintSet)
     df = DataFrame(fit = results.fitvals, per = results.periods, amp = results.amplitudes)
     for (i,conrange) in enumerate(constraints)
-        if conrange.active
+        if !isfixed(conrange)
             df[!, conrange.name] .= [x[i] for x in results.population]
         else
             df[!, conrange.name] .= conrange.fixed_value

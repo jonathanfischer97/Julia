@@ -75,7 +75,10 @@ ogprobjac, ogprob = make_ODE_problem();
 solu = map(sum, ogjacsol.u)
 
 
+ogjacsol = solve(ogprobjac, Rosenbrock23(), saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
 
+
+@btime solve($ogprobjac, Rodas5(), saveat=0.2, save_idxs= [6, 9, 10, 11, 12, 15, 16])
 @btime CostFunction($solu, $ogjacsol.t)
 
 
