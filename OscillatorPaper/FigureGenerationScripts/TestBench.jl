@@ -55,10 +55,10 @@ function make_ODE_problem()
     de = modelingtoolkitize(ogprob)
 
     ogprobjac::ODEProblem = ODEProblem{true,SciMLBase.FullSpecialize}(de, [], tspan, jac=true)
-    return ogprobjac, ogprob
+    return ogprobjac
 end
 
-ogprobjac, ogprob = make_ODE_problem();
+ogprobjac = make_ODE_problem();
 
 
 @report_opt solve(ogprobjac, Rosenbrock23(), saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
