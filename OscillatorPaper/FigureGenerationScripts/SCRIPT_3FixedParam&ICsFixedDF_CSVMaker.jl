@@ -8,7 +8,7 @@ begin
     using Distributions
     using DataFrames#, DataFrameMacros
     using CSV
-    using Setfield
+    # using Setfield
 
     # using StaticArrays
     # using BenchmarkTools, Profile
@@ -84,10 +84,6 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
                 fixed_inputs = [fixed_name => val for (fixed_name, val) in zip(fixed_names, [val1, val2, val3])]
                 push!(fixed_inputs, "DF" => fixedDF)
 
-                # fixed_inputs = Dict(zip(fixed_names, [val1, val2, val3]))
-                # fixed_inputs["DF"] = fixedDF
-                # @info fixed_values
-
                 fixed_constraints = deepcopy(constraints)
                 
                 set_fixed_constraints!(fixed_constraints; fixed_inputs)
@@ -152,22 +148,6 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
     return results_df
 end
 
-fixed_names = ["L", "K", "P"]
-fixed_names = ["L" => 1.0, "K" => 2.0, "P" => 1.0]
-
-for (name, val) in fixed_names
-    @info name
-    @info val
-end
-
-
-fixed_dict = Dict(zip(fixed_names, [100., 1., 1.]))
-pairs(fixed_dict)
-
-set_fixed_constraints!(allconstraints, fixed_names)
-
-set_fixed_constraints!(allconstraints; L = 1.0, K = 2.0, P = 1.0, A = 10.0, DF = 1000.0)
-fixed_triplet_csv_maker(allconstraints, ogprobjac, fixed_names; rangelength = 4, fixedDF = 1000., popsize = 2000)
 
 
 #< loop through combinations of parameters and run the function of each triplet

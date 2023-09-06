@@ -316,22 +316,21 @@ mutable struct GAProblem{CT <: ConstraintSet, OT <: ODEProblem, FT <: Function}
     end
 end
 
-"""Fixes constraints prior to GAProblem"""
-function set_fixed_constraints!(constraints::ConstraintSet; fixedinputs...)
-    for (name, value) in pairs(fixedinputs)
-        symbolic_name = Symbol(name)
-        if symbolic_name in fieldnames(typeof(constraints))
-            fix_constraint!(getfield(constraints, symbolic_name), value) #! THIS DOESN'T WORK FOR SOME REASON IN SETTING NESTED IMMUTABLE STRUCT PROPERTIES
-        end
-    end
-    return constraints
-end
+# """Fixes constraints prior to GAProblem"""
+# function set_fixed_constraints!(constraints::ConstraintSet; fixedinputs...)
+#     for (name, value) in pairs(fixedinputs)
+#         symbolic_name = Symbol(name)
+#         if symbolic_name in fieldnames(typeof(constraints))
+#             fix_constraint!(getfield(constraints, symbolic_name), value) #! THIS DOESN'T WORK FOR SOME REASON IN SETTING NESTED IMMUTABLE STRUCT PROPERTIES
+#         end
+#     end
+#     return constraints
+# end
 
 function set_fixed_constraints!(constraints::ConstraintSet, fixedinputs)
     for (name, value) in fixedinputs
         symbolic_name = Symbol(name)
         if symbolic_name in fieldnames(typeof(constraints))
-            @info "Fixing $symbolic_name to $value"
             conrange = getfield(constraints, symbolic_name)
             conrange.fixed_value = value
         end
