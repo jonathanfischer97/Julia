@@ -81,11 +81,11 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
     for val1 in fixed_valrange1
         for val2 in fixed_valrange2
             for val3 in fixed_valrange3
-                # fixed_inputs = [fixed_name => val for (fixed_name, val) in zip(fixed_names, [val1, val2, val3])]
-                # push!(fixed_inputs, "DF" => fixedDF)
+                fixed_inputs = [fixed_name => val for (fixed_name, val) in zip(fixed_names, [val1, val2, val3])]
+                push!(fixed_inputs, "DF" => fixedDF)
 
-                fixed_inputs = Dict(zip(fixed_names, [val1, val2, val3]))
-                fixed_inputs["DF"] = fixedDF
+                # fixed_inputs = Dict(zip(fixed_names, [val1, val2, val3]))
+                # fixed_inputs["DF"] = fixedDF
                 # @info fixed_values
 
                 fixed_constraints = deepcopy(constraints)
@@ -155,7 +155,7 @@ end
 fixed_names = ["L", "K", "P"]
 fixed_names = ["L" => 1.0, "K" => 2.0, "P" => 1.0]
 
-for (name, val) in pairs(fixed_names)
+for (name, val) in fixed_names
     @info name
     @info val
 end
@@ -184,7 +184,7 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; startin
         tripletpath = mkpath(mainpath*"/$(triplet[1])_$(triplet[2])_$(triplet[3])")
         for df in DFrange
             @info df
-            results_df = fixed_triplet_csv_maker(triplet..., constraints, prob; rangelength=rangelength, fixedDF=df)
+            results_df = fixed_triplet_csv_maker(constraints, prob, triplet; rangelength=rangelength, fixedDF=df)
             CSV.write(tripletpath*"/DF=$(df).csv", results_df)
         end
     end

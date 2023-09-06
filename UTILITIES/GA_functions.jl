@@ -332,8 +332,8 @@ function set_fixed_constraints!(constraints::ConstraintSet, fixedinputs)
         symbolic_name = Symbol(name)
         if symbolic_name in fieldnames(typeof(constraints))
             @info "Fixing $symbolic_name to $value"
-            # fix_constraint!(getfield(constraints, symbolic_name), value)
-            setfield!(constraints[symbolic_name], :fixed_value, value)
+            conrange = getfield(constraints, symbolic_name)
+            conrange.fixed_value = value
         end
     end
     return constraints
@@ -344,10 +344,11 @@ function set_fixed_constraints!(ga_problem::GAProblem; fixedinputs...)
     for (name, value) in pairs(fixedinputs)
         symbolic_name = Symbol(name)
         if symbolic_name in fieldnames(typeof(constraints))
-            fix_constraint!(getfield(constraints, symbolic_name), value)
+            setfield!(constraints[symbolic_name], :fixed_value, value)
+
         end
     end
-    @set ga_problem.fitness_function = make_fitness_function(ga_problem.constraints, ga_problem.ode_problem)
+    ga_problem.fitness_function = make_fitness_function(ga_problem.constraints, ga_problem.ode_problem)
     return ga_problem
 end
 
@@ -519,7 +520,7 @@ function run_GA(ga_problem::GAProblem, population::Vector{Vector{Float64}} = gen
     # pop = generate_population!(population, ga_problem.constraints)
 
     #* Create constraints using the min and max values from constraints if they are active for optimization.
-    boxconstraints = BoxConstraints([constraint.min for constraint in ga_problem.constraints if constraint.active], [constraint.max for constraint in ga_problem.constraints if constraint.active])
+    boxconstraints = BoxConstraints([constraint.min for constraint in ga_problem.constraints if !isfixed(constraint)], [constraint.max for constraint in ga_problem.constraints if !isfixed(constraint)])
 
     # *Create Progress bar and callback function
     # ga_progress = Progress(threshold; desc = "GA Progress")

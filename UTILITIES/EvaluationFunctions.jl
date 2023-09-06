@@ -145,7 +145,7 @@ end
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
 function solve_for_fitness_peramp(prob::OT, idx::Vector{Int}) where OT <: ODEProblem
 
-    sol = solve(prob, Rosenbrock23(), saveat=0.1, save_idxs=idx, verbose=false)
+    sol = solve(prob, Rodas5(), saveat=0.1, save_idxs=idx, verbose=false)
     # return CostFunction(sol)
     
     if sol.retcode == ReturnCode.Success
