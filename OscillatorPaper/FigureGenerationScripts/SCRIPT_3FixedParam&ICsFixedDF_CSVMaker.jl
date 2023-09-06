@@ -52,11 +52,11 @@ end
 
 
 #* Modification to fixed_triplet_csv_maker function
-function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProblem, fixed_names; rangelength = 4, fixedDF = 1000., popsize = 20000) 
+function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProblem; rangelength = 4, fixedDF = 1000., popsize = 20000) 
 
-    fixedval_idxs = (find_field_index(fixed_name, constraints) for fixed_name in fixed_names)
+    fixed_constraintranges = get_fixed_constraintranges(constraints)
     
-    fixed_valrange1, fixed_valrange2, fixed_valrange3 = (logrange(constraints[fixedval_idx].min, constraints[fixedval_idx].max, rangelength) for fixedval_idx in fixedval_idxs)
+    fixed_valrange1, fixed_valrange2, fixed_valrange3 = (logrange(constraintrange.min, constraintrange.max, rangelength) for constraintrange in fixed_constraintranges if constraintrange.name != :DF)
     
 
     num_rows = rangelength^3
@@ -79,24 +79,26 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
 
     #* make progress bar 
     loopprogress = Progress(num_rows, desc ="Looping thru fixed triplets: " , color=:blue)
+
+    initial_population = generate_empty_population(constraints, popsize)
+
+    ga_problem = GAProblem(constraints, ode_prob)
+
     for val1 in fixed_valrange1
         for val2 in fixed_valrange2
             for val3 in fixed_valrange3
-                fixed_inputs = [fixed_name => val for (fixed_name, val) in zip(fixed_names, [val1, val2, val3])]
-                push!(fixed_inputs, "DF" => fixedDF)
 
-                fixed_constraints = deepcopy(constraints)
                 
-                set_fixed_constraints!(fixed_constraints; fixed_inputs)
+                set_fixed_values!(fixed_constraintranges, val1, val2, val3, fixedDF)
 
-                @info get_fixed_indices(fixed_constraints)
+                # @info get_fixed_indices(fixed_constraints)
 
-                ga_problem = GAProblem(fixed_constraints, ode_prob)
+                ga_problem.fitness_function = make_fitness_function(constraints, ode_prob)
 
 
                 Random.seed!(1234)
             
-                initial_population = generate_population(fixed_constraints, popsize)
+                generate_population!(initial_population, fixed_constraints)
             
                 oscillatory_points_results = run_GA(ga_problem, initial_population; iterations = 5)
             
@@ -131,7 +133,7 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
                     num_oscillatory_points_array[i] = num_oscillatory_points
                 
                     #* make dataframe from oscillatory_points_results
-                    oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, fixed_constraints)
+                    oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, constraints)
                     
 
                     #* rewrite the L, K, P, A columns with the initial conditions
@@ -163,8 +165,9 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; startin
     for triplet in triplets[start_idx:end]
         @info triplet
         tripletpath = mkpath(mainpath*"/$(triplet[1])_$(triplet[2])_$(triplet[3])")
+        push!(triplet, :DF)
         for df in DFrange
-            @info df
+            set_fixed_constraints!(constraints, DF=df)
             results_df = fixed_triplet_csv_maker(constraints, prob, triplet; rangelength=rangelength, fixedDF=df)
             CSV.write(tripletpath*"/DF=$(df).csv", results_df)
         end

@@ -47,6 +47,16 @@ function get_fixed_indices(constraints::ConstraintSet)
     return inactive_indices  # Return the array of indices
 end
 
+function get_fixed_constraintranges(constraints::ConstraintSet)
+    fixed_constraintranges = []
+    for constraintrange in constraints  # Loop through each element along with its index
+        if isfixed(constraintrange)  # Check if the element is fixed
+            push!(fixed_constraintranges, constraintrange)  # Add the index to the array
+        end
+    end
+    return fixed_constraintranges  # Return the array of indices
+end
+
 
 """
     ConstraintRange
@@ -57,19 +67,21 @@ Struct for defining parameter or initial condition ranges. Each instance contain
 - `name::String`: Name of the parameter or initial condtion.
 - `min::Float64`: Minimum allowed value.
 - `max::Float64`: Maximum allowed value.
-- `fixed_value::Float64`: Fixed value is a float if inactive. 0.0 if it's to be optimized
+- `isfixed::Bool`: Whether the parameter or initial condition is fixed. Defaults to false.
+- `fixed_value::Float64`: Fixed value is to be used if fixed. Defaults to NaN.
 """
-mutable struct ConstraintRange
+@kwdef mutable struct ConstraintRange
     const name::Symbol
     const min::Float64
     const max::Float64
-    fixed_value::Float64
+    isfixed::Bool = false
+    fixed_value::Float64 = NaN
 end
 
-"Tests whether a ConstraintRange is fixed or active. Will return true if fixed."
-function isfixed(conrange::ConstraintRange)
-    return !isnan(conrange.fixed_value)
-end
+# "Tests whether a ConstraintRange is fixed or active. Will return true if fixed."
+# function isfixed(conrange::ConstraintRange)
+#     return !isnan(conrange.fixed_value)
+# end
 
 # """Uses Setfield.jl to set the active field of a ConstraintRange"""
 # function fix_constraint!(conrange::ConstraintRange, value::Float64)
@@ -81,7 +93,7 @@ end
 
 Struct encapsulating parameter constraints. Each field represents a different parameter, holding a `ConstraintRange` object that defines the valid range for that parameter.
 """
-struct ParameterConstraints <: ConstraintSet
+mutable struct ParameterConstraints <: ConstraintSet
     ka1::ConstraintRange
     kb1::ConstraintRange
     kcat1::ConstraintRange
@@ -102,7 +114,7 @@ end
 
 Struct encapsulating initial condition constraints. Each field represents a different initial condition, holding a `ConstraintRange` object that defines the valid range for that initial condition.
 """
-struct InitialConditionConstraints <: ConstraintSet 
+mutable struct InitialConditionConstraints <: ConstraintSet 
     L::ConstraintRange
     K::ConstraintRange
     P::ConstraintRange
@@ -114,7 +126,7 @@ end
 
 Struct encapsulating all constraints. Each field represents a different parameter or initial condition, holding a `ConstraintRange` object that defines the valid range for that parameter or initial condition.
 """
-struct AllConstraints <: ConstraintSet
+mutable struct AllConstraints <: ConstraintSet
     ka1::ConstraintRange
     kb1::ConstraintRange
     kcat1::ConstraintRange
@@ -162,19 +174,19 @@ function ParameterConstraints(; karange = (1e-3, 1e1), kbrange = (1e-3, 1e3), kc
     df_min, df_max = dfrange # for DF, log scale
 
     return ParameterConstraints(
-        ConstraintRange(:ka1, ka_min, ka_max, NaN),
-        ConstraintRange(:kb1, kb_min, kb_max, NaN),
-        ConstraintRange(:kcat1, kcat_min, kcat_max, NaN),
-        ConstraintRange(:ka2, ka_min, ka_max, NaN),
-        ConstraintRange(:kb2, kb_min, kb_max, NaN),
-        ConstraintRange(:ka3, ka_min, ka_max, NaN),
-        ConstraintRange(:kb3, kb_min, kb_max, NaN),
-        ConstraintRange(:ka4, ka_min, ka_max, NaN),
-        ConstraintRange(:kb4, kb_min, kb_max, NaN),
-        ConstraintRange(:ka7, ka_min, ka_max, NaN),
-        ConstraintRange(:kb7, kb_min, kb_max, NaN),
-        ConstraintRange(:kcat7, kcat_min, kcat_max, NaN),
-        ConstraintRange(:DF, df_min, df_max, NaN)
+        ConstraintRange(name = :ka1, min = ka_min, max = ka_max),
+        ConstraintRange(name = :kb1, min = kb_min, max = kb_max),
+        ConstraintRange(name = :kcat1, min = kcat_min, max = kcat_max),
+        ConstraintRange(name = :ka2, min = ka_min, max = ka_max),
+        ConstraintRange(name = :kb2, min = kb_min, max = kb_max),
+        ConstraintRange(name = :ka3, min = ka_min, max = ka_max),
+        ConstraintRange(name = :kb3, min = kb_min, max = kb_max),
+        ConstraintRange(name = :ka4, min = ka_min, max = ka_max),
+        ConstraintRange(name = :kb4, min = kb_min, max = kb_max),
+        ConstraintRange(name = :ka7, min = ka_min, max = ka_max),
+        ConstraintRange(name = :kb7, min = kb_min, max = kb_max),
+        ConstraintRange(name = :kcat7, min = kcat_min, max = kcat_max),
+        ConstraintRange(name = :DF, min = df_min, max = df_max)
     )
 end
 
@@ -203,10 +215,10 @@ function InitialConditionConstraints(;Lrange = (0.1, 10.0), Krange = (0.1, 5.0),
     ap2_min, ap2_max = Arange # uM
 
     return InitialConditionConstraints(
-        ConstraintRange(:L, lipid_min, lipid_max, NaN),
-        ConstraintRange(:K, kinase_min, kinase_max, NaN),
-        ConstraintRange(:P, phosphatase_min, phosphatase_max, NaN),
-        ConstraintRange(:A, ap2_min, ap2_max, NaN)
+        ConstraintRange(name = :L, min = lipid_min, max = lipid_max),
+        ConstraintRange(name = :K, min = kinase_min, max = kinase_max),
+        ConstraintRange(name = :P, min = phosphatase_min, max = phosphatase_max),
+        ConstraintRange(name = :A, min = ap2_min, max = ap2_max)
     )
 end
 
@@ -306,14 +318,14 @@ Struct encapsulating a Genetic Algorithm (GA) optimization problem. It holds the
 - `ode_problem::ODEProblem`: ODE problem to be solved.
 - `fitness_function::Function`: Fitness function, automatically generated with constructor
 """
-mutable struct GAProblem{CT <: ConstraintSet, OT <: ODEProblem, FT <: Function}
-    constraints::CT
-    ode_problem::OT
-    fitness_function::FT
+@kwdef mutable struct GAProblem{CT <: ConstraintSet, OT <: ODEProblem, FT <: Function}
+    constraints::CT = AllConstraints(ParameterConstraints(), InitialConditionConstraints())
+    ode_problem::OT = make_ODE_problem()
+    fitness_function::FT = make_fitness_function(constraints, ode_problem)
 
-    function GAProblem(constraints::CT, ode_problem::OT, fitness_function::FT = make_fitness_function(constraints, ode_problem)) where {CT<:ConstraintSet, OT<:ODEProblem, FT<:Function}
-        new{CT,OT,FT}(constraints, ode_problem, fitness_function)
-    end
+    # function GAProblem(constraints::CT, ode_problem::OT, fitness_function::FT = make_fitness_function(constraints, ode_problem)) where {CT<:ConstraintSet, OT<:ODEProblem, FT<:Function}
+    #     new{CT,OT,FT}(constraints, ode_problem, fitness_function)
+    # end
 end
 
 # """Fixes constraints prior to GAProblem"""
@@ -327,29 +339,35 @@ end
 #     return constraints
 # end
 
-function set_fixed_constraints!(constraints::ConstraintSet, fixedinputs)
-    for (name, value) in fixedinputs
-        symbolic_name = Symbol(name)
-        if symbolic_name in fieldnames(typeof(constraints))
-            conrange = getfield(constraints, symbolic_name)
-            conrange.fixed_value = value
+function set_fixed_constraints!(constraints::ConstraintSet, fixednames::Vector{Symbol})
+    for name in fixednames
+        if name in fieldnames(typeof(constraints))
+            conrange = getfield(constraints, name)
+            conrange.isfixed = true
         end
     end
     return constraints
 end
 
-"""Sets the fixed values for a GAProblem and reconstructs the fitness function"""
-function set_fixed_constraints!(ga_problem::GAProblem; fixedinputs...)
-    for (name, value) in pairs(fixedinputs)
-        symbolic_name = Symbol(name)
-        if symbolic_name in fieldnames(typeof(constraints))
-            setfield!(constraints[symbolic_name], :fixed_value, value)
-
-        end
+function set_fixed_values!(fixed_constraintranges::Vector{ConstraintRange}, values...)
+    for (conrange, value) in zip(fixed_constraintranges, values)
+        conrange.fixed_value = value
     end
-    ga_problem.fitness_function = make_fitness_function(ga_problem.constraints, ga_problem.ode_problem)
-    return ga_problem
+    return fixed_constraintranges
 end
+
+"""Sets the fixed values for a GAProblem and reconstructs the fitness function"""
+# function set_fixed_constraints!(ga_problem::GAProblem; fixedinputs...)
+#     for (name, value) in pairs(fixedinputs)
+#         symbolic_name = Symbol(name)
+#         if symbolic_name in fieldnames(typeof(constraints))
+#             setfield!(constraints[symbolic_name], :fixed_value, value)
+
+#         end
+#     end
+#     ga_problem.fitness_function = make_fitness_function(ga_problem.constraints, ga_problem.ode_problem)
+#     return ga_problem
+# end
 
 
 function Base.show(io::IO, ::MIME"text/plain", prob::GAProblem) 
