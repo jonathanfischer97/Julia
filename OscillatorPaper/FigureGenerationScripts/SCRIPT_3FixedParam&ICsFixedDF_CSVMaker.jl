@@ -1,7 +1,7 @@
 begin 
     using Plots; #theme(:juno)
     using Catalyst
-    using DifferentialEquations, ModelingToolkit
+    using OrdinaryDiffEq, ModelingToolkit
     using Statistics
     using Evolutionary, FFTW
     using Random
