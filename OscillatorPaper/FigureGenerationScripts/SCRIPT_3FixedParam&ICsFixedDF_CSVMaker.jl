@@ -76,7 +76,7 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
 
     
     #* make folder to hold all the csv files 
-    path = mkpath("./ROCKFISH_DATA/3Fixed/3FixedParams+ICsRawSets/$(fixed_names[1])_$(fixed_names[2])_$(fixed_names[3])/DF=$(round(fixedDF))")
+    path = mkpath("./ROCKFISH_DATA/3Fixed/$(fixed_names[1])_$(fixed_names[2])_$(fixed_names[3])/3FixedParams+ICsRawSets/Raw_DF=$(round(fixedDF))")
     i = 1
 
     #* make progress bar 
@@ -171,12 +171,12 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; startin
 
     for triplet in triplets[start_idx:end]
         @info triplet
-        tripletpath = mkpath(mainpath*"/$(triplet[1])_$(triplet[2])_$(triplet[3])")
+        tripletpath = mkpath(mainpath*"/$(triplet[1])_$(triplet[2])_$(triplet[3])/SummaryResults")
         for df in DFrange
             df_constraintrange.fixed_value = df
             set_fixed_constraints!(constraints, triplet)
             results_df = fixed_triplet_csv_maker(constraints, prob; rangelength=rangelength, fixedDF=df)
-            CSV.write(tripletpath*"/DF=$(df).csv", results_df)
+            CSV.write(tripletpath*"/Summary_DF=$(round(df)).csv", results_df)
         end
         unset_fixed_constraints!(constraints, triplet)
     end
