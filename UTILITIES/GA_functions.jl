@@ -585,9 +585,11 @@ end
 """Makes a DataFrame from the results of a GA optimization"""
 function make_ga_dataframe(results::GAResults, constraints::ConstraintSet)
     df = DataFrame(fit = results.fitvals, per = results.periods, amp = results.amplitudes)
-    for (i,conrange) in enumerate(constraints)
+    i = 1
+    for conrange in constraints
         if !conrange.isfixed
             df[!, conrange.name] .= [x[i] for x in results.population]
+            i+=1
         else
             df[!, conrange.name] .= conrange.fixed_value
         end

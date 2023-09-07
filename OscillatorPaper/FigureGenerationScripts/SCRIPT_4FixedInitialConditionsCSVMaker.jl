@@ -97,15 +97,13 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
 
     initial_population = generate_empty_population(allconstraints, popsize)
 
-    ga_problem = GAProblem(allconstraints, prob)
+    ga_problem = GAProblem(constraints = allconstraints, ode_problem = prob)
 
     #* loop through each ic range and run the GA on each set of initial conditions after remaking the problem with them
     for icval1 in icranges[1]
         for icval2 in icranges[2]
             for icval3 in icranges[3]
                 for icval4 in icranges[4]
-                    icvals = [icval1, icval2, icval3, icval4]
-                    # @info icvals
 
                     set_fixed_values!(icconstraints, icval1, icval2, icval3, icval4)
                     
@@ -175,16 +173,16 @@ end
 
 
 
-function loop_4fixedICs_thru_DFvals(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; rangelength::Int = 4, DFrange = [100.,1000.,10000.])
+function loop_4fixedICs_thru_DFvals(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; rangelength::Int = 4, DFrange = [100.,1000.,10000.], popsize::Int=20000)
     for DF in DFrange
-        results_df = fixed_quadruplet_ic_searcher(paramconstraints, icconstraints, prob; rangelength=rangelength, fixedDF=DF)
+        results_df = fixed_quadruplet_ic_searcher(paramconstraints, icconstraints, prob; rangelength=rangelength, fixedDF=DF, popsize=popsize)
         CSV.write("./ROCKFISH_DATA/4Fixed/SummaryResults/Summary_DF=$(round(fixedDF)).csv", results_df)
     end
 end
 
 
 
-function run_4fixedIC()
+function run_4fixedIC(rangelength=4, popsize=20000)
     tspan = (0., 2000.0)
     fullrn = make_fullrn()
     ogprob = ODEProblem(fullrn, [], tspan, [])
@@ -199,7 +197,13 @@ function run_4fixedIC()
     ic_constraints = InitialConditionConstraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
 
     # fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4, fixedDF=fixedDF)
-    loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangelength=10, DFrange = [100.,1000.,10000.])
+    loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangelength=rangelength, DFrange = [100.,1000.,10000.], popsize=popsize)
 end
 
-run_4fixedIC()
+
+
+if isempty(ARGS)
+    run_4fixedIC()
+else
+    run_4fixedIC(parse(Int, ARGS[1]), parse(Int, ARGS[2]))
+end
