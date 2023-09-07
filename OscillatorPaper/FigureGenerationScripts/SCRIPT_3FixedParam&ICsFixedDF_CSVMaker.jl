@@ -166,7 +166,7 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; startin
 
     #* mark DF as fixed in the constraints. Fixed value won't be assigned until loop
     df_constraintrange = constraints.DF
-    df_constraintrange.fixed = true
+    df_constraintrange.isfixed = true
 
 
     for triplet in triplets[start_idx:end]
