@@ -35,9 +35,9 @@ Base.iterate(constraint::ConstraintSet, state=1) = state > length(constraint) ? 
 Base.eltype(::Type{ConstraintSet}) = ConstraintRange
 
 # Required for length
-activelength(constraint::ConstraintSet) = length(filter(x -> !constraint[x].isfixed, fieldnames(typeof(constraint))))
+activelength(constraints::ConstraintSet) = count(x -> !x.isfixed, constraints)
 
-function get_fixed_indices(constraints::ConstraintSet)
+function get_fixed_indices(constraints::ConstraintSet)::Vector{Int}
     inactive_indices = Int[]  # Initialize an empty array to store the indices of inactive elements
     for (idx, constraint) in enumerate(constraints)  # Loop through each element along with its index
         if constraint.isfixed  # Check if the element is fixed
@@ -49,8 +49,8 @@ end
 
 
 """Returns a vector of the constraintranges that are marked as fixed but have yet to be assigned fixed values"""
-function get_fixed_constraintranges(constraints::ConstraintSet)
-    fixed_constraintranges = []
+function get_fixed_constraintranges(constraints::ConstraintSet)::Vector{ConstraintRange}
+    fixed_constraintranges = ConstraintRange[]
     for constraintrange in constraints  # Loop through each element along with its index
         if constraintrange.isfixed && isnan(constraintrange.fixed_value)  # Check if the element is fixed but not assigned a value
             push!(fixed_constraintranges, constraintrange)  # Add the index to the array
@@ -80,15 +80,7 @@ Struct for defining parameter or initial condition ranges. Each instance contain
     fixed_value::Float64 = NaN
 end
 
-# "Tests whether a ConstraintRange is fixed or active. Will return true if fixed."
-# function isfixed(conrange::ConstraintRange)
-#     return !isnan(conrange.fixed_value)
-# end
 
-# """Uses Setfield.jl to set the active field of a ConstraintRange"""
-# function fix_constraint!(conrange::ConstraintRange, value::Float64)
-#     @set conrange.fixed_value = value
-# end
 
 """
     ParameterConstraints
@@ -404,34 +396,36 @@ population = generate_population(constraints, 100)
 #     return [population[:, i] for i in 1:n]
 # end
 
-function generate_empty_population(constraint::ConstraintSet, n::Int)
-    num_params = activelength(constraint)
+function generate_empty_population(constraints::ConstraintSet, n::Int)
+    num_params = activelength(constraints)
     
     # Preallocate the population array of arrays
     [Vector{Float64}(undef, num_params) for _ in 1:n]
 end
 
-function generate_population(constraint::ConstraintSet, n::Int)
+function generate_population(constraints::ConstraintSet, n::Int)
     # Preallocate the population array of arrays
-    population = generate_empty_population(constraint, n)
+    population = generate_empty_population(constraints, n)
     
-    generate_population!(population, constraint)
+    generate_population!(population, constraints)
 end
 
 
-function generate_population!(population::Vector{Vector{Float64}}, constraint::ConstraintSet)
+function generate_population!(population::Vector{Vector{Float64}}, constraints::ConstraintSet)
 
     rand_vals = Vector{Float64}(undef, length(population))
     
     # Populate the array
-    for (i, conrange) in enumerate(constraint)
+    i = 1
+    for conrange in constraints
         if !conrange.isfixed
             min_val, max_val = log10(conrange.min), log10(conrange.max)
             rand_vals .= exp10.(rand(Uniform(min_val, max_val), length(population)))
             
-            for j in eachindex(population)
+            for j in 1:length(population)
                 population[j][i] = rand_vals[j]
             end
+            i += 1
         end
     end
     return population
@@ -513,7 +507,7 @@ function run_GA(ga_problem::GAProblem, population::Vector{Vector{Float64}} = gen
     # pop = generate_population!(population, ga_problem.constraints)
 
     #* Create constraints using the min and max values from constraints if they are active for optimization.
-    boxconstraints = BoxConstraints([constraint.min for constraint in ga_problem.constraints if !isfixed(constraint)], [constraint.max for constraint in ga_problem.constraints if !isfixed(constraint)])
+    boxconstraints = BoxConstraints([constraint.min for constraint in ga_problem.constraints if !constraint.isfixed], [constraint.max for constraint in ga_problem.constraints if !constraint.isfixed])
 
     # *Create Progress bar and callback function
     # ga_progress = Progress(threshold; desc = "GA Progress")

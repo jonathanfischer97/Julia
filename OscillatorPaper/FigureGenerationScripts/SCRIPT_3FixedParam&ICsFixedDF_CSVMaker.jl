@@ -52,13 +52,13 @@ end
 
 
 #* Modification to fixed_triplet_csv_maker function
-function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProblem; rangelength = 4, fixedDF = 1000., popsize = 20000) 
+function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProblem; rangelength::Int = 4, fixedDF::Float64 = 1000., popsize::Int = 20000) 
 
     fixed_constraintranges = get_fixed_constraintranges(constraints)
 
     fixed_names = [conrange.name for conrange in fixed_constraintranges]
     
-    fixed_valrange1, fixed_valrange2, fixed_valrange3 = (logrange(constraintrange.min, constraintrange.max, rangelength) for constraintrange in fixed_constraintranges)
+    fixed_valrange1, fixed_valrange2, fixed_valrange3 = [logrange(constraintrange.min, constraintrange.max, rangelength) for constraintrange in fixed_constraintranges]
     
 
     num_rows = rangelength^3
@@ -76,7 +76,7 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
 
     
     #* make folder to hold all the csv files 
-    path = mkpath("./ROCKFISH_DATA/3Fixed/$(fixed_names[1])_$(fixed_names[2])_$(fixed_names[3])/3FixedParams+ICsRawSets/Raw_DF=$(round(fixedDF))")
+    # path = mkpath("./ROCKFISH_DATA/3Fixed/$(fixed_names[1])_$(fixed_names[2])_$(fixed_names[3])/3FixedParams+ICsRawSets/Raw_DF=$(round(fixedDF))")
     i = 1
 
     #* make progress bar 
@@ -84,7 +84,7 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
 
     initial_population = generate_empty_population(constraints, popsize)
 
-    ga_problem = GAProblem(constraints, ode_prob)
+    ga_problem = GAProblem(constraints = constraints, ode_problem = ode_prob)
 
     for val1 in fixed_valrange1
         for val2 in fixed_valrange2
@@ -139,7 +139,7 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
                     
 
                     #* rewrite the L, K, P, A columns with the initial conditions
-                    CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
+                    # CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
                 end
                 next!(loopprogress)
                 i += 1
@@ -153,6 +153,19 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
     return results_df
 end
 
+triplet = [:ka1, :kb1, :kcat1]
+allconstraints = AllConstraints(ParameterConstraints(), InitialConditionConstraints())
+allconstraints.DF.isfixed = true
+allconstraints.DF.fixed_value = 1000.
+set_fixed_constraints!(allconstraints, triplet)
+get_fixed_constraintranges(allconstraints)
+
+pop = generate_empty_population(allconstraints, 20000)
+generate_population!(pop, allconstraints)
+
+
+@report_opt fixed_triplet_csv_maker(allconstraints, ogprobjac; rangelength=4, fixedDF=1000.)
+fixed_triplet_csv_maker(allconstraints, ogprobjac; rangelength=4, fixedDF=1000.)
 
 
 #< loop through combinations of parameters/ics and run the function of each combination

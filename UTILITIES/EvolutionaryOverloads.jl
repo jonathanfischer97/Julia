@@ -72,7 +72,7 @@ Evolutionary.ismultiobjective(obj) = false
 function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}},
                                 F::AbstractMatrix, xs::AbstractVector{TX}) where {TC,TF,TX}
     n = length(xs)
-    @info "Evaluating $(n) individuals in parallel"
+    # @info "Evaluating $(n) individuals in parallel"
     Threads.@threads for i in 1:n
         # F[:,i] .= Evolutionary.value(obj, xs[i])  #* evaluate the fitness, period, and amplitude for each individual
         fv = view(F, :, i)
