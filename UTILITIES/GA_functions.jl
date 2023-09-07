@@ -586,7 +586,7 @@ end
 function make_ga_dataframe(results::GAResults, constraints::ConstraintSet)
     df = DataFrame(fit = results.fitvals, per = results.periods, amp = results.amplitudes)
     for (i,conrange) in enumerate(constraints)
-        if !isfixed(conrange)
+        if !conrange.isfixed
             df[!, conrange.name] .= [x[i] for x in results.population]
         else
             df[!, conrange.name] .= conrange.fixed_value

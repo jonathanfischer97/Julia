@@ -155,7 +155,7 @@ end
 
 
 #< loop through combinations of parameters/ics and run the function of each combination
-function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; startinput::Symbol=:ka1, rangelength = 4, DFrange = [100., 1000., 10000.])
+function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; startinput::Symbol=:ka1, rangelength = 4, DFrange = [100., 1000., 10000.], popsize=20000)
     names = [:ka1, :kb1, :kcat1, :ka2, :kb2, :ka3, :kb3, :ka4, :kb4, :ka7, :kb7, :kcat7, :L, :K, :P, :A]
     triplets = collect(combinations(names, 3))
     start_idx = findfirst(x -> x[1] == startinput, triplets)
@@ -173,7 +173,7 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; startin
         for df in DFrange
             df_constraintrange.fixed_value = df
             set_fixed_constraints!(constraints, triplet)
-            results_df = fixed_triplet_csv_maker(constraints, prob; rangelength=rangelength, fixedDF=df)
+            results_df = fixed_triplet_csv_maker(constraints, prob; rangelength=rangelength, fixedDF=df, popsize=popsize)
             CSV.write(tripletpath*"/Summary_DF=$(round(df)).csv", results_df)
         end
         unset_fixed_constraints!(constraints, triplet)
@@ -181,7 +181,7 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; startin
 end
 
 
-function run_MAIN()
+function run_MAIN(rangelength=4, popsize=20000)
     tspan = (0., 2000.0)
     fullrn = make_fullrn()
     ogprob = ODEProblem(fullrn, [], tspan, [])
@@ -196,11 +196,14 @@ function run_MAIN()
 
     allconstraints = AllConstraints(param_constraints, ic_constraints)
 
-    run_all_triplets(allconstraints, ogprobjac; startinput=:ka1, rangelength=4)
+    run_all_triplets(allconstraints, ogprobjac; startinput=:ka1, rangelength=rangelength, popsize=popsize)
 end
 
-
-run_MAIN()
+if isempty(ARGS)
+    run_MAIN()
+else
+    run_MAIN(parse(Int, ARGS[1]), parse(Int, ARGS[2]))
+end
 
 
 
