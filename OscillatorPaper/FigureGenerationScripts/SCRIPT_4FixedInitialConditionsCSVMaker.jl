@@ -71,11 +71,11 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     set_fixed_constraints!(allconstraints, icnames)
     fixed_constraintranges = get_fixed_constraintranges(allconstraints)
 
+
     allconstraints.DF.isfixed = true
     allconstraints.DF.fixed_value = fixedDF
 
     num_rows = rangelength^length(icnames)
-
 
     icvals1 = Vector{Float64}(undef, num_rows)
     icvals2 = Vector{Float64}(undef, num_rows)
@@ -98,6 +98,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     mainrawpath = mkpath("./ROCKFISH_DATA/4Fixed/4FixedICRawSets")
 
     initial_population = generate_empty_population(allconstraints, popsize)
+ 
 
     ga_problem = GAProblem(constraints = allconstraints, ode_problem = prob)
 
@@ -201,7 +202,6 @@ function run_4fixedIC(rangelength=4, popsize=20000)
     # fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4, fixedDF=fixedDF)
     loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangelength=rangelength, DFrange = [100.,1000.,10000.], popsize=popsize)
 end
-
 
 
 if isempty(ARGS)

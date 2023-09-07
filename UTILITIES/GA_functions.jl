@@ -275,7 +275,7 @@ function make_fitness_function(constraints::ConstraintSet, ode_problem::ODEProbl
     fixed_idxs = get_fixed_indices(constraints)
     fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
     n_fixed = length(fixed_idxs)
-    n_total = n_fixed + length(ode_problem.p)  # Assuming ode_problem.p contains the initial variable parameters
+    n_total = n_fixed + activelength(constraints)  # Assuming ode_problem.p contains the initial variable parameters
 
     function fitness_function(input::Vector{Float64})
         merged_input = Vector{Float64}(undef, n_total)
