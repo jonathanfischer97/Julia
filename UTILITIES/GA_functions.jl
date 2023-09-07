@@ -339,6 +339,7 @@ function set_fixed_constraints!(constraints::ConstraintSet, fixednames::Vector{S
         if name in fieldnames(typeof(constraints))
             conrange = getfield(constraints, name)
             conrange.isfixed = true
+            conrange.fixed_value = NaN
         end
     end
     return constraints

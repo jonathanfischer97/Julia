@@ -69,6 +69,8 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     allconstraints = AllConstraints(paramconstraints, icconstraints)
 
     set_fixed_constraints!(allconstraints, icnames)
+    fixed_constraintranges = get_fixed_constraintranges(allconstraints)
+
     allconstraints.DF.isfixed = true
     allconstraints.DF.fixed_value = fixedDF
 
@@ -105,7 +107,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
             for icval3 in icranges[3]
                 for icval4 in icranges[4]
 
-                    set_fixed_values!(icconstraints, icval1, icval2, icval3, icval4)
+                    set_fixed_values!(fixed_constraintranges, icval1, icval2, icval3, icval4)
                     
                     #* make new GA problem with new initial conditions
                     ga_problem.fitness_function = make_fitness_function(allconstraints, prob)
