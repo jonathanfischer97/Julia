@@ -9,4 +9,4 @@
 
 ml intel-mkl
 
-julia -t 48 $1 > julia_output_$1.txt
+julia --threads=48 -- "$@" > julia_output_$1.txt
