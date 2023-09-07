@@ -56,7 +56,7 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
 
     fixed_constraintranges = get_fixed_constraintranges(constraints)
 
-    fixed_names = (conrange.name for conrange in fixed_constraintranges)
+    fixed_names = [conrange.name for conrange in fixed_constraintranges]
     
     fixed_valrange1, fixed_valrange2, fixed_valrange3 = (logrange(constraintrange.min, constraintrange.max, rangelength) for constraintrange in fixed_constraintranges)
     

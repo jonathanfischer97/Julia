@@ -1,17 +1,15 @@
 begin 
-    using Plots; #theme(:juno)
+    # using Plots; #theme(:juno)
     using Catalyst
-    using DifferentialEquations, ModelingToolkit
+    using OrdinaryDiffEq, ModelingToolkit
     using Statistics
-    # using Peaks
-    # using FindPeaks1D
+
     using Evolutionary, FFTW
     using Random
     using Distributions
     using DataFrames#, DataFrameMacros
     using CSV
-    # using Unitful
-    # using Unitful: µM, M, nm, µm, s, μs, Na, L, 𝐍
+
     # using StaticArrays
     # using Cthulhu
     # using JET
@@ -59,18 +57,10 @@ end
 
 
 
-function fixedDF_fitness_function_maker(evalfunc::Function, prob::ODEProblem, fixedDF::Float64)
-    let evalfunc = evalfunc, prob = prob, fixedDF = fixedDF
-        function fitness_function(input::Vector{Float64})
-            newprob = remake(prob, p = [input; fixedDF])
-            return evalfunc(input, newprob)
-        end
-    end
-end
 
 
 #* Function loops through 4D grid of different initial conditions, letting all parameters be freely optimized, and saves the results to a csv file
-function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; rangelength::Int = 4, fixedDF::Float64=1000.)
+function fixed_quadruplet_ic_searcher(constraints::AllConstraints, prob::ODEProblem; rangelength::Int = 4, fixedDF::Float64=1000.)
     #* get the ranges of the initial conditions
     icranges = [logrange(constraints.min, constraints.max, rangelength) for constraints in icconstraints.ranges]
 
