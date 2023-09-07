@@ -89,12 +89,12 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
     for val1 in fixed_valrange1
         for val2 in fixed_valrange2
             for val3 in fixed_valrange3
-
-                
+                #* set the fixed values in the constraints
                 set_fixed_values!(fixed_constraintranges, val1, val2, val3)
 
                 # @info get_fixed_indices(fixed_constraints)
 
+                #* remake the fitness function with the fixed values
                 ga_problem.fitness_function = make_fitness_function(constraints, ode_prob)
 
 
@@ -155,8 +155,7 @@ end
 
 
 
-#< loop through combinations of parameters and run the function of each triplet
-
+#< loop through combinations of parameters/ics and run the function of each combination
 function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; startinput::Symbol=:ka1, rangelength = 4, DFrange = [100., 1000., 10000.])
     names = [:ka1, :kb1, :kcat1, :ka2, :kb2, :ka3, :kb3, :ka4, :kb4, :ka7, :kb7, :kcat7, :L, :K, :P, :A]
     triplets = collect(combinations(names, 3))
