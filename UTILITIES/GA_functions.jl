@@ -35,22 +35,24 @@ Base.iterate(constraint::ConstraintSet, state=1) = state > length(constraint) ? 
 Base.eltype(::Type{ConstraintSet}) = ConstraintRange
 
 # Required for length
-activelength(constraint::ConstraintSet) = length(filter(x -> !isfixed(constraint[x]), fieldnames(typeof(constraint))))
+activelength(constraint::ConstraintSet) = length(filter(x -> !constraint[x].isfixed, fieldnames(typeof(constraint))))
 
 function get_fixed_indices(constraints::ConstraintSet)
     inactive_indices = Int[]  # Initialize an empty array to store the indices of inactive elements
     for (idx, constraint) in enumerate(constraints)  # Loop through each element along with its index
-        if isfixed(constraint)  # Check if the element is fixed
+        if constraint.isfixed  # Check if the element is fixed
             push!(inactive_indices, idx)  # Add the index to the array
         end
     end
     return inactive_indices  # Return the array of indices
 end
 
+
+"""Returns a vector of the constraintranges that are marked as fixed but have yet to be assigned fixed values"""
 function get_fixed_constraintranges(constraints::ConstraintSet)
     fixed_constraintranges = []
     for constraintrange in constraints  # Loop through each element along with its index
-        if isfixed(constraintrange)  # Check if the element is fixed
+        if constraintrange.isfixed && isnan(constraintrange.fixed_value)  # Check if the element is fixed but not assigned a value
             push!(fixed_constraintranges, constraintrange)  # Add the index to the array
         end
     end
@@ -166,7 +168,7 @@ constraints = define_parameter_constraints(
 )
 ```
 """
-function ParameterConstraints(; karange = (1e-3, 1e1), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e3, 1e5))#, nominalvals = repeat([Nothing],13))
+function ParameterConstraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))#, nominalvals = repeat([Nothing],13))
     #* Define parameter constraint ranges
     ka_min, ka_max = karange  # uM^-1s^-1, log scale
     kb_min, kb_max = kbrange  # s^-1, log scale
@@ -207,7 +209,7 @@ constraints = define_initialcondition_constraints(
 )
 ```
 """
-function InitialConditionConstraints(;Lrange = (0.1, 10.0), Krange = (0.1, 5.0), Prange = (0.1, 5.0), Arange = (0.1, 10.0))#, nominalvals = repeat([Nothing],4))
+function InitialConditionConstraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))#, nominalvals = repeat([Nothing],4))
     # Define initial condition constraint ranges
     lipid_min, lipid_max = Lrange  # uM
     kinase_min, kinase_max = Krange  # uM
@@ -339,6 +341,7 @@ end
 #     return constraints
 # end
 
+"""Simply marks the constraints as fixed, without assigning a value"""
 function set_fixed_constraints!(constraints::ConstraintSet, fixednames::Vector{Symbol})
     for name in fixednames
         if name in fieldnames(typeof(constraints))
@@ -356,18 +359,17 @@ function set_fixed_values!(fixed_constraintranges::Vector{ConstraintRange}, valu
     return fixed_constraintranges
 end
 
-"""Sets the fixed values for a GAProblem and reconstructs the fitness function"""
-# function set_fixed_constraints!(ga_problem::GAProblem; fixedinputs...)
-#     for (name, value) in pairs(fixedinputs)
-#         symbolic_name = Symbol(name)
-#         if symbolic_name in fieldnames(typeof(constraints))
-#             setfield!(constraints[symbolic_name], :fixed_value, value)
-
-#         end
-#     end
-#     ga_problem.fitness_function = make_fitness_function(ga_problem.constraints, ga_problem.ode_problem)
-#     return ga_problem
-# end
+"""Unsets the fixed constraints according to symbol, resetting both the isfixed and fixed_value fields to default"""
+function unset_fixed_constraints!(constraints::ConstraintSet, fixednames::Vector{Symbol})
+    for name in fixednames
+        if name in fieldnames(typeof(constraints))
+            conrange = getfield(constraints, name)
+            conrange.isfixed = false
+            conrange.fixed_value = NaN
+        end
+    end
+    return constraints
+end
 
 
 function Base.show(io::IO, ::MIME"text/plain", prob::GAProblem) 
@@ -423,7 +425,7 @@ function generate_population!(population::Vector{Vector{Float64}}, constraint::C
     
     # Populate the array
     for (i, conrange) in enumerate(constraint)
-        if !isfixed(conrange)
+        if !conrange.isfixed
             min_val, max_val = log10(conrange.min), log10(conrange.max)
             rand_vals .= exp10.(rand(Uniform(min_val, max_val), length(population)))
             
@@ -434,32 +436,6 @@ function generate_population!(population::Vector{Vector{Float64}}, constraint::C
     end
     return population
 end
-
-#! MATRIX VERSIONS
-# Generate an empty population as a 2D array
-# function generate_empty_population(constraint::ConstraintSet, n::Int)
-#     num_params = activelength(constraint)
-#     return Matrix{Float64}(undef, num_params, n)
-# end
-
-# # Generate a population as a 2D array
-# function generate_population(constraint::ConstraintSet, n::Int)
-#     population = generate_empty_population(constraint, n)
-#     generate_population!(population, constraint)
-#     return population
-# end
-
-# # Populate the 2D array in-place
-# function generate_population!(population::Matrix{Float64}, constraint::ConstraintSet)
-#     n = size(population, 2)
-    
-#     for (i, conrange) in enumerate(constraint)
-#         if conrange.active
-#             min_val, max_val = log10(conrange.min), log10(conrange.max)
-#             population[i, :] .= exp10.(rand(Uniform(min_val, max_val), n))
-#         end
-#     end
-# end
 #> END
 
 
