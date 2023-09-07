@@ -173,7 +173,7 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; startin
         @info triplet
         tripletpath = mkpath(mainpath*"/$(triplet[1])_$(triplet[2])_$(triplet[3])")
         for df in DFrange
-            df_constraintrange.fixedval = df
+            df_constraintrange.fixed_value = df
             set_fixed_constraints!(constraints, triplet)
             results_df = fixed_triplet_csv_maker(constraints, prob; rangelength=rangelength, fixedDF=df)
             CSV.write(tripletpath*"/DF=$(df).csv", results_df)
