@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#SBATCH --job-name=NERDSS_restart
+#SBATCH --job-name=julia
 #SBATCH --time=72:0:0
 #SBATCH --partition=defq
 #SBATCH --nodes=1
@@ -9,15 +9,4 @@
 
 ml intel-mkl
 
-# Loop over command-line arguments
-for dir in "$@"; do
-  # Change to the directory
-  cd $dir
-
-  # Call the executable with the correct input file
-  nerdss.sh -r restart.dat > output.txt &
-
-  # Change back to the original directory
-  cd -
-done
-wait
+julia -t 48 $1 > julia_output_$1.txt
