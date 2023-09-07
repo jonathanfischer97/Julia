@@ -76,7 +76,7 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
 
     
     #* make folder to hold all the csv files 
-    # path = mkpath("./ROCKFISH_DATA/3Fixed/$(fixed_names[1])_$(fixed_names[2])_$(fixed_names[3])/3FixedParams+ICsRawSets/Raw_DF=$(round(fixedDF))")
+    path = mkpath("./ROCKFISH_DATA/3Fixed/$(fixed_names[1])_$(fixed_names[2])_$(fixed_names[3])/3FixedParams+ICsRawSets/Raw_DF=$(round(fixedDF))")
     i = 1
 
     #* make progress bar 
@@ -139,7 +139,7 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
                     
 
                     #* rewrite the L, K, P, A columns with the initial conditions
-                    # CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
+                    CSV.write(path*"/$(round(val1; digits = 2))_$(round(val2;digits = 2))_$(round(val3; digits=2)).csv", oscillatory_points_df)
                 end
                 next!(loopprogress)
                 i += 1
@@ -152,20 +152,6 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
                         :average_amplitude => average_amplitudes, :maximum_amplitude => maximum_amplitudes, :minimum_amplitude => minimum_amplitudes])
     return results_df
 end
-
-triplet = [:ka1, :kb1, :kcat1]
-allconstraints = AllConstraints(ParameterConstraints(), InitialConditionConstraints())
-allconstraints.DF.isfixed = true
-allconstraints.DF.fixed_value = 1000.
-set_fixed_constraints!(allconstraints, triplet)
-get_fixed_constraintranges(allconstraints)
-
-pop = generate_empty_population(allconstraints, 20000)
-generate_population!(pop, allconstraints)
-
-
-@report_opt fixed_triplet_csv_maker(allconstraints, ogprobjac; rangelength=4, fixedDF=1000.)
-fixed_triplet_csv_maker(allconstraints, ogprobjac; rangelength=4, fixedDF=1000.)
 
 
 #< loop through combinations of parameters/ics and run the function of each combination
