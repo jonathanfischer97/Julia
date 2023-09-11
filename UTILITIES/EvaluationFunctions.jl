@@ -142,6 +142,19 @@ function eval_all_fitness(inputs::Vector{Float64}, prob::OT; idx::Vector{Int} = 
     return solve_for_fitness_peramp(new_prob, idx)
 end
 
+# Preallocate the zeros vector
+const zeros_vec = zeros(length(prob.u0))
+
+function eval_all_fitness(inputs::Vector{Float64}, prob::OT; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16]) where OT <: ODEProblem
+    # Use @views to avoid copying arrays
+    @views u0 = [inputs[14:end]; zeros_vec[1:length(zeros_vec)-length(inputs[14:end])]]
+    
+    # Use in-place operations if possible
+    new_prob = remake(prob, p = inputs[1:13], u0 = u0)
+    
+    return solve_for_fitness_peramp(new_prob, idx)
+end
+
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
 function solve_for_fitness_peramp(prob::OT, idx::Vector{Int}) where OT <: ODEProblem
 

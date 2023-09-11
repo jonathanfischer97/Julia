@@ -271,24 +271,51 @@ end
 #     end
 # end
 
-function make_fitness_function(constraints::ConstraintSet, ode_problem::ODEProblem, eval_function)
+function make_fitness_function(constraints::ConstraintSet, ode_problem::OT, eval_function::FT) where {OT<:ODEProblem, FT<:Function}
     fixed_idxs = get_fixed_indices(constraints)
     fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
     n_fixed = length(fixed_idxs)
     n_total = n_fixed + activelength(constraints)  # Assuming ode_problem.p contains the initial variable parameters
 
+    merged_input = Vector{Float64}(undef, n_total)
+    merged_input[fixed_idxs] .= fixed_values  # Fill in fixed values
+
     function fitness_function(input::Vector{Float64})
-        merged_input = Vector{Float64}(undef, n_total)
-        merged_input[fixed_idxs] .= fixed_values  # Fill in fixed values
+        # merged_input = Vector{Float64}(undef, n_total)
+        # merged_input[fixed_idxs] .= fixed_values  # Fill in fixed values
+        merged_input[setdiff(1:n_total, fixed_idxs)] .= input  # Fill in variable values
 
         # Fill in variable values
-        j = 1
-        for i in 1:n_total
-            if !(i in fixed_idxs)
-                merged_input[i] = input[j]
-                j += 1
-            end
-        end
+        # j = 1
+        # for i in 1:n_total
+        #     if !(i in fixed_idxs)
+        #         merged_input[i] = input[j]
+        #         j += 1
+        #     end
+        # end
+
+        return eval_function(merged_input, ode_problem)
+    end
+
+    return fitness_function
+end
+
+using Base.Threads: @threads, threadid, nthreads
+
+function make_fitness_function(constraints::ConstraintSet, ode_problem::OT, eval_function::FT) where {OT<:ODEProblem, FT<:Function}
+    fixed_idxs = get_fixed_indices(constraints)
+    fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
+    n_fixed = length(fixed_idxs)
+    n_total = n_fixed + activelength(constraints)  # Assuming ode_problem.p contains the initial variable parameters
+
+    # Create a ThreadLocal array
+    merged_inputs = [Vector{Float64}(undef, n_total) for _ in 1:nthreads()]
+
+    function fitness_function(input::Vector{Float64})
+        # Get the merged_input array for the current thread
+        merged_input = merged_inputs[threadid()]
+        merged_input[fixed_idxs] .= fixed_values  # Fill in fixed values
+        merged_input[setdiff(1:n_total, fixed_idxs)] .= input  # Fill in variable values
 
         return eval_function(merged_input, ode_problem)
     end
@@ -312,10 +339,10 @@ Struct encapsulating a Genetic Algorithm (GA) optimization problem. It holds the
 - `ode_problem::ODEProblem`: ODE problem to be solved.
 - `fitness_function::Function`: Fitness function, automatically generated with constructor
 """
-@kwdef mutable struct GAProblem{CT <: ConstraintSet, OT <: ODEProblem, FT <: Function}
+@kwdef mutable struct GAProblem{CT <: ConstraintSet, OT <: ODEProblem}
     constraints::CT = AllConstraints(ParameterConstraints(), InitialConditionConstraints())
     ode_problem::OT = make_ODE_problem()
-    fitness_function::FT = make_fitness_function(constraints, ode_problem)
+    # fitness_function::FT = make_fitness_function
 
     # function GAProblem(constraints::CT, ode_problem::OT, fitness_function::FT = make_fitness_function(constraints, ode_problem)) where {CT<:ConstraintSet, OT<:ODEProblem, FT<:Function}
     #     new{CT,OT,FT}(constraints, ode_problem, fitness_function)
@@ -536,10 +563,11 @@ function run_GA(ga_problem::GAProblem, population::Vector{Vector{Float64}} = gen
                 crossover = TPX, crossoverRate = 1.0, # Two-point crossover event
                 mutation  = mutation_scheme, mutationRate = 1.0)
 
-
+    #* Make fitness function
+    fitness_function = make_fitness_function(ga_problem.constraints, ga_problem.ode_problem)
 
     #* Run the optimization.
-    result = Evolutionary.optimize(ga_problem.fitness_function, zeros(3,population_size), boxconstraints, mthd, population, opts)
+    result = Evolutionary.optimize(fitness_function, zeros(3,population_size), boxconstraints, mthd, population, opts)
 
 
     # BLAS.set_num_threads(blas_threads)

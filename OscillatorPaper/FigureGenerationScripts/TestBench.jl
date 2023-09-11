@@ -15,7 +15,7 @@ begin
 
     using LinearAlgebra
 
-    using Setfield
+    # using Setfield
     
     using ColorSchemes, Plots.PlotMeasures
     default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
@@ -50,22 +50,27 @@ function make_ODE_problem()
 
     fullrn = make_fullrn()
 
-    ogprob = ODEProblem(fullrn, [], tspan, [])
+    ogprob = ODEProblem(fullrn, [], tspan, ())
+    # @info typeof(ogprob)
 
     de = modelingtoolkitize(ogprob)
+    # @info typeof(de)
 
-    ogprobjac::ODEProblem = ODEProblem{true,SciMLBase.FullSpecialize}(de, [], tspan, jac=true)
-    return ogprobjac
+    ODEProblem{true,SciMLBase.FullSpecialize}(de, [], tspan, jac=true)
 end
 
-ogprobjac = make_ODE_problem();
 
+ogprobjac = make_ODE_problem();
+@code_warntype make_ODE_problem()   
 
 @report_opt solve(ogprobjac, Rosenbrock23(), saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
 
 @code_typed solve(ogprobjac, Rosenbrock23(), saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
 
 @code_warntype eval_all_fitness(rand(17), ogprobjac)
+
+input = [ogprobjac.p; ogprobjac.u0[1:4]]
+@btime eval_all_fitness(input, $ogprobjac)
 
 @code_warntype CostFunction(ogjacsol)
 
@@ -126,7 +131,7 @@ function test_fixedparam(gaprob::GAProblem, fixedDF=1000.; fixed_inputs)
 
     constraints = gaprob.constraints
 
-    set_fixed_constraints!(gaprob; fixed_inputs..., DF=fixedDF)
+    set_fixed_constraints!(gaprob; fixed_inputs)
 
 
     Random.seed!(1234)
@@ -153,8 +158,7 @@ testfixed_df = test_fixedparam(gaproblem; fixed_inputs)
 #* when eval is broadcasted
 #* 118.019 s (1484282110 allocations: 196.73 GiB)
 
-#* actually in place updating of F
-#* 16.831 s (403801713 allocations: 60.82 GiB)
+
 
 
 
