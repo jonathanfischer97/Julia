@@ -16,6 +16,7 @@ function generate_triplet_chunks(num_chunks::Int)
             remainder -= 1
         end
         push!(chunks, (start_idx, end_idx))
+        println("$start_idx:$end_idx")
         start_idx = end_idx + 1
     end
     return chunks
