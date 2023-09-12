@@ -300,28 +300,33 @@ function make_fitness_function(constraints::ConstraintSet, ode_problem::OT, eval
     return fitness_function
 end
 
-using Base.Threads: @threads, threadid, nthreads
 
-function make_fitness_function(constraints::ConstraintSet, ode_problem::OT, eval_function::FT) where {OT<:ODEProblem, FT<:Function}
-    fixed_idxs = get_fixed_indices(constraints)
-    fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
-    n_fixed = length(fixed_idxs)
-    n_total = n_fixed + activelength(constraints)  # Assuming ode_problem.p contains the initial variable parameters
+"""Multithreaded fitness function, allocated a merged array for each thread"""
+# function make_fitness_function(constraints::ConstraintSet, ode_problem::OT, eval_function::FT) where {OT<:ODEProblem, FT<:Function}
+#     fixed_idxs = get_fixed_indices(constraints)
+#     fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
+#     n_fixed = length(fixed_idxs)
 
-    # Create a ThreadLocal array
-    merged_inputs = [Vector{Float64}(undef, n_total) for _ in 1:nthreads()]
+#     if constraints isa ParameterConstraints
+#         n_total = n_fixed + activelength(constraints) 
+#     else
+#         n_total = n_fixed + activelength(constraints) + 12
+#     end
 
-    function fitness_function(input::Vector{Float64})
-        # Get the merged_input array for the current thread
-        merged_input = merged_inputs[threadid()]
-        merged_input[fixed_idxs] .= fixed_values  # Fill in fixed values
-        merged_input[setdiff(1:n_total, fixed_idxs)] .= input  # Fill in variable values
+#     # Create a ThreadLocal array
+#     merged_inputs = [Vector{Float64}(undef, n_total) for _ in 1:Threads.nthreads()]
 
-        return eval_function(merged_input, ode_problem)
-    end
+#     function fitness_function(input::Vector{Float64})
+#         # Get the merged_input array for the current thread
+#         merged_input = merged_inputs[Threads.threadid()]
+#         merged_input[fixed_idxs] .= fixed_values  # Fill in fixed values
+#         merged_input[setdiff(1:n_total, fixed_idxs)] .= input  # Fill in variable values
 
-    return fitness_function
-end
+#         return eval_function(merged_input, ode_problem)
+#     end
+
+#     return fitness_function
+# end
 
 make_fitness_function(constraints::ParameterConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_param_fitness)
 make_fitness_function(constraints::InitialConditionConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_ic_fitness)
@@ -462,47 +467,47 @@ end
 
 
 #< DEFAULT FITNESS FUNCTION FACTORY
-"""Returns the `fitness function(input)` for the cost function, referencing the ODE problem with closure"""
-function make_fitness_function(evalfunc::Function, prob::ODEProblem)
-    function fitness_function(input::Vector{Float64})
-        #? Returns a cost function method that takes in just a vector of parameters/ICs and references the ODE problem 
-        return evalfunc(input, prob)
-    end
-    return fitness_function
-end
+# """Returns the `fitness function(input)` for the cost function, referencing the ODE problem with closure"""
+# function make_fitness_function(evalfunc::Function, prob::ODEProblem)
+#     function fitness_function(input::Vector{Float64})
+#         #? Returns a cost function method that takes in just a vector of parameters/ICs and references the ODE problem 
+#         return evalfunc(input, prob)
+#     end
+#     return fitness_function
+# end
 
-"""Returns the `fitness function(input)` for the cost function, referencing the ODE problem with closure, captured with let keyword"""
-function make_fitness_function_with_let(evalfunc::Function, prob::ODEProblem)
-    let evalfunc = evalfunc, prob = prob
-        function fitness_function(input::Vector{Float64})
-            return evalfunc(input, prob)
-        end
-        return fitness_function
-    end
-end
+# """Returns the `fitness function(input)` for the cost function, referencing the ODE problem with closure, captured with let keyword"""
+# function make_fitness_function_with_let(evalfunc::Function, prob::ODEProblem)
+#     let evalfunc = evalfunc, prob = prob
+#         function fitness_function(input::Vector{Float64})
+#             return evalfunc(input, prob)
+#         end
+#         return fitness_function
+#     end
+# end
 
-"""Returns the `fitness function(input)` for the cost function, referencing the GA problem with closure"""
-function make_fitness_function(gaprob::GAProblem)
-    fixed_idxs = get_fixed_indices(gaprob.constraints)
+# """Returns the `fitness function(input)` for the cost function, referencing the GA problem with closure"""
+# function make_fitness_function(gaprob::GAProblem)
+#     fixed_idxs = get_fixed_indices(gaprob.constraints)
     
-    function fitness_function(input::Vector{Float64})
-        # Preallocate a new input array, merging fixed and variable parameters
-        merged_input = Vector{Float64}(undef, length(input) + length(fixed_idxs))
+#     function fitness_function(input::Vector{Float64})
+#         # Preallocate a new input array, merging fixed and variable parameters
+#         merged_input = Vector{Float64}(undef, length(input) + length(fixed_idxs))
         
-        var_idx = 1
-        for idx in eachindex(merged_input)
-            if idx in fixed_idxs
-                merged_input[idx] = gaprob.constraints[idx].fixed_value
-            else
-                merged_input[idx] = input[var_idx]
-                var_idx += 1
-            end
-        end
+#         var_idx = 1
+#         for idx in eachindex(merged_input)
+#             if idx in fixed_idxs
+#                 merged_input[idx] = gaprob.constraints[idx].fixed_value
+#             else
+#                 merged_input[idx] = input[var_idx]
+#                 var_idx += 1
+#             end
+#         end
         
-        return gaprob.eval_function(merged_input, gaprob.ode_problem)
-    end
-    return fitness_function
-end
+#         return gaprob.eval_function(merged_input, gaprob.ode_problem)
+#     end
+#     return fitness_function
+# end
 #> END
 
 
@@ -568,7 +573,6 @@ function run_GA(ga_problem::GAProblem, population::Vector{Vector{Float64}} = gen
 
     #* Run the optimization.
     result = Evolutionary.optimize(fitness_function, zeros(3,population_size), boxconstraints, mthd, population, opts)
-
 
     # BLAS.set_num_threads(blas_threads)
     # return result

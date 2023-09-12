@@ -131,29 +131,24 @@ end
 """Evaluate the fitness of an individual with new initial conditions"""
 function eval_ic_fitness(initial_conditions::Vector{Float64}, prob::OT; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16]) where OT <: ODEProblem
     #* remake with new initial conditions
-    new_prob = remake(prob, u0=[initial_conditions; zeros(length(prob.u0)-length(initial_conditions))])
+    new_prob = remake(prob, u0=initial_conditions)
     return solve_for_fitness_peramp(new_prob, idx)
 end
 
 """Evaluate the fitness of an individual with new initial conditions and new parameters"""
 function eval_all_fitness(inputs::Vector{Float64}, prob::OT; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16]) where OT <: ODEProblem
     #* remake with new initial conditions
-    new_prob = remake(prob, p = inputs[1:13], u0=[inputs[14:end]; zeros(length(prob.u0)-length(inputs[14:end]))])
+    new_prob = remake(prob, p = inputs[1:13], u0= [inputs[14:end]; zeros(12)])
     return solve_for_fitness_peramp(new_prob, idx)
 end
 
-# Preallocate the zeros vector
-const zeros_vec = zeros(length(prob.u0))
+# function eval_all_fitness(inputs::Vector{Float64}, prob::OT; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16]) where OT <: ODEProblem
+#     #* remake with new initial conditions
+#     new_prob = remake(prob, p = inputs[1:13], u0= inputs[14:end])
+#     return solve_for_fitness_peramp(new_prob, idx)
+# end
 
-function eval_all_fitness(inputs::Vector{Float64}, prob::OT; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16]) where OT <: ODEProblem
-    # Use @views to avoid copying arrays
-    @views u0 = [inputs[14:end]; zeros_vec[1:length(zeros_vec)-length(inputs[14:end])]]
-    
-    # Use in-place operations if possible
-    new_prob = remake(prob, p = inputs[1:13], u0 = u0)
-    
-    return solve_for_fitness_peramp(new_prob, idx)
-end
+
 
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
 function solve_for_fitness_peramp(prob::OT, idx::Vector{Int}) where OT <: ODEProblem

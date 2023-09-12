@@ -60,7 +60,7 @@ end
 
 
 #* Function loops through 4D grid of different initial conditions, letting all parameters be freely optimized, and saves the results to a csv file
-function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; rangelength::Int = 4, fixedDF::Float64=1000., popsize::Int=20000)
+function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; path, rangelength::Int = 4, fixedDF::Float64=1000., popsize::Int=20000)
     #* get the ranges of the initial conditions
     icranges = [logrange(constraints.min, constraints.max, rangelength) for constraints in icconstraints]
 
@@ -95,7 +95,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     #* make progress bar 
     loopprogress = Progress(num_rows, desc ="Looping thru fixed ICs: " , color=:red)
 
-    mainrawpath = mkpath("./ROCKFISH_DATA/4Fixed/4FixedICRawSets")
+    DFpath = mkpath(path*"/DF=$(round(fixedDF))")
 
     initial_population = generate_empty_population(allconstraints, popsize)
  
@@ -111,7 +111,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                     set_fixed_values!(fixed_constraintranges, icval1, icval2, icval3, icval4)
                     
                     #* make new GA problem with new initial conditions
-                    ga_problem.fitness_function = make_fitness_function(allconstraints, prob)
+                    # ga_problem.fitness_function = make_fitness_function(allconstraints, prob)
 
                     #* set seed for reproducibility
                     Random.seed!(1234)
@@ -156,9 +156,9 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                         oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, allconstraints)
 
 
-                        innerrawpath = mkpath(mainrawpath*"/$(round(icval1; digits = 2))_$(round(icval2;digits = 2))_$(round(icval3; digits=2))_$(round(icval4; digits=2))")
+                        # innerrawpath = mkpath(mainrawpath*"/L=$(round(icval1; digits = 2))_K=$(round(icval2;digits = 2))_P=$(round(icval3; digits=2))_A=$(round(icval4; digits=2))")
 
-                        CSV.write(innerrawpath*"/Raw_DF=$(round(fixedDF)).csv", oscillatory_points_df)
+                        CSV.write(DFpath*"/L=$(round(icval1; digits = 2))_K=$(round(icval2;digits = 2))_P=$(round(icval3; digits=2))_A=$(round(icval4; digits=2)).csv", oscillatory_points_df)
                     end
                     next!(loopprogress)
                     i += 1
@@ -177,9 +177,12 @@ end
 
 
 function loop_4fixedICs_thru_DFvals(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; rangelength::Int = 4, DFrange = [100.,1000.,10000.], popsize::Int=20000)
+    rootpath = mkpath("./ROCKFISH_DATA/4Fixed/PopSize_$popsize")
+    summarypath = mkpath(rootpath*"/SummaryResults")
+    rawpath = mkpath(rootpath*"/4FixedICRawSets")
     for DF in DFrange
-        results_df = fixed_quadruplet_ic_searcher(paramconstraints, icconstraints, prob; rangelength=rangelength, fixedDF=DF, popsize=popsize)
-        CSV.write("./ROCKFISH_DATA/4Fixed/SummaryResults/Summary_DF=$(round(fixedDF)).csv", results_df)
+        results_df = fixed_quadruplet_ic_searcher(paramconstraints, icconstraints, prob; rangelength=rangelength, fixedDF=DF, popsize=popsize, path=rawpath)
+        CSV.write(summarypath*"/Summary_DF=$(round(fixedDF)).csv", results_df)
     end
 end
 

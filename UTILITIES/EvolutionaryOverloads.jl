@@ -74,8 +74,10 @@ function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}},
     n = length(xs)
     # @info "Evaluating $(n) individuals in parallel"
     Threads.@threads for i in 1:n
+        # @info length(xs[i])
         # F[:,i] .= Evolutionary.value(obj, xs[i])  #* evaluate the fitness, period, and amplitude for each individual
         fv = view(F, :, i)
+        # @info length(fv)
         value(obj, fv, xs[i])
     end
     F
@@ -100,7 +102,7 @@ end
     - `population` is the initial population, specifically a Vector for dispatch\n
     - `extradata` is the additional data from the objective function\n
     - `fittest` is the fittest individual\n"""
-function Evolutionary.initial_state(method::GA, options, objfun, population::Vector{Vector{Float64}}) #TODO something wrong with the fitness assignment in the first gen
+function Evolutionary.initial_state(method::GA, options, objfun, population::Vector{Vector{Float64}})
 
     N = length(first(population))
     # fitvals = zeros(Float64, method.populationSize)
