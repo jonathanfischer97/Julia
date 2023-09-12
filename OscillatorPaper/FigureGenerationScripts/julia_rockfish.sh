@@ -9,4 +9,6 @@
 
 ml intel-mkl
 
-julia --threads=48 -- "$@" > julia_output_$1.txt
+unique_filename=$(echo "$@" | tr ' ' '_')
+
+julia --threads=48 -- "$@" > "JULIA_OUT_${unique_filename}.txt"

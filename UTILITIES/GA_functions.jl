@@ -34,9 +34,10 @@ Base.iterate(constraint::ConstraintSet, state=1) = state > length(constraint) ? 
 # Required for the `in` keyword
 Base.eltype(::Type{ConstraintSet}) = ConstraintRange
 
-# Required for length
+"""Gives the active length of a ConstraintSet, i.e. the number of elements that are not fixed"""
 activelength(constraints::ConstraintSet) = count(x -> !x.isfixed, constraints)
 
+"""Returns a vector of the numerical indices of the fixed elements in a ConstraintSet"""
 function get_fixed_indices(constraints::ConstraintSet)::Vector{Int}
     inactive_indices = Int[]  # Initialize an empty array to store the indices of inactive elements
     for (idx, constraint) in enumerate(constraints)  # Loop through each element along with its index
@@ -79,7 +80,6 @@ Struct for defining parameter or initial condition ranges. Each instance contain
     isfixed::Bool = false
     fixed_value::Float64 = NaN
 end
-
 
 
 """
@@ -146,7 +146,7 @@ end
 
 #< CONSTRAINT RANGE CONSTRUCTORS
 """
-    define_parameter_constraints(; kwargs...)
+    ParameterConstraints(; kwargs...)
 
 Define parameter constraints. Each keyword argument represents a different parameter, where the value is a tuple defining the valid range for that parameter.
 
@@ -185,9 +185,8 @@ function ParameterConstraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kc
 end
 
 
-
 """
-    define_initialcondition_constraints(; kwargs...)
+    InitialConditionConstraints(; kwargs...)
 
 Define initial condition constraints. Each keyword argument represents a different initial condition, where the value is a tuple defining the valid range for that initial condition.
 
@@ -217,8 +216,7 @@ function InitialConditionConstraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2
 end
 
 
-
-function AllConstraints(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints) 
+function AllConstraints(paramconstraints::ParameterConstraints=ParameterConstraints(), icconstraints::InitialConditionConstraints=InitialConditionConstraints()) 
     return AllConstraints(
         paramconstraints.ka1,
         paramconstraints.kb1,
@@ -240,59 +238,28 @@ function AllConstraints(paramconstraints::ParameterConstraints, icconstraints::I
         icconstraints.A
     )
 end
-
 #> END
 
 
-
-
 """Fitness function constructor called during GAProblem construction that captures the fixed indices and ODE problem"""
-# function make_fitness_function(constraints::ConstraintSet, ode_problem::ODEProblem, eval_function)
-
-#     let fixed_idxs = get_fixed_indices(constraints), ode_problem = ode_problem, eval_function = eval_function
-        
-#         function fitness_function(input::Vector{Float64})
-#             #* Preallocate a new input array, merging fixed and variable parameters
-#             merged_input = Vector{Float64}(undef, length(input) + length(fixed_idxs))
-            
-#             var_idx = 1
-#             for idx in eachindex(merged_input)
-#                 if idx in fixed_idxs #* If the index is fixed in the constraints, assign that value at the same index in the merged input
-#                     merged_input[idx] = constraints[idx].fixed_value
-#                 else #* Otherwise, assign the value from the input array
-#                     merged_input[idx] = input[var_idx]
-#                     var_idx += 1
-#                 end
-#             end
-            
-#             return eval_function(merged_input, ode_problem)
-#         end
-#         return fitness_function
-#     end
-# end
-
 function make_fitness_function(constraints::ConstraintSet, ode_problem::OT, eval_function::FT) where {OT<:ODEProblem, FT<:Function}
     fixed_idxs = get_fixed_indices(constraints)
     fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
     n_fixed = length(fixed_idxs)
-    n_total = n_fixed + activelength(constraints)  # Assuming ode_problem.p contains the initial variable parameters
+    n_total = n_fixed + activelength(constraints)  
+    # if constraints isa ParameterConstraints
+    #     n_total = n_fixed + activelength(constraints) 
+    # else
+    #     n_total = n_fixed + activelength(constraints)
+    # end
 
     merged_input = Vector{Float64}(undef, n_total)
+    # merged_input = zeros(Float64, n_total)
     merged_input[fixed_idxs] .= fixed_values  # Fill in fixed values
 
     function fitness_function(input::Vector{Float64})
-        # merged_input = Vector{Float64}(undef, n_total)
-        # merged_input[fixed_idxs] .= fixed_values  # Fill in fixed values
-        merged_input[setdiff(1:n_total, fixed_idxs)] .= input  # Fill in variable values
 
-        # Fill in variable values
-        # j = 1
-        # for i in 1:n_total
-        #     if !(i in fixed_idxs)
-        #         merged_input[i] = input[j]
-        #         j += 1
-        #     end
-        # end
+        merged_input[setdiff(1:n_total, fixed_idxs)] .= input  # Fill in variable values
 
         return eval_function(merged_input, ode_problem)
     end
@@ -337,33 +304,17 @@ make_fitness_function(constraints::AllConstraints, ode_problem::ODEProblem) = ma
 """
     GAProblem{T <: ConstraintSet}
 
-Struct encapsulating a Genetic Algorithm (GA) optimization problem. It holds the constraints for the problem, the ODE problem to be solved, the fitness function, and any additional keyword arguments.
+Struct encapsulating a Genetic Algorithm (GA) optimization problem. It holds the constraints for the problem, the ODE problem to be solved.
 
 # Fields
 - `constraints::T`: Constraints for the problem. Either `ParameterConstraints` or `InitialConditionConstraints` or `AllConstraints`.
 - `ode_problem::ODEProblem`: ODE problem to be solved.
-- `fitness_function::Function`: Fitness function, automatically generated with constructor
 """
 @kwdef mutable struct GAProblem{CT <: ConstraintSet, OT <: ODEProblem}
-    constraints::CT = AllConstraints(ParameterConstraints(), InitialConditionConstraints())
+    constraints::CT = AllConstraints()
     ode_problem::OT = make_ODE_problem()
-    # fitness_function::FT = make_fitness_function
-
-    # function GAProblem(constraints::CT, ode_problem::OT, fitness_function::FT = make_fitness_function(constraints, ode_problem)) where {CT<:ConstraintSet, OT<:ODEProblem, FT<:Function}
-    #     new{CT,OT,FT}(constraints, ode_problem, fitness_function)
-    # end
 end
 
-# """Fixes constraints prior to GAProblem"""
-# function set_fixed_constraints!(constraints::ConstraintSet; fixedinputs...)
-#     for (name, value) in pairs(fixedinputs)
-#         symbolic_name = Symbol(name)
-#         if symbolic_name in fieldnames(typeof(constraints))
-#             fix_constraint!(getfield(constraints, symbolic_name), value) #! THIS DOESN'T WORK FOR SOME REASON IN SETTING NESTED IMMUTABLE STRUCT PROPERTIES
-#         end
-#     end
-#     return constraints
-# end
 
 """Simply marks the constraints as fixed, without assigning a value"""
 function set_fixed_constraints!(constraints::ConstraintSet, fixednames::Vector{Symbol})
@@ -377,6 +328,7 @@ function set_fixed_constraints!(constraints::ConstraintSet, fixednames::Vector{S
     return constraints
 end
 
+"""Sets the vector of unpacked fixed constraints according to symbol, assigning the given values"""
 function set_fixed_values!(fixed_constraintranges::Vector{ConstraintRange}, values...)
     for (conrange, value) in zip(fixed_constraintranges, values)
         conrange.fixed_value = value
@@ -408,7 +360,6 @@ function Base.show(io::IO, ::MIME"text/plain", prob::GAProblem)
     printstyled(io, "\nFixed values:\n"; bold = true, color = :red)
     printstyled(io, [(con.name => con.fixed_value) for con in prob.constraints if !con.active], "\n")
 end
-
 #> END
 
 #< POPULATION GENERATION METHODS
@@ -419,23 +370,10 @@ Generate a population of `n` individuals for the given generic `constraints <: C
 
 # Example
 ```julia
-constraints = define_parameter_constraints(karange = (-3.0, 1.0), kbrange = (-3.0, 3.0))
+constraints = ParameterConstraints()
 population = generate_population(constraints, 100)
 ```
 """
-# function generate_population(constraint::ConstraintSet, n::Int)
-#     population = [exp10.(rand(Uniform(log10(conrange.min), log10(conrange.max)), n)) for conrange in constraint]
-#     population = transpose(hcat(population...))
-#     return [population[:, i] for i in 1:n]
-# end
-
-function generate_empty_population(constraints::ConstraintSet, n::Int)
-    num_params = activelength(constraints)
-    
-    # Preallocate the population array of arrays
-    [Vector{Float64}(undef, num_params) for _ in 1:n]
-end
-
 function generate_population(constraints::ConstraintSet, n::Int)
     # Preallocate the population array of arrays
     population = generate_empty_population(constraints, n)
@@ -443,7 +381,15 @@ function generate_population(constraints::ConstraintSet, n::Int)
     generate_population!(population, constraints)
 end
 
+"""Generate an empty population array of arrays, where the length of each individual is the number of constraints minus the fixed ones"""
+function generate_empty_population(constraints::ConstraintSet, n::Int)
+    num_params = activelength(constraints)
+    
+    # Preallocate the population array of arrays
+    [Vector{Float64}(undef, num_params) for _ in 1:n]
+end
 
+"""In-place population generation of already allocated empty population"""
 function generate_population!(population::Vector{Vector{Float64}}, constraints::ConstraintSet)
 
     rand_vals = Vector{Float64}(undef, length(population))
@@ -463,6 +409,12 @@ function generate_population!(population::Vector{Vector{Float64}}, constraints::
     end
     return population
 end
+
+# function generate_population(constraint::ConstraintSet, n::Int)
+#     population = [exp10.(rand(Uniform(log10(conrange.min), log10(conrange.max)), n)) for conrange in constraint]
+#     population = transpose(hcat(population...))
+#     return [population[:, i] for i in 1:n]
+# end
 #> END
 
 
@@ -484,29 +436,6 @@ end
 #         end
 #         return fitness_function
 #     end
-# end
-
-# """Returns the `fitness function(input)` for the cost function, referencing the GA problem with closure"""
-# function make_fitness_function(gaprob::GAProblem)
-#     fixed_idxs = get_fixed_indices(gaprob.constraints)
-    
-#     function fitness_function(input::Vector{Float64})
-#         # Preallocate a new input array, merging fixed and variable parameters
-#         merged_input = Vector{Float64}(undef, length(input) + length(fixed_idxs))
-        
-#         var_idx = 1
-#         for idx in eachindex(merged_input)
-#             if idx in fixed_idxs
-#                 merged_input[idx] = gaprob.constraints[idx].fixed_value
-#             else
-#                 merged_input[idx] = input[var_idx]
-#                 var_idx += 1
-#             end
-#         end
-        
-#         return gaprob.eval_function(merged_input, gaprob.ode_problem)
-#     end
-#     return fitness_function
 # end
 #> END
 
@@ -535,9 +464,6 @@ function run_GA(ga_problem::GAProblem, population::Vector{Vector{Float64}} = gen
     # BLAS.set_num_threads(1)
 
     population_size = length(population)
-
-    # #* Generate the initial population.
-    # pop = generate_population!(population, ga_problem.constraints)
 
     #* Create constraints using the min and max values from constraints if they are active for optimization.
     boxconstraints = BoxConstraints([constraint.min for constraint in ga_problem.constraints if !constraint.isfixed], [constraint.max for constraint in ga_problem.constraints if !constraint.isfixed])
@@ -631,44 +557,7 @@ function make_ga_dataframe(results::GAResults, constraints::ConstraintSet)
 end
 
 
-
-
 #< MISCELLANEOUS FUNCTIONS ##
-"""Defines logspace function for sampling parameters"""
+"""Defines logspace function for sampling parameters and initial conditions"""
 logrange(start, stop, length::Int) = exp10.(collect(range(start=log10(start), stop=log10(stop), length=length)))
-
-
-
-
-
-
-"""Find the indices of the inputs in a `NAME` array"""
-function find_indices(combination::Vector{String}, NAMES::Vector{String})
-    p1idx = findfirst(isequal(combination[1]), NAMES)
-    p2idx = findfirst(isequal(combination[2]), NAMES)
-    return p1idx, p2idx
-end
-
-function find_indices(combination::Vector{Symbol}, NAMES::Vector{String})
-    str1 = string(combination[1])
-    str2 = string(combination[2])
-    p1idx = findfirst(isequal(str1), NAMES)
-    p2idx = findfirst(isequal(str2), NAMES)
-    return p1idx, p2idx
-end
-
-function find_indices(combination::Vector{ConstraintRange}, constraints::Vector{ConstraintRange})::Tuple{Int,Int}
-    p1idx = findfirst(x -> x.name == combination[1].name, constraints)
-    p2idx = findfirst(x -> x.name == combination[2].name, constraints)
-    return p1idx, p2idx
-end
-
-"""Triplet version for 3FixedParamCSVMaker"""
-function find_indices(param1::String, param2::String, param3::String, constraints::Vector{ConstraintRange})::Tuple{Int,Int,Int}
-    p1idx = findfirst(x -> x.name == param1, constraints)
-    p2idx = findfirst(x -> x.name == param2, constraints)
-    p3idx = findfirst(x -> x.name == param3, constraints)
-
-    return p1idx, p2idx, p3idx
-end
 #> END

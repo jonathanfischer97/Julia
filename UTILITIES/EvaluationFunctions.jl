@@ -154,7 +154,6 @@ end
 function solve_for_fitness_peramp(prob::OT, idx::Vector{Int}) where OT <: ODEProblem
 
     sol = solve(prob, Rodas5(), saveat=0.1, save_idxs=idx, verbose=false)
-    # return CostFunction(sol)
     
     if sol.retcode == ReturnCode.Success
         return CostFunction(sol)

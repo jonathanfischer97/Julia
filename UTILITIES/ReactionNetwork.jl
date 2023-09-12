@@ -45,6 +45,20 @@ function make_fullrn(;defparams = [:ka1 => 0.009433439939827041, :kb1 => 2.35501
     return fullrn
 end
 
+"""Convenience constructor for my normal ODEProblem"""
+function make_ODE_problem(tend::Float64=2000.)
+    tspan = (0., tend)
+
+    fullrn = make_fullrn()
+
+    ogprob = ODEProblem(fullrn, [], tspan, ())
+    # @info typeof(ogprob)
+
+    de = modelingtoolkitize(ogprob)
+    # @info typeof(de)
+
+    ODEProblem{true,SciMLBase.FullSpecialize}(de, [], tspan, jac=true)
+end
 
 
 # """Original oscillator model, without all possible pairs of reactions"""

@@ -95,16 +95,12 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
 
                 # @info get_fixed_indices(fixed_constraints)
 
-                #* remake the fitness function with the fixed values
-                # ga_problem.fitness_function = make_fitness_function(constraints, ode_prob)
-
-
                 Random.seed!(1234)
             
                 generate_population!(initial_population, constraints)
                 # @info length(initial_population[1])
             
-                oscillatory_points_results = run_GA(ga_problem, initial_population; iterations = 5)
+                oscillatory_points_results = run_GA(ga_problem, initial_population; iterations = 5, show_trace = false)
             
                 num_oscillatory_points = length(oscillatory_points_results.fitvals)
 
