@@ -214,7 +214,7 @@ end
 function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; start_idx::Int, end_idx::Int, rootpath::String, rangelength=4, DFrange=[100., 1000., 10000.], popsize=20000)
     names = [:ka1, :kb1, :kcat1, :ka2, :kb2, :ka3, :kb3, :ka4, :kb4, :ka7, :kb7, :kcat7, :L, :K, :P, :A]
     triplets = collect(combinations(names, 3))
-    
+
     df_constraintrange = constraints.DF
     df_constraintrange.isfixed = true
 
@@ -249,11 +249,13 @@ function run_MAIN(rangelength=4, popsize=20000, start_idx=1, end_idx=560)
     run_all_triplets(allconstraints, ogprobjac; start_idx=start_idx, end_idx=end_idx, rootpath=rootpath, rangelength=rangelength, popsize=popsize)
 end
 
-if isempty(ARGS)
-    run_MAIN()
-else
-    run_MAIN(parse(Int, ARGS[1]), parse(Int, ARGS[2]), parse(Int, ARGS[3]), parse(Int, ARGS[4]))
-end
+
+
+start_idx = parse(Int, ENV["START_IDX"])
+end_idx = parse(Int, ENV["END_IDX"])
+
+run_MAIN(parse(Int, ARGS[1]), parse(Int, ARGS[2]), start_idx, end_idx)
+
 
 
 
