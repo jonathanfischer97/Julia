@@ -143,7 +143,7 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
                     #* rewrite the L, K, P, A columns with the initial conditions
                     CSV.write(DFpath*"/$(fixed_names[1])=$(round(val1; digits = 2))_$(fixed_names[2])=$(round(val2;digits = 2))_$(fixed_names[3])=$(round(val3; digits=2)).csv", oscillatory_points_df)
                 end
-                next!(loopprogress)
+                # next!(loopprogress)
                 i += 1
             end
         end
@@ -244,7 +244,7 @@ function run_MAIN(rangelength=4, popsize=20000, start_idx=1, end_idx=560)
     ic_constraints = InitialConditionConstraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
     allconstraints = AllConstraints(param_constraints, ic_constraints)
 
-    rootpath = mkpath("./ROCKFISH_DATA/3Fixed/$PopSize_$popsize")
+    rootpath = mkpath("./ROCKFISH_DATA/3Fixed/PopSize_$popsize")
 
     run_all_triplets(allconstraints, ogprobjac; start_idx=start_idx, end_idx=end_idx, rootpath=rootpath, rangelength=rangelength, popsize=popsize)
 end
