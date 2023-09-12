@@ -218,7 +218,7 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; start_i
     df_constraintrange = constraints.DF
     df_constraintrange.isfixed = true
 
-    for triplet in triplets[start_idx:min(end_idx, end)]
+    for triplet in triplets[start_idx:min(end_idx, length(triplets))]
         tripletpath = mkpath(rootpath*"/$(triplet[1])_$(triplet[2])_$(triplet[3])")
         summarypath = mkpath(tripletpath*"/SummaryResults")
         rawpath = mkpath(tripletpath*"/RawData")
