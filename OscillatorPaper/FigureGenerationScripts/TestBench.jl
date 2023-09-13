@@ -45,19 +45,7 @@ end
 # infologger = ConsoleLogger(stderr, Logging.Info)
 # global_logger(infologger)
 
-function make_ODE_problem()
-    tspan = (0., 2000.0)
 
-    fullrn = make_fullrn()
-
-    ogprob = ODEProblem(fullrn, [], tspan, ())
-    # @info typeof(ogprob)
-
-    de = modelingtoolkitize(ogprob)
-    # @info typeof(de)
-
-    ODEProblem{true,SciMLBase.FullSpecialize}(de, [], tspan, jac=true)
-end
 
 
 ogprobjac = make_ODE_problem();
@@ -89,8 +77,6 @@ ogjacsol = solve(ogprobjac, Rosenbrock23(), saveat=0.1, save_idxs= [6, 9, 10, 11
 
 
 
-ogprobjac, ogprob = make_ODE_problem();
-
 
 param_constraints = ParameterConstraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
 ic_constraints = InitialConditionConstraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
@@ -98,14 +84,17 @@ ic_constraints = InitialConditionConstraints(; Lrange = (1e-1, 1e2), Krange = (1
 allconstraints = AllConstraints(param_constraints, ic_constraints)
 
 
-
+allconstraints = AllConstraints()
 gaproblem = GAProblem(allconstraints, ogprobjac)
 @report_opt GAProblem(allconstraints, ogprobjac)
 
 @code_warntype GAProblem(allconstraints, ogprobjac)
 
 
+initial_population = generate_population(allconstraints, 10000)
+ga_results = run_GA(gaproblem, initial_population; iterations = 5)
 
+save_to_csv(ga_results, allconstraints, "gentest.csv")
 
 
 
@@ -127,11 +116,11 @@ set_fixed_constraints!(gaproblem.constraints, fixed_inputs...)
     Takes a named tuple of fixed inputs and a GAProblem and sets the constraints of the GAProblem to the fixed inputs.
     Returns `DataFrame` of the optimization results.
 """
-function test_fixedparam(gaprob::GAProblem, fixedDF=1000.; fixed_inputs)
+function test_fixedparam(gaprob::GAProblem; fixed_inputs)
 
     constraints = gaprob.constraints
 
-    set_fixed_constraints!(gaprob; fixed_inputs)
+    set_fixed_constraints!(constraints; fixed_inputs)
 
 
     Random.seed!(1234)

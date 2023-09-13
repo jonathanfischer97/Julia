@@ -12,7 +12,7 @@ begin
     using LinearAlgebra
     using ProgressMeter
 
-    using Combinatorics
+    # using Combinatorics
 
     include("../../UTILITIES/EvolutionaryOverloads.jl")
 
@@ -26,7 +26,7 @@ begin
     # import the genetic algorithm and associated functions
     include("../../UTILITIES/GA_functions.jl")
 
-    include("../../UTILITIES/TestBenchPlotUtils.jl")
+    # include("../../UTILITIES/TestBenchPlotUtils.jl")
 
     # const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 
@@ -164,38 +164,47 @@ end
 
 
 """Loops through each fixed value of DF and runs the fixed_quadruplet_ic_searcher function"""
-function loop_4fixedICs_thru_DFvals(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; rangelength::Int = 4, DFrange = [100.,1000.,10000.], popsize::Int=20000)
-    rootpath = mkpath("./ROCKFISH_DATA/4Fixed/PopSize_$popsize")
-    summarypath = mkpath(rootpath*"/SummaryResults")
-    rawpath = mkpath(rootpath*"/4FixedICRawSets")
-    for DF in DFrange
-        println("Running DF = $DF")
-        results_df = fixed_quadruplet_ic_searcher(paramconstraints, icconstraints, prob; rangelength=rangelength, fixedDF=DF, popsize=popsize, path=rawpath)
-        CSV.write(summarypath*"/Summary_DF=$(round(fixedDF)).csv", results_df)
-    end
-end
+# function loop_4fixedICs_thru_DFvals(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; rangelength::Int = 4, DFrange = [100.,1000.,10000.], popsize::Int=20000)
+#     rootpath = mkpath("./ROCKFISH_DATA/4Fixed/PopSize_$popsize")
+#     summarypath = mkpath(rootpath*"/SummaryResults")
+#     rawpath = mkpath(rootpath*"/4FixedICRawSets")
+#     for DF in DFrange
+#         println("Running DF = $DF")
+#         results_df = fixed_quadruplet_ic_searcher(paramconstraints, icconstraints, prob; rangelength=rangelength, fixedDF=DF, popsize=popsize, path=rawpath)
+#         CSV.write(summarypath*"/Summary_DF=$(round(DF)).csv", results_df)
+#     end
+# end
 
 
 
-function run_4fixedIC(rangelength=4, popsize=20000)
+function run_4fixedIC(rangelength=4, popsize=20000, fixedDF=1000.)
 
     ogprobjac = make_ODE_problem()
 
     param_constraints = ParameterConstraints(;karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
     ic_constraints = InitialConditionConstraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
 
-    # fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=4, fixedDF=fixedDF)
-    loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangelength=rangelength, DFrange = [100.,1000.,10000.], popsize=popsize)
+    #* make paths
+    rootpath = mkpath("./ROCKFISH_DATA/4Fixed/PopSize_$popsize")
+    summarypath = mkpath(rootpath*"/SummaryResults")
+    rawpath = mkpath(rootpath*"/4FixedICRawSets")
+
+    results_df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; path=rawpath, rangelength=rangelength, fixedDF=fixedDF, popsize=popsize)
+    CSV.write(summarypath*"/Summary_DF=$(round(DF)).csv", results_df)
+
+    # loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangelength=rangelength, DFrange = [100.,1000.,10000.], popsize=popsize)
 end
 
-run_4fixedIC(3, 2000)
+# run_4fixedIC(3, 5000)
 
 
-if isempty(ARGS)
-    run_4fixedIC()
-else
-    run_4fixedIC(parse(Int, ARGS[1]), parse(Int, ARGS[2]))
-end
 
+run_4fixedIC(parse(Int, ARGS[1]), parse(Int, ARGS[2]), parse(Float64, ARGS[3]))
+
+
+
+#! make sure fixed DF and fixed ICs are being passed correctly in the fitness function
+#* figure out why CPU utilization only 60% sometimes 
+#! make GAResults save population split into generations, with each generation as a new header in CSV 
 
 

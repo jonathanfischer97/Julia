@@ -358,7 +358,7 @@ function Base.show(io::IO, ::MIME"text/plain", prob::GAProblem)
     printstyled(io, prob.ode_problem.u0, "\n")
 
     printstyled(io, "\nFixed values:\n"; bold = true, color = :red)
-    printstyled(io, [(con.name => con.fixed_value) for con in prob.constraints if !con.active], "\n")
+    printstyled(io, [(con.name => con.fixed_value) for con in prob.constraints if con.isfixed], "\n")
 end
 #> END
 
@@ -459,7 +459,7 @@ end
 Runs the genetic algorithm, returning the `result`, and the `record` named tuple
 """
 function run_GA(ga_problem::GAProblem, population::Vector{Vector{Float64}} = generate_population(ga_problem.constraints, 10000); 
-                abstol=1e-4, reltol=1e-2, successive_f_tol = 2, iterations=5, parallelization = :thread, show_trace=true)#, threshold=10000)
+                abstol=1e-4, reltol=1e-2, successive_f_tol = 4, iterations=5, parallelization = :thread, show_trace=true)#, threshold=10000)
     # blas_threads = BLAS.get_num_threads()
     # BLAS.set_num_threads(1)
 
@@ -513,6 +513,7 @@ struct GAResults
     fitvals::Vector{Float64}
     periods::Vector{Float64}
     amplitudes::Vector{Float64}
+    gen_indices::Vector{Tuple{Int,Int}}
 end
 
 function GAResults(result::Evolutionary.EvolutionaryOptimizationResults, indlength::Int)
@@ -522,9 +523,12 @@ function GAResults(result::Evolutionary.EvolutionaryOptimizationResults, indleng
     periods = Vector{Float64}(undef, numpoints)
     amplitudes = Vector{Float64}(undef, numpoints)
 
+    gen_indices = Tuple{Int, Int}[]
     startidx = 1
     for gen in result.trace
         endidx = startidx + length(gen.metadata["population"]) - 1
+
+        push!(gen_indices, (startidx, endidx))
 
         population[startidx:endidx] .= gen.metadata["population"]
   
@@ -536,7 +540,34 @@ function GAResults(result::Evolutionary.EvolutionaryOptimizationResults, indleng
 
         startidx = endidx + 1
     end
-    return GAResults(result.trace, population, fitvals, periods, amplitudes)
+    return GAResults(result.trace, population, fitvals, periods, amplitudes, gen_indices)
+end
+
+function save_to_csv(results::GAResults, constraints::ConstraintSet, filename::String)
+    open(filename, "w") do io
+        # Write the header
+        write(io, "fit,per,amp")
+        for conrange in constraints
+            write(io, ",$(conrange.name)")
+        end
+        write(io, "\n")
+        
+        # Loop over each generation based on gen_indices
+        for (gen, (start_idx, end_idx)) in enumerate(results.gen_indices)
+            write(io, "Gen=$gen\n")
+            
+            for i in start_idx:end_idx
+                # Write the fitness, period, and amplitude values
+                write(io, "$(results.fitvals[i]),$(results.periods[i]),$(results.amplitudes[i])")
+                
+                # Write the population values
+                for val in results.population[i]
+                    write(io, ",$val")
+                end
+                write(io, "\n")
+            end
+        end
+    end
 end
 
 

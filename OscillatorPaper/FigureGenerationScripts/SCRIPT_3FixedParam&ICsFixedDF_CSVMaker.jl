@@ -37,7 +37,7 @@ begin
     # import the genetic algorithm and associated functions
     include("../../UTILITIES/GA_functions.jl")
 
-    include("../../UTILITIES/TestBenchPlotUtils.jl")
+    # include("../../UTILITIES/TestBenchPlotUtils.jl")
 
 
     numthreads = Threads.nthreads()
@@ -103,6 +103,7 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
                 oscillatory_points_results = run_GA(ga_problem, initial_population; iterations = 5, show_trace = false)
             
                 num_oscillatory_points = length(oscillatory_points_results.fitvals)
+                println("Number of oscillatory points: $num_oscillatory_points")
 
 
                 #* if there are no oscillatory points, save the results to the results_df and continue
@@ -133,11 +134,11 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
                     num_oscillatory_points_array[i] = num_oscillatory_points
                 
                     #* make dataframe from oscillatory_points_results
-                    oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, constraints)
+                    # oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, constraints)
                     
 
                     #* rewrite the L, K, P, A columns with the initial conditions
-                    CSV.write(DFpath*"/$(fixed_names[1])=$(round(val1; digits = 2))_$(fixed_names[2])=$(round(val2;digits = 2))_$(fixed_names[3])=$(round(val3; digits=2)).csv", oscillatory_points_df)
+                    save_to_csv(oscillatory_points_results, constraints, DFpath*"/$(fixed_names[1])=$(round(val1; digits = 2))_$(fixed_names[2])=$(round(val2;digits = 2))_$(fixed_names[3])=$(round(val3; digits=2)).csv")
                 end
                 # next!(loopprogress)
                 i += 1
@@ -145,10 +146,9 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
         end
     end
     
-    results_df = DataFrame([fixed_names[1] => vals1, fixed_names[2] => vals2, fixed_names[3] => vals3, :DF => fixedDF, :num_oscillatory_points => num_oscillatory_points_array, 
+    return DataFrame([fixed_names[1] => vals1, fixed_names[2] => vals2, fixed_names[3] => vals3, :DF => fixedDF, :num_oscillatory_points => num_oscillatory_points_array, 
                         :average_period => average_periods, :maximum_period => maximum_periods, :minimum_period => minimum_periods,
                         :average_amplitude => average_amplitudes, :maximum_amplitude => maximum_amplitudes, :minimum_amplitude => minimum_amplitudes])
-    return results_df
 end
 
 
@@ -230,15 +230,10 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; start_i
 end
 
 function run_MAIN(rangelength=4, popsize=20000, start_idx=1, end_idx=560)
-    tspan = (0., 2000.0)
-    fullrn = make_fullrn()
-    ogprob = ODEProblem(fullrn, [], tspan, [])
-    de = modelingtoolkitize(ogprob)
-    ogprobjac = ODEProblem(de, [], tspan, jac=true)
 
-    param_constraints = ParameterConstraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
-    ic_constraints = InitialConditionConstraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
-    allconstraints = AllConstraints(param_constraints, ic_constraints)
+    ogprobjac = make_ODE_problem()
+
+    allconstraints = AllConstraints()
 
     rootpath = mkpath("./ROCKFISH_DATA/3Fixed/PopSize_$popsize")
 

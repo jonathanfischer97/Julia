@@ -10,6 +10,9 @@
 #         return p
 # end
 
+using Plots
+using ColorSchemes, Plots.PlotMeasures
+default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
 
 """
 Plot the solution from a row of the DataFrame
@@ -55,7 +58,7 @@ function frequencies_per_minute!(t::Vector{Float64}, freq_values::Vector{Float64
         
         # Update the frequency values in-place to frequencies per minute
         freq_values .= freq_values .* freq_step_per_minute
-    end
+end
     
     
 
@@ -147,17 +150,27 @@ end
 """
 Plot the solution and FFT of every row in the DataFrame
 """
-function plot_everything(df::DataFrame, prob::ODEProblem; setnum::Int = 1, label = "", jump=10)
-        fftw_threads = FFTW.get_num_threads()
-        FFTW.set_num_threads(18)
+function plot_everything(df::DataFrame, prob::ODEProblem; jump=10, path = "OscillatorPaper/FigureGenerationScripts/TestbenchPlots")
         progbar = Progress(cld(nrow(df),jump); desc = "Plotting:")
-        path = mkpath("OscillatorPaper/FigureGenerationScripts/TestbenchPlots/Set$(setnum)-$(label)")
-        CSV.write(path*"/Set$(setnum)-$(label).csv", df)
+        # plotpath = mkpath(path*"/Plots")
+        # CSV.write(path*"/Set$(setnum)-$(label).csv", df)
     
         for i in 1:jump:nrow(df)
             p = plotboth(df[i,:], prob)
             savefig(p, path*"/plot_$(i).png")
             next!(progbar)
         end
-        FFTW.set_num_threads(fftw_threads)
-    end
+end
+
+"""
+Plot everything in the directory
+"""
+function plot_everything_from_csv_indir(dirpath::String, prob::ODEProblem=make_ODE_problem(); numplots = 100, filenum = 1)
+        files = readdir(dirpath; join=true) |> filter(x -> !isdir(x))
+        filepath = files[filenum]
+        df = CSV.read(filepath, DataFrame)
+        plotpath = mkpath(dirpath*"/File$(filenum)_Plots")
+
+        jump = cld(nrow(df), numplots)
+        plot_everything(df, prob; jump = jump, path = plotpath)
+end
