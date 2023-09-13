@@ -258,14 +258,30 @@ function make_fitness_function(constraints::ConstraintSet, ode_problem::OT, eval
     merged_input[fixed_idxs] .= fixed_values  # Fill in fixed values
 
     function fitness_function(input::Vector{Float64})
-
         merged_input[setdiff(1:n_total, fixed_idxs)] .= input  # Fill in variable values
-
         return eval_function(merged_input, ode_problem)
     end
 
     return fitness_function
 end
+
+"""Returns in-place function"""
+# function make_fitness_function(constraints::ConstraintSet, ode_problem::OT, eval_function::FT) where {OT<:ODEProblem, FT<:Function}
+#     fixed_idxs = get_fixed_indices(constraints)
+#     fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
+#     n_fixed = length(fixed_idxs)
+#     n_total = n_fixed + activelength(constraints)
+
+#     merged_input = Vector{Float64}(undef, n_total)
+#     merged_input[fixed_idxs] .= fixed_values  # Fill in fixed values
+
+#     function fitness_function(Fv::Vector{Float64}, input::Vector{Float64})
+#         merged_input[setdiff(1:n_total, fixed_idxs)] .= input  # Fill in variable values
+#         Fv .= eval_function(merged_input, ode_problem)
+#     end
+
+#     return fitness_function
+# end
 
 
 """Multithreaded fitness function, allocated a merged array for each thread"""

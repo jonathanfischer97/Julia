@@ -91,8 +91,14 @@ gaproblem = GAProblem(allconstraints, ogprobjac)
 @code_warntype GAProblem(allconstraints, ogprobjac)
 
 
-initial_population = generate_population(allconstraints, 10000)
+initial_population = generate_population(allconstraints, 5000)
 ga_results = run_GA(gaproblem, initial_population; iterations = 5)
+
+begin 
+    Random.seed!(1234)
+    initial_population = generate_population(allconstraints, 5000)
+    @btime run_GA($gaproblem, $initial_population; iterations = 5)
+end
 
 save_to_csv(ga_results, allconstraints, "gentest.csv")
 
@@ -109,6 +115,11 @@ pop = generate_population(allconstraints, 5000)
 fixed_inputs = (L = 100.0, K = 1.0, P = 1.0, A = 10.0)
 
 set_fixed_constraints!(gaproblem.constraints, fixed_inputs...)
+
+
+#* test objective function 
+
+
 
 
 
