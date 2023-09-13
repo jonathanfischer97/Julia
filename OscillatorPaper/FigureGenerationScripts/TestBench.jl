@@ -45,43 +45,13 @@ end
 # infologger = ConsoleLogger(stderr, Logging.Info)
 # global_logger(infologger)
 
+#* save just last 90% of ode solution
+#* figure out the right fitness function, in-place
 
 
 
 ogprobjac = make_ODE_problem();
-@code_warntype make_ODE_problem()   
 
-@report_opt solve(ogprobjac, Rosenbrock23(), saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
-
-@code_typed solve(ogprobjac, Rosenbrock23(), saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
-
-@code_warntype eval_all_fitness(rand(17), ogprobjac)
-
-input = [ogprobjac.p; ogprobjac.u0[1:4]]
-@btime eval_all_fitness(input, $ogprobjac)
-
-@code_warntype CostFunction(ogjacsol)
-
-@btime CostFunction($ogjacsol)
-
-
-solu = map(sum, ogjacsol.u)
-
-
-ogjacsol = solve(ogprobjac, Rosenbrock23(), saveat=0.1, save_idxs= [6, 9, 10, 11, 12, 15, 16])
-
-
-@btime solve($ogprobjac, Rodas5(), saveat=0.2, save_idxs= [6, 9, 10, 11, 12, 15, 16])
-@btime CostFunction($solu, $ogjacsol.t)
-
-
-
-
-
-param_constraints = ParameterConstraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
-ic_constraints = InitialConditionConstraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
-
-allconstraints = AllConstraints(param_constraints, ic_constraints)
 
 
 allconstraints = AllConstraints()
@@ -94,11 +64,13 @@ gaproblem = GAProblem(allconstraints, ogprobjac)
 initial_population = generate_population(allconstraints, 5000)
 ga_results = run_GA(gaproblem, initial_population; iterations = 5)
 
-begin 
+function test(gaproblem)
     Random.seed!(1234)
-    initial_population = generate_population(allconstraints, 5000)
-    @btime run_GA($gaproblem, $initial_population; iterations = 5)
+    initial_population = generate_population(gaproblem.constraints, 3000)
+    run_GA(gaproblem, initial_population; iterations = 5)
 end
+
+@btime test($gaproblem)
 
 save_to_csv(ga_results, allconstraints, "gentest.csv")
 

@@ -190,7 +190,7 @@ function run_4fixedIC(rangelength=4, popsize=20000, fixedDF=1000.)
     rawpath = mkpath(rootpath*"/4FixedICRawSets")
 
     results_df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; path=rawpath, rangelength=rangelength, fixedDF=fixedDF, popsize=popsize)
-    CSV.write(summarypath*"/Summary_DF=$(round(DF)).csv", results_df)
+    CSV.write(summarypath*"/Summary_DF=$(round(fixedDF)).csv", results_df)
 
     # loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangelength=rangelength, DFrange = [100.,1000.,10000.], popsize=popsize)
 end

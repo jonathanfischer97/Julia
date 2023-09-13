@@ -87,7 +87,7 @@ function CostFunction(solu::Vector{Float64}, solt::Vector{Float64})::Vector{Floa
     end 
 
     #* Trim first 10% of the solution array to avoid initial spikes
-    solu = solu[tstart:end] 
+    # solu = solu[tstart:end] 
 
     indx_max, vals_max = findextrema(solu; height = 1e-2, distance = 5)
     indx_min, vals_min = findextrema(solu; height = 0.0, distance = 5, find_maxima=false)
@@ -112,8 +112,8 @@ function CostFunction(solu::Vector{Float64}, solt::Vector{Float64})::Vector{Floa
         sum_diff = getDif(fft_peakvals) #* get the summed difference between the first and last peaks in frequency domain
     
         #* Compute the period and amplitude
-        tview = @view solt[tstart:end]
-        period, amplitude = getPerAmp(tview, indx_max, vals_max, indx_min, vals_min)
+        # tview = @view solt[tstart:end]
+        period, amplitude = getPerAmp(solt, indx_max, vals_max, indx_min, vals_min)
     
         return [standard_deviation + sum_diff + log(10,period), period, amplitude]
     end
@@ -152,8 +152,10 @@ end
 
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
 function solve_for_fitness_peramp(prob::OT, idx::Vector{Int}) where OT <: ODEProblem
+    tstart = cld(length(prob.tspan),10)
+    savepoints = prob.tspan[tstart]:0.1:prob.tspan[end]
 
-    sol = solve(prob, Rodas5(), saveat=0.1, save_idxs=idx, verbose=false)
+    sol = solve(prob, Rodas5(), saveat=savepoints, save_idxs=idx, verbose=false)
     
     if sol.retcode == ReturnCode.Success
         return CostFunction(sol)
