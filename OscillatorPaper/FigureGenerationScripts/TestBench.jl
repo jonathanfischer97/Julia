@@ -71,13 +71,84 @@ save_to_csv(ga_results, allconstraints, "gentest.csv")
 
 function test(gaproblem)
     Random.seed!(1234)
-    initial_population = generate_population(gaproblem.constraints, 3000)
-    run_GA(gaproblem, initial_population; iterations = 5)
+    initial_population = generate_empty_population(gaproblem.constraints, 3000)
+    population = generate_population_stratified!(initial_population, gaproblem.constraints,10)
+    run_GA(gaproblem, population; iterations = 5)
 end
+
+ga_results = test(gaproblem)
 
 @btime test($gaproblem)
 
 @bprofile test(gaproblem)
+
+#! population generation testing ##########
+Random.seed!(1234)
+loguniform_pop = generate_population(gaproblem.constraints, 5000)
+
+initial_population = generate_empty_population(gaproblem.constraints, 5000)
+stratified_pop = generate_population_stratified!(initial_population, gaproblem.constraints,3)
+
+loguniform_df = make_pop_dataframe(loguniform_pop, gaproblem.constraints)
+stratified_df = make_pop_dataframe(stratified_pop, gaproblem.constraints)
+
+
+loguniform_stats = describe(loguniform_df)
+show(loguniform_stats, allrows=true)
+filter!(row -> row[1] != :DF, loguniform_stats)
+CSV.write("loguniform_stats.csv", loguniform_df)
+
+stratified_stats = describe(stratified_df)
+show(stratified_stats, allrows=true)
+filter!(row -> row[1] != :DF, stratified_stats)
+CSV.write("stratified_stats.csv", stratified_df)
+
+using StatsPlots
+
+function plot_boxplots(df1::DataFrame, df2::DataFrame, title1::String, title2::String)
+    p = plot(layout=(1,2), size=(1000, 500))
+    @df df1 bar!(p[1], cols(16), title=title1, label = "P", yscale=:log10)
+    @df df2 bar!(p[2], cols(16), title=title2, label = "P", yscale=:log10)
+    display(p)
+end
+
+
+function plot_scatter(df1::DataFrame, df2::DataFrame)
+    p = plot(size=(1000, 500), legend=:topright)
+    for col in names(df1)
+        if col != :variable
+            scatter!(p, ["Min", "Max", "Median"], [df1[col, :min], df1[col, :max], df1[col, :median]], label="$col - Method 1")
+            scatter!(p, ["Min", "Max", "Median"], [df2[col, :min], df2[col, :max], df2[col, :median]], label="$col - Method 2", shape=:diamond)
+        end
+    end
+    xlabel!(p, "Statistic")
+    ylabel!(p, "Value")
+    title!(p, "Comparison of Min, Max, and Median Values")
+    display(p)
+end
+
+
+plot_boxplots(loguniform_df, stratified_df, "Loguniform Population", "Stratified Population")
+
+
+
+function shannon_diversity(population::Vector{Vector{Float64}}, nbins::Int)
+    n_params = length(population[1])
+    shannon_indices = zeros(n_params)
+    
+    for i in 1:n_params
+        param_values = [indiv[i] for indiv in population]
+        counts = fit(Histogram, param_values, nbins:nbins).weights
+        p = counts ./ sum(counts)
+        shannon_indices[i] = -sum(p .* log.(p))
+    end
+    
+    return shannon_indices
+end
+
+
+
+
 
 using Profile
 Profile.print(format=:tree, mincount=100)

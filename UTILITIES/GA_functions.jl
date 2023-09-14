@@ -269,38 +269,38 @@ make_fitness_function(constraints::ParameterConstraints, ode_problem::ODEProblem
 make_fitness_function(constraints::InitialConditionConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_ic_fitness)
 make_fitness_function(constraints::AllConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_all_fitness)
 
-"""Returns in-place function"""
-function make_fitness_function_inplace(constraints::ConstraintSet, ode_problem::OT, eval_function::FT) where {OT<:ODEProblem, FT<:Function}
-    fixed_idxs = get_fixed_indices(constraints)
-    fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
-    n_fixed = length(fixed_idxs)
-    n_total = n_fixed + activelength(constraints)
+# """Returns in-place function"""
+# function make_fitness_function_inplace(constraints::ConstraintSet, ode_problem::OT, eval_function::FT) where {OT<:ODEProblem, FT<:Function}
+#     fixed_idxs = get_fixed_indices(constraints)
+#     fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
+#     n_fixed = length(fixed_idxs)
+#     n_total = n_fixed + activelength(constraints)
 
-    non_fixed_indices = setdiff(1:n_total, fixed_idxs)
+#     non_fixed_indices = setdiff(1:n_total, fixed_idxs)
 
 
-    # Create a ThreadLocal array
-    merged_inputs = [zeros(Float64, n_total+12) for _ in 1:Threads.nthreads()]
-    Fvs = [Vector{Float64}(undef,3) for _ in 1:Threads.nthreads()]
+#     # Create a ThreadLocal array
+#     merged_inputs = [zeros(Float64, n_total+12) for _ in 1:Threads.nthreads()]
+#     Fvs = [Vector{Float64}(undef,3) for _ in 1:Threads.nthreads()]
 
-    # Fill in the fixed values
-    for input in merged_inputs
-        input[fixed_idxs] .= fixed_values  # Fill in fixed values
-    end
+#     # Fill in the fixed values
+#     for input in merged_inputs
+#         input[fixed_idxs] .= fixed_values  # Fill in fixed values
+#     end
 
-    function fitness_function!(input::Vector{Float64})
-        # Get the merged_input array for the current thread
-        merged_input = merged_inputs[Threads.threadid()]
-        merged_input[non_fixed_indices] .= input  # Fill in variable values
-        Fvs[Threads.threadid()] .= eval_function(merged_input, ode_problem)
-    end
+#     function fitness_function!(input::Vector{Float64})
+#         # Get the merged_input array for the current thread
+#         merged_input = merged_inputs[Threads.threadid()]
+#         merged_input[non_fixed_indices] .= input  # Fill in variable values
+#         Fvs[Threads.threadid()] .= eval_function(merged_input, ode_problem)
+#     end
 
-    return fitness_function!
-end
+#     return fitness_function!
+# end
 
-make_fitness_function_inplace(constraints::ParameterConstraints, ode_problem::ODEProblem) = make_fitness_function_inplace(constraints, ode_problem, eval_param_fitness)
-make_fitness_function_inplace(constraints::InitialConditionConstraints, ode_problem::ODEProblem) = make_fitness_function_inplace(constraints, ode_problem, eval_ic_fitness)
-make_fitness_function_inplace(constraints::AllConstraints, ode_problem::ODEProblem) = make_fitness_function_inplace(constraints, ode_problem, eval_all_fitness)
+# make_fitness_function_inplace(constraints::ParameterConstraints, ode_problem::ODEProblem) = make_fitness_function_inplace(constraints, ode_problem, eval_param_fitness)
+# make_fitness_function_inplace(constraints::InitialConditionConstraints, ode_problem::ODEProblem) = make_fitness_function_inplace(constraints, ode_problem, eval_ic_fitness)
+# make_fitness_function_inplace(constraints::AllConstraints, ode_problem::ODEProblem) = make_fitness_function_inplace(constraints, ode_problem, eval_all_fitness)
 
 
 """Multithreaded fitness function, allocated a merged array for each thread"""
@@ -475,6 +475,35 @@ function generate_population_stratified!(population::Vector{Vector{Float64}}, co
 end
 
 
+# function generate_population_stratified!(population::Vector{Vector{Float64}}, constraints::ConstraintSet, n_strata::Int)
+#     # Pre-allocate rand_vals based on n_strata and population size
+#     rand_vals = Vector{Float64}(undef, length(population) ÷ n_strata + 1)
+    
+#     i = 1
+#     for conrange in constraints
+#         if !conrange.isfixed
+#             min_val, max_val = log10(conrange.min), log10(conrange.max)
+#             strata_bounds = range(min_val, stop=max_val, length=n_strata+1)
+            
+#             for stratum in 1:n_strata
+#                 lower_bound, upper_bound = strata_bounds[stratum], strata_bounds[stratum+1]
+#                 n_samples_stratum = length(population) ÷ n_strata
+#                 n_samples_stratum += (stratum <= length(population) % n_strata)
+                
+#                 rand_vals[1:n_samples_stratum] .= exp10.(rand(Uniform(lower_bound, upper_bound), n_samples_stratum))
+                
+#                 for j in 1:n_samples_stratum
+#                     population[(stratum-1)*n_samples_stratum+j][i] = rand_vals[j]
+#                 end
+#             end
+#             i += 1
+#         end
+#     end
+#     return population
+# end
+
+
+
 # """### Callback function that terminates the GA if the number of oscillations exceeds the threshold, and updates the progress bar"""
 # function ga_callback(trace::Evolutionary.OptimizationTrace, progressbar::Progress, threshold::Int)
 #     #? Callback function for the GA, updating the progress bar
@@ -616,6 +645,21 @@ function make_ga_dataframe(results::GAResults, constraints::ConstraintSet)
             i+=1
         else
             df[!, conrange.name] .= conrange.fixed_value
+        end
+    end
+    return df
+end
+
+"""Makes a DataFrame from a raw population, nested vectors"""
+function make_pop_dataframe(pop::Vector{Vector{Float64}}, constraints::AllConstraints)
+    df = DataFrame()
+    i = 1
+    for conrange in constraints
+        if !conrange.isfixed
+            df[!, conrange.name] = [x[i] for x in pop]
+            i+=1
+        else
+            df[!, conrange.name] = conrange.fixed_value
         end
     end
     return df

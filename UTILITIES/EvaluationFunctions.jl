@@ -136,7 +136,9 @@ end
 function eval_all_fitness(inputs::Vector{Float64}, prob::OT; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16]) where OT <: ODEProblem
     #* remake with new initial conditions
     # new_prob = remake(prob, p = inputs[1:13], u0= [inputs[14:end]; zeros(12)])
-    new_prob = remake(prob, p = inputs[1:13], u0= inputs[14:end])
+    newp = @view inputs[1:13]
+    newu = @view inputs[14:end]
+    new_prob = remake(prob, p = newp, u0= newu)
     return solve_for_fitness_peramp(new_prob, idx)
 end
 
