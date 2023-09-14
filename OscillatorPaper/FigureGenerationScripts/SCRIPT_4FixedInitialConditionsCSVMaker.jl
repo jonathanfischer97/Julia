@@ -193,7 +193,7 @@ function run_4fixedIC(rangelength=4, popsize=20000, fixedDF=1000.)
     # loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangelength=rangelength, DFrange = [100.,1000.,10000.], popsize=popsize)
 end
 
-# run_4fixedIC(3, 5000)
+# @time run_4fixedIC(5, 10000)
 
 
 
