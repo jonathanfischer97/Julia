@@ -446,34 +446,33 @@ function generate_population!(population::Vector{Vector{Float64}}, constraints::
     return population
 end
 
-# function generate_population(constraint::ConstraintSet, n::Int)
-#     population = [exp10.(rand(Uniform(log10(conrange.min), log10(conrange.max)), n)) for conrange in constraint]
-#     population = transpose(hcat(population...))
-#     return [population[:, i] for i in 1:n]
-# end
-#> END
+function generate_population_stratified!(population::Vector{Vector{Float64}}, constraints::ConstraintSet, n_strata::Int)
 
-
-#< DEFAULT FITNESS FUNCTION FACTORY
-# """Returns the `fitness function(input)` for the cost function, referencing the ODE problem with closure"""
-# function make_fitness_function(evalfunc::Function, prob::ODEProblem)
-#     function fitness_function(input::Vector{Float64})
-#         #? Returns a cost function method that takes in just a vector of parameters/ICs and references the ODE problem 
-#         return evalfunc(input, prob)
-#     end
-#     return fitness_function
-# end
-
-# """Returns the `fitness function(input)` for the cost function, referencing the ODE problem with closure, captured with let keyword"""
-# function make_fitness_function_with_let(evalfunc::Function, prob::ODEProblem)
-#     let evalfunc = evalfunc, prob = prob
-#         function fitness_function(input::Vector{Float64})
-#             return evalfunc(input, prob)
-#         end
-#         return fitness_function
-#     end
-# end
-#> END
+    rand_vals = Vector{Float64}(undef, length(population))
+    
+    # Populate the array
+    i = 1
+    for conrange in constraints
+        if !conrange.isfixed
+            min_val, max_val = log10(conrange.min), log10(conrange.max)
+            strata_bounds = range(min_val, stop=max_val, length=n_strata+1)
+            
+            for stratum in 1:n_strata
+                lower_bound, upper_bound = strata_bounds[stratum], strata_bounds[stratum+1]
+                n_samples_stratum = length(population) ÷ n_strata  # Integer division to get an equal number of samples from each stratum
+                n_samples_stratum += (stratum <= length(population) % n_strata)  # Distribute any remaining samples among the first few strata
+                
+                rand_vals[1:n_samples_stratum] .= exp10.(rand(Uniform(lower_bound, upper_bound), n_samples_stratum))
+                
+                for j in 1:n_samples_stratum
+                    population[(stratum-1)*n_samples_stratum+j][i] = rand_vals[j]
+                end
+            end
+            i += 1
+        end
+    end
+    return population
+end
 
 
 # """### Callback function that terminates the GA if the number of oscillations exceeds the threshold, and updates the progress bar"""

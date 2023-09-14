@@ -26,7 +26,7 @@ end
 function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; window::Int =1) #get average standard deviation of fft peak indexes
     # arrLen = length(fft_arrayData)
     # window = max(1,cld(arrLen,window_ratio)) #* window size is 1% of array length, or 1 if array length is less than 100
-    sum(std(fft_arrayData[max(1, ind - window):min(length(fft_arrayData), ind + window)]) for ind in fft_peakindxs) #* sum rolling window of standard deviations
+    sum(std(@view fft_arrayData[max(1, ind - window):min(length(fft_arrayData), ind + window)]) for ind in fft_peakindxs) #* sum rolling window of standard deviations
 
     # return sum_std / length(fft_peakindxs) #* divide by number of peaks to get average std
 end 
