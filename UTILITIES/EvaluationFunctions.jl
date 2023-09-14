@@ -38,7 +38,6 @@ function getFrequencies(timeseries)
 end
 
 
-
 """Calculates the period and amplitude of each individual in the population"""
 function getPerAmp(sol::ODESolution)
 
@@ -62,7 +61,7 @@ end
 
 
 """Normalize a time series to have mean 0 and amplitude 1 before FFT"""
-function normalize_time_series!(ts::Vector{Float64})::Vector{Float64}
+function normalize_time_series!(ts::Vector{Float64})
     mu = mean(ts)
     amplitude = maximum(ts) - minimum(ts)
     ts .= (ts .- mu) ./ amplitude
@@ -70,13 +69,13 @@ end
 
 
 """Cost function to be plugged into eval_fitness wrapper"""
-function CostFunction(sol::ODESolution)::Vector{Float64}
+function CostFunction(sol::ODESolution)
     Amem_sol = map(sum, sol.u)
     CostFunction(Amem_sol, sol.t)
 end
 
 
-function CostFunction(solu::Vector{Float64}, solt::Vector{Float64})::Vector{Float64}
+function CostFunction(solu::Vector{Float64}, solt::Vector{Float64})
 
     tstart = cld(length(solt),10) 
 
@@ -100,8 +99,6 @@ function CostFunction(solu::Vector{Float64}, solt::Vector{Float64})::Vector{Floa
     #* Get the rfft of the solution
     fftData = getFrequencies(solu) |> normalize_time_series!
 
-    #* Normalize the solution array. WARNING: solarray is modified after this line
-    # normalize_time_series!(fftData)
 
     fft_peakindexes, fft_peakvals = findextrema(fftData; height = 1e-2, distance = 2) #* get the indexes of the peaks in the fft
     # @info length(fft_peakindexes)
@@ -138,22 +135,17 @@ end
 """Evaluate the fitness of an individual with new initial conditions and new parameters"""
 function eval_all_fitness(inputs::Vector{Float64}, prob::OT; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16]) where OT <: ODEProblem
     #* remake with new initial conditions
-    new_prob = remake(prob, p = inputs[1:13], u0= [inputs[14:end]; zeros(12)])
+    # new_prob = remake(prob, p = inputs[1:13], u0= [inputs[14:end]; zeros(12)])
+    new_prob = remake(prob, p = inputs[1:13], u0= inputs[14:end])
     return solve_for_fitness_peramp(new_prob, idx)
 end
-
-# function eval_all_fitness(inputs::Vector{Float64}, prob::OT; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16]) where OT <: ODEProblem
-#     #* remake with new initial conditions
-#     new_prob = remake(prob, p = inputs[1:13], u0= inputs[14:end])
-#     return solve_for_fitness_peramp(new_prob, idx)
-# end
 
 
 
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
-function solve_for_fitness_peramp(prob::OT, idx::Vector{Int}) where OT <: ODEProblem
-    tstart = cld(length(prob.tspan),10)
-    savepoints = prob.tspan[tstart]:0.1:prob.tspan[end]
+function solve_for_fitness_peramp(prob::OT, idx) where OT <: ODEProblem
+    tstart = cld(length(prob.tspan[2]),10)
+    savepoints = tstart:0.1:prob.tspan[2]
 
     sol = solve(prob, Rodas5(), saveat=savepoints, save_idxs=idx, verbose=false)
     

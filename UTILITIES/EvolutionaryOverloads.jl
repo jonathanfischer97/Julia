@@ -54,7 +54,7 @@ Constructor for an objective function object around the function `f` with initia
 """
 function Evolutionary.EvolutionaryObjective(f::TC, x::Vector{Float64}, F::Matrix{Float64};
                                eval::Symbol = :serial) where {TC}
-    # @info "Using custom EvolutionaryObjective constructor"
+    @info "Using custom EvolutionaryObjective constructor"
     defval = Evolutionary.default_values(x)
 
     #* convert function into the in-place one

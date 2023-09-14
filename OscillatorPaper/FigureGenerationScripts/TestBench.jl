@@ -52,6 +52,10 @@ end
 
 ogprobjac = make_ODE_problem();
 
+tstart = cld(ogprobjac.tspan[2], 10)
+
+solve(ogprobjac, Rosenbrock23(), saveat=200.:0.1:2000., save_idxs = [6, 9, 10, 11, 12, 15, 16])
+
 
 
 allconstraints = AllConstraints()
@@ -63,6 +67,7 @@ gaproblem = GAProblem(allconstraints, ogprobjac)
 
 initial_population = generate_population(allconstraints, 5000)
 ga_results = run_GA(gaproblem, initial_population; iterations = 5)
+save_to_csv(ga_results, allconstraints, "gentest.csv")
 
 function test(gaproblem)
     Random.seed!(1234)
@@ -72,15 +77,21 @@ end
 
 @btime test($gaproblem)
 
+@bprofile test(gaproblem)
+
+using Profile
+Profile.print(format=:tree, mincount=100)
+
 save_to_csv(ga_results, allconstraints, "gentest.csv")
 
 
 
-@btime generate_population($allconstraints, 5000)
-pop = generate_population(allconstraints, 5000)
-@btime generate_population!($pop, $allconstraints)
+obj = Evolutionary.EvolutionaryObjective(threaded_fitness_function, test_input, zeros(3,1))
 
-@code_llvm generate_population(allconstraints, 5000)
+fv = zeros(3,1)
+value(obj, fv, test_input)
+
+@btime value($obj, $fv, $test_input)
 
 
 #< START
@@ -90,6 +101,41 @@ set_fixed_constraints!(gaproblem.constraints, fixed_inputs...)
 
 
 #* test objective function 
+fitness_function = make_fitness_function(gaproblem.constraints, ogprobjac)
+
+test_input = [ogprobjac.p; ogprobjac.u0[1:4]]
+
+@btime fitness_function($test_input)
+
+@code_warntype fitness_function(test_input)
+
+fitness_function(test_input)
+
+
+###############
+threaded_fitness_function = make_fitness_function_threaded(gaproblem.constraints, ogprobjac)
+@btime threaded_fitness_function($test_input)
+
+inplace_fitness_function = make_fitness_function_inplace(gaproblem.constraints, ogprobjac)
+@btime inplace_fitness_function($test_input)
+
+testpop = ga_results.population
+
+F = zeros(Float64, (3, length(testpop)))
+
+function testfunc(F,pop)
+    Threads.@threads for i in 1:length(pop)
+        F[:,i] .= threaded_fitness_function(pop[i])
+    end
+    F
+end
+
+BLAS.set_num_threads(18)
+FFTW.set_num_threads(18)
+
+@btime testfunc($F, $testpop)
+
+"""Non-threaded: 36.736 s (161490695 allocations: 16.52 GiB)"""
 
 
 

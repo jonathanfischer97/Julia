@@ -246,74 +246,94 @@ function make_fitness_function(constraints::ConstraintSet, ode_problem::OT, eval
     fixed_idxs = get_fixed_indices(constraints)
     fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
     n_fixed = length(fixed_idxs)
-    n_total = n_fixed + activelength(constraints)  
-    # if constraints isa ParameterConstraints
-    #     n_total = n_fixed + activelength(constraints) 
-    # else
-    #     n_total = n_fixed + activelength(constraints)
-    # end
+    n_total = n_fixed + activelength(constraints) 
 
-    merged_input = Vector{Float64}(undef, n_total)
-    # merged_input = zeros(Float64, n_total)
+    non_fixed_indices = setdiff(1:n_total, fixed_idxs)
+
+    # merged_input = Vector{Float64}(undef, n_total)
+    merged_input = zeros(Float64, n_total+12)
+    # @info "Merged input length: $(length(merged_input))"
+
     merged_input[fixed_idxs] .= fixed_values  # Fill in fixed values
 
     function fitness_function(input::Vector{Float64})
-        merged_input[setdiff(1:n_total, fixed_idxs)] .= input  # Fill in variable values
+        merged_input[non_fixed_indices] .= input  # Fill in variable values
+        # @info "Merged input: $merged_input"
         return eval_function(merged_input, ode_problem)
     end
 
     return fitness_function
 end
 
-"""Returns in-place function"""
-# function make_fitness_function(constraints::ConstraintSet, ode_problem::OT, eval_function::FT) where {OT<:ODEProblem, FT<:Function}
-#     fixed_idxs = get_fixed_indices(constraints)
-#     fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
-#     n_fixed = length(fixed_idxs)
-#     n_total = n_fixed + activelength(constraints)
-
-#     merged_input = Vector{Float64}(undef, n_total)
-#     merged_input[fixed_idxs] .= fixed_values  # Fill in fixed values
-
-#     function fitness_function(Fv::Vector{Float64}, input::Vector{Float64})
-#         merged_input[setdiff(1:n_total, fixed_idxs)] .= input  # Fill in variable values
-#         Fv .= eval_function(merged_input, ode_problem)
-#     end
-
-#     return fitness_function
-# end
-
-
-"""Multithreaded fitness function, allocated a merged array for each thread"""
-# function make_fitness_function(constraints::ConstraintSet, ode_problem::OT, eval_function::FT) where {OT<:ODEProblem, FT<:Function}
-#     fixed_idxs = get_fixed_indices(constraints)
-#     fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
-#     n_fixed = length(fixed_idxs)
-
-#     if constraints isa ParameterConstraints
-#         n_total = n_fixed + activelength(constraints) 
-#     else
-#         n_total = n_fixed + activelength(constraints) + 12
-#     end
-
-#     # Create a ThreadLocal array
-#     merged_inputs = [Vector{Float64}(undef, n_total) for _ in 1:Threads.nthreads()]
-
-#     function fitness_function(input::Vector{Float64})
-#         # Get the merged_input array for the current thread
-#         merged_input = merged_inputs[Threads.threadid()]
-#         merged_input[fixed_idxs] .= fixed_values  # Fill in fixed values
-#         merged_input[setdiff(1:n_total, fixed_idxs)] .= input  # Fill in variable values
-
-#         return eval_function(merged_input, ode_problem)
-#     end
-
-#     return fitness_function
-# end
-
 make_fitness_function(constraints::ParameterConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_param_fitness)
 make_fitness_function(constraints::InitialConditionConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_ic_fitness)
 make_fitness_function(constraints::AllConstraints, ode_problem::ODEProblem) = make_fitness_function(constraints, ode_problem, eval_all_fitness)
+
+"""Returns in-place function"""
+function make_fitness_function_inplace(constraints::ConstraintSet, ode_problem::OT, eval_function::FT) where {OT<:ODEProblem, FT<:Function}
+    fixed_idxs = get_fixed_indices(constraints)
+    fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
+    n_fixed = length(fixed_idxs)
+    n_total = n_fixed + activelength(constraints)
+
+    non_fixed_indices = setdiff(1:n_total, fixed_idxs)
+
+
+    # Create a ThreadLocal array
+    merged_inputs = [zeros(Float64, n_total+12) for _ in 1:Threads.nthreads()]
+    Fvs = [Vector{Float64}(undef,3) for _ in 1:Threads.nthreads()]
+
+    # Fill in the fixed values
+    for input in merged_inputs
+        input[fixed_idxs] .= fixed_values  # Fill in fixed values
+    end
+
+    function fitness_function!(input::Vector{Float64})
+        # Get the merged_input array for the current thread
+        merged_input = merged_inputs[Threads.threadid()]
+        merged_input[non_fixed_indices] .= input  # Fill in variable values
+        Fvs[Threads.threadid()] .= eval_function(merged_input, ode_problem)
+    end
+
+    return fitness_function!
+end
+
+make_fitness_function_inplace(constraints::ParameterConstraints, ode_problem::ODEProblem) = make_fitness_function_inplace(constraints, ode_problem, eval_param_fitness)
+make_fitness_function_inplace(constraints::InitialConditionConstraints, ode_problem::ODEProblem) = make_fitness_function_inplace(constraints, ode_problem, eval_ic_fitness)
+make_fitness_function_inplace(constraints::AllConstraints, ode_problem::ODEProblem) = make_fitness_function_inplace(constraints, ode_problem, eval_all_fitness)
+
+
+"""Multithreaded fitness function, allocated a merged array for each thread"""
+function make_fitness_function_threaded(constraints::ConstraintSet, ode_problem::OT, eval_function::FT) where {OT<:ODEProblem, FT<:Function}
+    fixed_idxs = get_fixed_indices(constraints)
+    fixed_values = [constraints[i].fixed_value for i in fixed_idxs]
+    n_fixed = length(fixed_idxs)
+    n_total = n_fixed + activelength(constraints) 
+
+    non_fixed_indices = setdiff(1:n_total, fixed_idxs)
+
+    # Create a ThreadLocal array
+    merged_inputs = [zeros(Float64, n_total+12) for _ in 1:Threads.nthreads()]
+
+    # Fill in the fixed values
+    for input in merged_inputs
+        input[fixed_idxs] .= fixed_values  # Fill in fixed values
+    end
+
+    function fitness_function(input::Vector{Float64})
+        # Get the merged_input array for the current thread
+        merged_input = merged_inputs[Threads.threadid()]
+        merged_input[non_fixed_indices] .= input  # Fill in variable values
+
+        return eval_function(merged_input, ode_problem)
+    end
+
+    return fitness_function
+end
+
+make_fitness_function_threaded(constraints::ParameterConstraints, ode_problem::ODEProblem) = make_fitness_function_threaded(constraints, ode_problem, eval_param_fitness)
+make_fitness_function_threaded(constraints::InitialConditionConstraints, ode_problem::ODEProblem) = make_fitness_function_threaded(constraints, ode_problem, eval_ic_fitness)
+make_fitness_function_threaded(constraints::AllConstraints, ode_problem::ODEProblem) = make_fitness_function_threaded(constraints, ode_problem, eval_all_fitness)
 
 
 #< GA PROBLEM TYPE
@@ -511,7 +531,7 @@ function run_GA(ga_problem::GAProblem, population::Vector{Vector{Float64}} = gen
                 mutation  = mutation_scheme, mutationRate = 1.0)
 
     #* Make fitness function
-    fitness_function = make_fitness_function(ga_problem.constraints, ga_problem.ode_problem)
+    fitness_function = make_fitness_function_threaded(ga_problem.constraints, ga_problem.ode_problem)
 
     #* Run the optimization.
     result = Evolutionary.optimize(fitness_function, zeros(3,population_size), boxconstraints, mthd, population, opts)
@@ -561,8 +581,8 @@ end
 
 function save_to_csv(results::GAResults, constraints::ConstraintSet, filename::String)
     open(filename, "w") do io
-        # Write the header
-        write(io, "fit,per,amp")
+        # Write the header with an additional "Generation" column
+        write(io, "gen,fit,per,amp")
         for conrange in constraints
             write(io, ",$(conrange.name)")
         end
@@ -570,11 +590,9 @@ function save_to_csv(results::GAResults, constraints::ConstraintSet, filename::S
         
         # Loop over each generation based on gen_indices
         for (gen, (start_idx, end_idx)) in enumerate(results.gen_indices)
-            write(io, "Gen=$gen\n")
-            
             for i in start_idx:end_idx
-                # Write the fitness, period, and amplitude values
-                write(io, "$(results.fitvals[i]),$(results.periods[i]),$(results.amplitudes[i])")
+                # Write the generation, fitness, period, and amplitude values
+                write(io, "$gen,$(results.fitvals[i]),$(results.periods[i]),$(results.amplitudes[i])")
                 
                 # Write the population values
                 for val in results.population[i]
@@ -585,6 +603,7 @@ function save_to_csv(results::GAResults, constraints::ConstraintSet, filename::S
         end
     end
 end
+
 
 
 

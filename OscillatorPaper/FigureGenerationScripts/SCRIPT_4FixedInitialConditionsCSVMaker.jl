@@ -28,7 +28,7 @@ begin
 
     # include("../../UTILITIES/TestBenchPlotUtils.jl")
 
-    # const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
+    const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 
     numthreads = Threads.nthreads()
     numcores = numthreads÷2
@@ -137,14 +137,12 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                         icvals3[i] = icval3
                         icvals4[i] = icval4
                         num_oscillatory_points_array[i] = num_oscillatory_points
-                        
-                        #* make dataframe from oscillatory_points_results
-                        oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, allconstraints)
 
                         #* save the dataframe of this particular fixed value combination to a csv file, identified by the fixed initial conditions
                         csv_filestring = DFpath*"/L=$(round(icval1; digits = 2))_K=$(round(icval2;digits = 2))_P=$(round(icval3; digits=2))_A=$(round(icval4; digits=2)).csv"
                         println("Saving results to $csv_filestring")
-                        CSV.write(csv_filestring, oscillatory_points_df)
+                        # CSV.write(csv_filestring, oscillatory_points_df)
+                        save_to_csv(oscillatory_points_results, allconstraints, csv_filestring)
                     end
 
                     next!(loopprogress)

@@ -39,6 +39,7 @@ begin
 
     # include("../../UTILITIES/TestBenchPlotUtils.jl")
 
+    const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 
     numthreads = Threads.nthreads()
     @info "Threads detected: $numthreads"
@@ -132,9 +133,6 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
                     vals2[i] = val2
                     vals3[i] = val3
                     num_oscillatory_points_array[i] = num_oscillatory_points
-                
-                    #* make dataframe from oscillatory_points_results
-                    # oscillatory_points_df = make_ga_dataframe(oscillatory_points_results, constraints)
                     
 
                     #* rewrite the L, K, P, A columns with the initial conditions
@@ -214,6 +212,10 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; start_i
     df_constraintrange = constraints.DF
     df_constraintrange.isfixed = true
 
+    proglength = length(triplets[start_idx:min(end_idx, length(triplets))])
+    tripletprogress = Progress(proglength, desc ="Looping thru triplets: " , color=:blue)
+
+
     for triplet in triplets[start_idx:min(end_idx, length(triplets))]
         tripletpath = mkpath(rootpath*"/$(triplet[1])_$(triplet[2])_$(triplet[3])")
         summarypath = mkpath(tripletpath*"/SummaryResults")
@@ -226,6 +228,7 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; start_i
             CSV.write(summarypath*"/Summary_DF=$(round(df)).csv", results_df)
         end
         unset_fixed_constraints!(constraints, triplet)
+        next!(tripletprogress)
     end
 end
 
