@@ -31,9 +31,9 @@ begin
     const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 
     numthreads = Threads.nthreads()
-    numcores = numthreads÷2
-    BLAS.set_num_threads(numcores)
-    FFTW.set_num_threads(numcores)
+    numcores = min(1,numthreads÷2)
+    BLAS.set_num_threads(1)
+    FFTW.set_num_threads(1)
 end
 
 
@@ -195,14 +195,12 @@ end
 
 # @time run_4fixedIC(5, 10000)
 
+# println(time())
+
+@time run_4fixedIC(parse(Int, ARGS[1]), parse(Int, ARGS[2]), parse(Float64, ARGS[3]))
 
 
-run_4fixedIC(parse(Int, ARGS[1]), parse(Int, ARGS[2]), parse(Float64, ARGS[3]))
 
 
-
-#! make sure fixed DF and fixed ICs are being passed correctly in the fitness function
-#* figure out why CPU utilization only 60% sometimes 
-#! make GAResults save population split into generations, with each generation as a new header in CSV 
 
 

@@ -43,7 +43,7 @@ begin
 
     numthreads = Threads.nthreads()
     @info "Threads detected: $numthreads"
-    numcores = numthreads÷2
+    numcores = min(1,numthreads÷2)
     BLAS.set_num_threads(numcores)
     FFTW.set_num_threads(numcores)
 end
