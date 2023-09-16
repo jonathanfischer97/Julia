@@ -38,7 +38,7 @@ end
 
 
 """Function loops through 4D grid of different initial conditions, letting all parameters be freely optimized, and saves the results to a csv file"""
-function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; path, rangelength::Int = 4, fixedDF::Float64=1000., popsize::Int=20000)
+function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; rangelength::Int = 4, fixedDF::Float64=1000., popsize::Int=20000)
     #* get the ranges of the fixed initial conditions that will be looped through
     icranges = [logrange(constraints.min, constraints.max, rangelength) for constraints in icconstraints]
 
@@ -81,7 +81,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     # loopprogress = Progress(num_rows, desc ="Looping thru fixed ICs: " , color=:red)
 
     #* make path for the raw data for this particular DF value
-    DFpath = mkpath(path*"/DF=$(round(fixedDF))")
+    # DFpath = mkpath(path*"/DF=$(round(fixedDF))")
 
     #* initialize the population, where the length of each individual is the number of constraints minus the fixed ones
     initial_population = generate_empty_population(allconstraints, popsize)
@@ -139,7 +139,7 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                         num_oscillatory_points_array[i] = num_oscillatory_points
 
                         #* save the dataframe of this particular fixed value combination to a csv file, identified by the fixed initial conditions
-                        csv_filestring = DFpath*"/L=$(round(icval1; digits = 2))_K=$(round(icval2;digits = 2))_P=$(round(icval3; digits=2))_A=$(round(icval4; digits=2)).csv"
+                        # csv_filestring = DFpath*"/L=$(round(icval1; digits = 2))_K=$(round(icval2;digits = 2))_P=$(round(icval3; digits=2))_A=$(round(icval4; digits=2)).csv"
                         # println("Saving results to $csv_filestring")
                         # CSV.write(csv_filestring, oscillatory_points_df)
                         # save_to_csv(oscillatory_points_results, allconstraints, csv_filestring)
@@ -183,13 +183,13 @@ function run_4fixedIC(rangelength=3, popsize=10000, fixedDF=1000.)
     ic_constraints = InitialConditionConstraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
 
     #* make paths
-    rootpath = mkpath("./ROCKFISH_DATA/4Fixed/PopSize_$popsize")
-    summarypath = mkpath(rootpath*"/SummaryResults")
-    rawpath = mkpath(rootpath*"/4FixedICRawSets")
+    # rootpath = mkpath("./ROCKFISH_DATA/4Fixed/PopSize_$popsize")
+    # summarypath = mkpath(rootpath*"/SummaryResults")
+    # rawpath = mkpath(rootpath*"/4FixedICRawSets")
 
-    results_df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; path=rawpath, rangelength=rangelength, fixedDF=fixedDF, popsize=popsize)
+    results_df = fixed_quadruplet_ic_searcher(param_constraints, ic_constraints, ogprobjac; rangelength=rangelength, fixedDF=fixedDF, popsize=popsize)
     # CSV.write(summarypath*"/Summary_DF=$(round(fixedDF)).csv", results_df)
-
+    return nothing
     # loop_4fixedICs_thru_DFvals(param_constraints, ic_constraints, ogprobjac; rangelength=rangelength, DFrange = [100.,1000.,10000.], popsize=popsize)
 end
 
