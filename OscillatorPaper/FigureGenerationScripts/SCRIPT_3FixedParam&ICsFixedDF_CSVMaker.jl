@@ -58,7 +58,7 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
     fixed_constraintranges = get_fixed_constraintranges(constraints)
 
     fixed_names = [conrange.name for conrange in fixed_constraintranges]
-    @info "Fixed inputs: $fixed_names"
+    # @info "Fixed inputs: $fixed_names"
     
     fixed_valrange1, fixed_valrange2, fixed_valrange3 = [logrange(constraintrange.min, constraintrange.max, rangelength) for constraintrange in fixed_constraintranges]
     
@@ -247,9 +247,6 @@ function run_MAIN(rangelength=4, popsize=20000; start_idx=1, end_idx=560)
 
     run_all_triplets(allconstraints, ogprobjac; start_idx=start_idx, end_idx=end_idx, rootpath=rootpath, rangelength=rangelength, popsize=popsize)
 end
-
-@timed run_MAIN(3, 10000; start_idx=1, end_idx=5)
-
 
 
 start_idx = parse(Int, ENV["START_IDX"])
