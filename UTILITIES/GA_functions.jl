@@ -582,7 +582,7 @@ end
 
 function GAResults(result::Evolutionary.EvolutionaryOptimizationResults, indlength::Int)
     numpoints = sum(length, (gen.metadata["fitvals"] for gen in result.trace))
-    population = [Vector{Float64}(undef, indlength) for i in 1:numpoints]
+    population = [Vector{Float64}(undef, indlength) for _ in 1:numpoints]
     fitvals = Vector{Float64}(undef, numpoints)
     periods = Vector{Float64}(undef, numpoints)
     amplitudes = Vector{Float64}(undef, numpoints)
@@ -622,10 +622,17 @@ function save_to_csv(results::GAResults, constraints::ConstraintSet, filename::S
                 # Write the generation, fitness, period, and amplitude values
                 write(io, "$gen,$(results.fitvals[i]),$(results.periods[i]),$(results.amplitudes[i])")
                 
-                # Write the population values
-                for val in results.population[i]
-                    write(io, ",$val")
+                # Write the population and fixed values
+                j = 1
+                for conrange in constraints
+                    if !conrange.isfixed
+                        write(io, ",$(results.population[i][j])")
+                        j += 1
+                    else
+                        write(io, ",$(conrange.fixed_value)")
+                    end
                 end
+                
                 write(io, "\n")
             end
         end
@@ -633,11 +640,15 @@ function save_to_csv(results::GAResults, constraints::ConstraintSet, filename::S
 end
 
 
-
-
 """Makes a DataFrame from the results of a GA optimization"""
 function make_ga_dataframe(results::GAResults, constraints::ConstraintSet)
-    df = DataFrame(fit = results.fitvals, per = results.periods, amp = results.amplitudes)
+    df = DataFrame(gen = Vector{Int}(undef, length(results.fitvals)), fit = results.fitvals, per = results.periods, amp = results.amplitudes, relamp = Vector{Float64}(undef, length(results.fitvals)))
+
+    #* Loop over each generation based on gen_indices
+    for (gen, (start_idx, end_idx)) in enumerate(results.gen_indices)
+        df.gen[start_idx:end_idx] .= gen
+    end
+
     i = 1
     for conrange in constraints
         if !conrange.isfixed
@@ -647,6 +658,8 @@ function make_ga_dataframe(results::GAResults, constraints::ConstraintSet)
             df[!, conrange.name] .= conrange.fixed_value
         end
     end
+    #* Calculate the relative amplitude by dividing the amp column by the initial concentration of A
+    df.relamp .= df.amp ./ df.A[1]
     return df
 end
 

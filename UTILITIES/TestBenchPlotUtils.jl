@@ -90,8 +90,10 @@ function plotfft(sol::ODESolution)
                                 xlims = (0, 100), label="", titlefontsize = 18, titlefontcolor = :green)
                 return p1
         else
+                window = 1
+
                 diffs = round(getDif(fft_peakvals); digits=4)
-                standevs = round(getSTD(fft_peakindexes, solfft; window = 5);digits=4)
+                standevs = round(getSTD(fft_peakindexes, solfft; window = window);digits=4)
 
 
                 p1 = plot(solfft, title = "getDif: $(diffs)", xlabel = "Frequency (min⁻¹)", ylabel = "Amplitude", lw = 2, 
@@ -99,7 +101,6 @@ function plotfft(sol::ODESolution)
                 peaklabels = [text("$(round.(val; digits=4))", :bottom, 10) for val in fft_peakvals]
                 scatter!(p1, fft_peakindexes, fft_peakvals, text = peaklabels, label = "", color = :red, markersize = 5)
 
-                window = 5
                 maxpeak_idx = fft_peakindexes[argmax(fft_peakvals)]
                 stdlines = [maxpeak_idx - window, maxpeak_idx + window]
 

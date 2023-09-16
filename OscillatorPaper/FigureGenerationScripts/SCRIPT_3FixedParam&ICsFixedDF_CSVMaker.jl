@@ -53,7 +53,7 @@ end
 
 
 #* Modification to fixed_triplet_csv_maker function
-function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProblem; path, rangelength::Int = 4, fixedDF::Float64 = 1000., popsize::Int = 20000) 
+function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProblem; path, rangelength::Int = 4, popsize::Int = 20000) 
 
     fixed_constraintranges = get_fixed_constraintranges(constraints)
 
@@ -76,7 +76,9 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
     maximum_amplitudes = Vector{Float64}(undef, num_rows)
     minimum_amplitudes = Vector{Float64}(undef, num_rows)
 
-    
+    #* get the fixed DF value
+    fixedDF = constraints.DF.fixed_value
+
     #* make folder to hold all the csv files 
     DFpath = mkpath(path*"/DF=$(round(fixedDF))")
     i = 1
@@ -206,6 +208,9 @@ end
 
 
 function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; start_idx::Int, end_idx::Int, rootpath::String, rangelength=4, DFrange=[100., 1000., 10000.], popsize=20000)
+    #* Assert that no other constraints are fixed or assigned fixed values except for DF
+    @assert all([constraintrange.isfixed == false && isnan(constraintrange.fixed_value) for constraintrange in constraints if constraintrange.name != :DF])
+   
     names = [:ka1, :kb1, :kcat1, :ka2, :kb2, :ka3, :kb3, :ka4, :kb4, :ka7, :kb7, :kcat7, :L, :K, :P, :A]
     triplets = collect(combinations(names, 3))
 
@@ -213,7 +218,7 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; start_i
     df_constraintrange.isfixed = true
 
     proglength = length(triplets[start_idx:min(end_idx, length(triplets))])
-    tripletprogress = Progress(proglength, desc ="Looping thru triplets: " , color=:blue)
+    tripletprogress = Progress(proglength, desc ="Looping thru triplets: ")
 
 
     for triplet in triplets[start_idx:min(end_idx, length(triplets))]
@@ -224,7 +229,7 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; start_i
             @info "$triplet with DF = $df"
             df_constraintrange.fixed_value = df
             set_fixed_constraints!(constraints, triplet)
-            results_df = fixed_triplet_csv_maker(constraints, prob; rangelength=rangelength, fixedDF=df, popsize=popsize, path=rawpath)
+            results_df = fixed_triplet_csv_maker(constraints, prob; rangelength=rangelength, popsize=popsize, path=rawpath)
             CSV.write(summarypath*"/Summary_DF=$(round(df)).csv", results_df)
         end
         unset_fixed_constraints!(constraints, triplet)
@@ -232,7 +237,7 @@ function run_all_triplets(constraints::AllConstraints, prob::ODEProblem; start_i
     end
 end
 
-function run_MAIN(rangelength=4, popsize=20000, start_idx=1, end_idx=560)
+function run_MAIN(rangelength=4, popsize=20000; start_idx=1, end_idx=560)
 
     ogprobjac = make_ODE_problem()
 
@@ -243,12 +248,14 @@ function run_MAIN(rangelength=4, popsize=20000, start_idx=1, end_idx=560)
     run_all_triplets(allconstraints, ogprobjac; start_idx=start_idx, end_idx=end_idx, rootpath=rootpath, rangelength=rangelength, popsize=popsize)
 end
 
+@timed run_MAIN(3, 10000; start_idx=1, end_idx=5)
+
 
 
 start_idx = parse(Int, ENV["START_IDX"])
 end_idx = parse(Int, ENV["END_IDX"])
 
-run_MAIN(parse(Int, ARGS[1]), parse(Int, ARGS[2]), start_idx, end_idx)
+run_MAIN(parse(Int, ARGS[1]), parse(Int, ARGS[2]); start_idx, end_idx)
 
 
 
