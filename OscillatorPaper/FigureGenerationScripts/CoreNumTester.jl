@@ -36,6 +36,8 @@ begin
     FFTW.set_num_threads(1)
 end
 
+println("Number of cores: ", numcores)
+
 
 """Function loops through 4D grid of different initial conditions, letting all parameters be freely optimized, and saves the results to a csv file"""
 function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, icconstraints::InitialConditionConstraints, prob::ODEProblem; rangelength::Int = 4, fixedDF::Float64=1000., popsize::Int=20000)
@@ -203,7 +205,7 @@ time_results = @timed run_4fixedIC()
 # CSV.write("OscillatorPaper/FigureGenerationScripts/TimerResults", time_df; append=true)
 
 
-println("Number of cores: ", numcores)
+
 println("Time to run: ", time_results.time)
 println("Allocations: ", time_results.bytes)
 println("GC time: ", time_results.gctime, "\n")
