@@ -7,10 +7,9 @@
 #SBATCH --export=ALL
 #SBATCH --output=TimerResults/timeresults_%j.txt
 
-# Set the number of threads for Julia
-export JULIA_NUM_THREADS=$SLURM_NTASKS
 
 # Run the Julia script and write output to file
-julia CoreNumTester.jl
+julia --threads=$SLURM_NTASKS_PER_NODE -- CoreNumTester.jl
+
 
 
