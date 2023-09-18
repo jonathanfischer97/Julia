@@ -42,12 +42,122 @@ begin
 end
 
 
-df100 = CSV.read("OscillatorPaper/FigureGenerationScripts/ROCKFISH_DATA/4Fixed/PopSize_1000/SummaryResults/Summary_DF=100.0.csv", DataFrame)
-df1000 = CSV.read("OscillatorPaper/FigureGenerationScripts/ROCKFISH_DATA/4Fixed/PopSize_1000/SummaryResults/Summary_DF=1000.0.csv", DataFrame)
-df10000 = CSV.read("OscillatorPaper/FigureGenerationScripts/ROCKFISH_DATA/4Fixed/PopSize_1000/SummaryResults/Summary_DF=10000.0.csv", DataFrame)
+"""
+    read_csvs_in_directory(directory_path::String)
+
+Read all CSV files in a given directory into an array of DataFrames.
+
+# Arguments
+- `directory_path::String`: The path to the directory containing the CSV files.
+
+# Returns
+- `Array{DataFrame, 1}`: An array of DataFrames, each corresponding to a CSV file.
+"""
+function read_csvs_in_directory(directory_path::String)
+    # Initialize an empty array to store DataFrames
+    dfs = DataFrame[]
+    
+    # Loop over each file in the directory
+    for file_name in readdir(directory_path)
+        # Check if the file is a CSV file
+        if occursin(".csv", file_name)
+            # Full path to the CSV file
+            full_file_path = joinpath(directory_path, file_name)
+            
+            # Read the CSV file into a DataFrame
+            df = DataFrame(CSV.File(full_file_path))
+            
+            # Append the DataFrame to the array
+            push!(dfs, df)
+        end
+    end
+    
+    return dfs
+end
+
+# Example usage
+dfs_array = read_csvs_in_directory("OscillatorPaper/FigureGenerationScripts/ROCKFISH_DATA/3Fixed/PopSize_10000/K_P_A/SummaryResults")
 
 
 using GLMakie; GLMakie.activate!()
+using GeometryBasics: Rect3f
+
+# Assuming dfs_array is your array of DataFrames
+# For demonstration, let's assume you've read one DataFrame from dfs_array
+df = dfs_array[3]
+
+# Log-transform the fixed values for plotting
+df_log = transform(df, :K => ByRow(log10), :P => ByRow(log10), :A => ByRow(log10))
+
+# Marker size normalization and scaling
+marker_size = df.num_oscillatory_points ./ maximum(df.num_oscillatory_points) * 0.3
+
+# Log-transform for better color mapping
+color_values = log10.(df.average_period)
+
+# Create the meshscatter plot
+fig, ax, pltobj = meshscatter(
+    vec([(df_log.K_log10[i], df_log.P_log10[i], df_log.A_log10[i]) for i in 1:length(df_log.K)]);
+    color = color_values,
+    # marker = Rect3f(Vec3f(-0.5), Vec3f(1)),
+    markersize = marker_size,
+    colormap = :viridis,
+    figure = (;
+        resolution = (1200, 800)),
+    axis = (;
+        type = Axis3,
+        xticklabels = df.K,
+        xlabel = "Log(K)",
+        ylabel = "Log(P)",
+        zlabel = "Log(A)",
+        aspect = :data)
+)
+
+# Display the plot
+fig
+
+
+
+function create_meshscatter_plot(df::DataFrame)
+    # Log-transform the fixed values for plotting
+    df_log = transform(df, :K => ByRow(log10), :P => ByRow(log10), :A => ByRow(log10))
+
+    # Marker size normalization and scaling
+    marker_size = df.num_oscillatory_points ./ maximum(df.num_oscillatory_points) * 0.3
+
+    # Log-transform for better color mapping
+    color_values = log10.(df.average_period)
+
+    # Create the meshscatter plot
+    fig, ax, pltobj = meshscatter(
+        vec([(df_log.K_log10[i], df_log.P_log10[i], df_log.A_log10[i]) for i in 1:length(df_log.K)]);
+        color = color_values,
+        markersize = marker_size,
+        colormap = (:Egypt, 1.0),
+        figure = (;
+            resolution = (1200, 800)),
+        axis = (;
+            type = Axis3,
+            xtickformat = values -> [string(round(10^x; digits=2)) for x in values], #* converts the log10 values back to the original values
+            ytickformat = values -> [string(round(10^x; digits=2)) for x in values],
+            ztickformat = values -> [string(round(10^x; digits=2)) for x in values],
+            xlabel = "K",
+            ylabel = "P",
+            zlabel = "A",
+            aspect = :data)
+    )
+    # Display the plot
+    return fig
+end
+
+create_meshscatter_plot(df)
+
+
+
+
+df100 = CSV.read("OscillatorPaper/FigureGenerationScripts/ROCKFISH_DATA/4Fixed/PopSize_1000/SummaryResults/Summary_DF=100.0.csv", DataFrame)
+df1000 = CSV.read("OscillatorPaper/FigureGenerationScripts/ROCKFISH_DATA/4Fixed/PopSize_1000/SummaryResults/Summary_DF=1000.0.csv", DataFrame)
+df10000 = CSV.read("OscillatorPaper/FigureGenerationScripts/ROCKFISH_DATA/4Fixed/PopSize_1000/SummaryResults/Summary_DF=10000.0.csv", DataFrame)
 
 function plot_4fixed_makie(df, Lval = 100.)
     df = df[df.L .== Lval, :]

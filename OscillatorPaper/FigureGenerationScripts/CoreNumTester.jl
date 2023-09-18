@@ -36,6 +36,7 @@ begin
     FFTW.set_num_threads(1)
 end
 
+println("Number of threads: ", numthreads)
 println("Number of cores: ", numcores)
 
 
@@ -213,4 +214,86 @@ println("GC time: ", time_results.gctime, "\n")
 
 
 
+# using Plots 
 
+# corelist = [1,5,9,13,17,21,25,29,33,37,41,45]
+# timelist = [49998.015669374, 11992.902370869, 7919.690304564, 6804.007481667, 4605.985745292, 4661.490750618, 3923.057727081, 3676.451899478, 3620.190313874, 3443.095502602, 3310.522324744, 3341.668692622]
+# gclist = [2056.171880943, 1677.28337679, 1932.153616315, 2223.68263324, 1459.319987119, 1911.251829509, 1583.697396817, 1571.539846504, 1658.581128171, 1583.471377401, 1513.257647106, 1570.993172414]
+
+# plot(corelist, timelist, label="Time", xlabel="Number of cores", ylabel="Time (s)", title="Time to run 4FixedICSearcher.jl", legend=:bottomright)
+# scatter!(corelist, timelist, label="")
+# plot!(corelist, gclist, label="GC time")
+
+"
+Number of cores: 1
+Population size: 10000
+Time to run: 49998.015669374
+Allocations: 15845712497323
+GC time: 2056.171880943
+
+Number of cores: 5
+Population size: 10000
+Time to run: 11992.902370869
+Allocations: 15845692774267
+GC time: 1677.28337679
+
+Number of cores: 9
+Population size: 10000
+Time to run: 7919.690304564
+Allocations: 15845666705931
+GC time: 1932.153616315
+
+Number of cores: 13
+Population size: 10000
+Time to run: 6804.007481667
+Allocations: 15845590577947
+GC time: 2223.68263324
+
+Number of cores: 17
+Population size: 10000
+Time to run: 4605.985745292
+Allocations: 15845545320075
+GC time: 1459.319987119
+
+Number of cores: 21
+Population size: 10000
+Time to run: 4661.490750618
+Allocations: 15845545762443
+GC time: 1911.251829509
+
+Number of cores: 25
+Population size: 10000
+Time to run: 3923.057727081
+Allocations: 15845614097227
+GC time: 1583.697396817
+
+Number of cores: 29
+Population size: 10000
+Time to run: 3676.451899478
+Allocations: 15845530792251
+GC time: 1571.539846504
+
+Number of cores: 33
+Population size: 10000
+Time to run: 3620.190313874
+Allocations: 15845543419707
+GC time: 1658.581128171
+
+Number of cores: 37
+Population size: 10000
+Time to run: 3443.095502602
+Allocations: 15845462953019
+GC time: 1583.471377401
+
+Number of cores: 41
+Population size: 10000
+Time to run: 3310.522324744
+Allocations: 15845511154699
+GC time: 1513.257647106
+
+Number of cores: 45
+Population size: 10000
+Time to run: 3341.668692622
+Allocations: 15845516164411
+GC time: 1570.993172414
+"
