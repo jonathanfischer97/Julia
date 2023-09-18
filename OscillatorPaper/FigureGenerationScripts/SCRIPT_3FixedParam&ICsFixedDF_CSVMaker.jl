@@ -42,7 +42,7 @@ begin
     const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 
     numthreads = Threads.nthreads()
-    @info "Threads detected: $numthreads"
+    println("Threads detected: $numthreads")
     numcores = min(1,numthreads÷2)
     BLAS.set_num_threads(numcores)
     FFTW.set_num_threads(numcores)
@@ -123,12 +123,12 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
                     minimum_amplitudes[i] = NaN
                 else
                     average_periods[i]::Float64 = mean(oscillatory_points_results.periods)
-                    maximum_periods[i]::Float64 = maximum(oscillatory_points_results.periods; init=0.0)
-                    minimum_periods[i]::Float64 = minimum(oscillatory_points_results.periods; init=0.0)
+                    maximum_periods[i]::Float64 = maximum(oscillatory_points_results.periods)
+                    minimum_periods[i]::Float64 = minimum(oscillatory_points_results.periods)
 
                     average_amplitudes[i]::Float64 = mean(oscillatory_points_results.amplitudes)
-                    maximum_amplitudes[i]::Float64 = maximum(oscillatory_points_results.amplitudes; init=0.0)
-                    minimum_amplitudes[i]::Float64 = minimum(oscillatory_points_results.amplitudes; init=0.0)
+                    maximum_amplitudes[i]::Float64 = maximum(oscillatory_points_results.amplitudes)
+                    minimum_amplitudes[i]::Float64 = minimum(oscillatory_points_results.amplitudes)
                     
                     #* save the results to the results_df
                     vals1[i] = val1

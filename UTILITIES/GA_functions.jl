@@ -400,7 +400,7 @@ end
 
 #< POPULATION GENERATION METHODS
 """
-    generate_population(constraints::ParameterConstraints, n::Int)
+    generate_population(constraints::ConstraintSet, n::Int)
 
 Generate a population of `n` individuals for the given generic `constraints <: ConstraintSet`. Each individual is sampled from a log-uniform distribution within the valid range for each parameter or initial condition.
 

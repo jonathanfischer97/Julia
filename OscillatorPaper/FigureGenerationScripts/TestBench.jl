@@ -50,7 +50,7 @@ end
 
 
 
-ogprobjac = make_ODE_problem();
+ogprobjac = make_ODE_problem(100.);
 
 tstart = cld(ogprobjac.tspan[2], 10)
 
@@ -81,6 +81,31 @@ ga_results = test(gaproblem)
 @btime test($gaproblem)
 
 @bprofile test(gaproblem)
+
+#* testing GA output for when fixed K=0.1, P=0.1, A=0.1, DF=100
+ogprobjac = make_ODE_problem(100.);
+
+gaprob = GAProblem(ode_problem = ogprobjac)
+gaconstraints = gaprob.constraints
+
+gaconstraints.DF.isfixed = true
+gaconstraints.DF.fixed_value = 1000.0
+
+gaconstraints.K.isfixed = true
+gaconstraints.K.fixed_value = 0.01
+
+gaconstraints.P.isfixed = true
+gaconstraints.P.fixed_value = 0.1
+
+gaconstraints.A.isfixed = true
+gaconstraints.A.fixed_value = 0.1
+
+gaprob
+Random.seed!(1234)
+
+initial_population = generate_population(gaconstraints, 10000)
+
+ga_results = run_GA(gaprob, initial_population; iterations = 5)
 
 #! population generation testing ##########
 Random.seed!(1234)
