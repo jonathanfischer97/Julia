@@ -31,7 +31,7 @@ begin
     # const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 
     numthreads = Threads.nthreads()
-    numcores = min(1,numthreads÷2)
+    numcores = max(1,numthreads÷2)
     BLAS.set_num_threads(1)
     FFTW.set_num_threads(1)
 end
@@ -177,7 +177,7 @@ end
 
 
 
-function run_4fixedIC(rangelength=3, popsize=10000, fixedDF=1000.)
+function run_4fixedIC(;rangelength=3, popsize=10000, fixedDF=1000.)
 
     ogprobjac = make_ODE_problem()
 
@@ -199,13 +199,13 @@ end
 
 # println(time())
 
-time_results = @timed run_4fixedIC()
+time_results = @timed run_4fixedIC(;popsize = parse(Int, ARGS[1]))
 
 # time_df = DataFrame(numcores = numcores, time = time_results.t, bytes = time_results.bytes, gctime = time_results.gctime)
 # CSV.write("OscillatorPaper/FigureGenerationScripts/TimerResults", time_df; append=true)
 
 
-
+println("Population size: ", parse(Int, ARGS[1]))
 println("Time to run: ", time_results.time)
 println("Allocations: ", time_results.bytes)
 println("GC time: ", time_results.gctime, "\n")

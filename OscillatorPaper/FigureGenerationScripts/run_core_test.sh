@@ -8,7 +8,7 @@
 
 
 # Run the Julia script and write output to file
-julia --threads=$SLURM_NTASKS_PER_NODE -- CoreNumTester.jl
+julia --threads=$SLURM_NTASKS_PER_NODE -- CoreNumTester.jl $1
 
 
 
