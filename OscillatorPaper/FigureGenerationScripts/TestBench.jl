@@ -2,6 +2,7 @@ begin
     using Plots; #theme(:juno)
     using Catalyst
     using OrdinaryDiffEq, ModelingToolkit
+    using DiffEqCallbacks
     using Statistics
     using Evolutionary, FFTW
     using Random
@@ -42,7 +43,7 @@ begin
     FFTW.set_num_threads(18)
 end
 
-AutoTsit5(Rodas5P())
+
 
 # debuglogger = ConsoleLogger(stderr, Logging.Debug)
 # infologger = ConsoleLogger(stderr, Logging.Info)
@@ -84,12 +85,21 @@ plot(tspans, costvals, xaxis=:log10, xlabel="tspan", ylabel="Cost", label="Cost 
 @btime solve($oprob, Rosenbrock23())
 @btime solve($oprob, Rodas5P())
 
-osol[L]
+
+
+
+
 
 ogprobjac = make_ODE_problem();
 
-sol = solve(ogprobjac, Rodas5())
-sol[L]
+callbackfunc = TerminateSteadyState(1e2)
+
+sol = solve(ogprobjac, AutoTsit5(Rodas5P()), saveat=0.1, save_idxs=[6, 9, 10, 11, 12, 15, 16])
+plot(sol)
+
+cbsol = solve(ogprobjac, AutoTsit5(Rodas5P()), saveat=0.1, save_idxs=[6, 9, 10, 11, 12, 15, 16], callback=callbackfunc)
+plot(cbsol)
+
 
 
 paramconstraints = ParameterConstraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
