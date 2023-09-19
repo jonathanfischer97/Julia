@@ -119,22 +119,28 @@ end
 Plot both the solution and the FFT of a solution from a row of the DataFrame
 """
 function plotboth(dfrow::DataFrameRow, prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)))
-
-        # if length(df.ind[row]) == 13
-        #         reprob = remake(prob, p = df.ind[row])
-        # elseif length(df.ind[row]) == 4
-        #         reprob = remake(prob, u0 = [df.ind[row]; zeros(length(prob.u0) - length(df.ind[row]))])
-        # else
-        #         reprob = remake(prob, p = df.ind[row][1:13], u0 = [df.ind[row][14:end]; zeros(length(prob.u0) - length(df.ind[row][14:end]))])
-        # end
-        
         newp = [param for param in dfrow[Between(:ka1, :DF)]]
         newu0 = [ic for ic in dfrow[Between(:L, :A)]]
 
         reprob = remake(prob, p = newp, u0 = [newu0; zeros(length(prob.u0) - length(newu0))])
 
-        sol = solve(reprob, Rosenbrock23(), saveat=0.1, save_idxs=vars)
-        cost, per, amp = CostFunction(solve(reprob, Rosenbrock23(), saveat=0.1, save_idxs=[6, 9, 10, 11, 12, 15, 16]))
+        plotboth(reprob; vars = vars)
+end
+
+function plotboth(prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)))
+        sol = solve(prob, AutoTsit5(Rodas5P()), saveat=0.1, save_idxs=vars)
+
+        plotboth(sol)
+end
+
+function plotboth(sol::ODESolution)
+
+        tstart = cld(length(sol.t),10) 
+        trimsol = sol[tstart:end] 
+
+        Amem = trimsol[6,:] + trimsol[9,:] + trimsol[10,:]+ trimsol[11,:] + trimsol[12,:]+ trimsol[15,:] + trimsol[16,:]
+
+        cost, per, amp = CostFunction(Amem, trimsol.t)
         amp_percentage = amp/sol[4,1]
 
         solplot = plotsol(sol)
@@ -144,9 +150,9 @@ function plotboth(dfrow::DataFrameRow, prob::ODEProblem; vars::Vector{Int} = col
                         plot_titlefontsize = 20, layout = (2,1), size = (1000, 800))
         display(bothplot)
         return bothplot
-        # display(solplot)
-        # return solplot
 end
+
+
 
 """
 Plot the solution and FFT of every row in the DataFrame

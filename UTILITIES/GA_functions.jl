@@ -152,7 +152,7 @@ Define parameter constraints. Each keyword argument represents a different param
 
 # Example
 ```julia
-constraints = define_parameter_constraints(
+constraints = ParameterConstraints(
     karange = (-3.0, 1.0), 
     kbrange = (-3.0, 3.0), 
     kcatrange = (-3.0, 3.0), 
@@ -192,7 +192,7 @@ Define initial condition constraints. Each keyword argument represents a differe
 
 # Example
 ```julia
-constraints = define_initialcondition_constraints(
+constraints = InitialConditionConstraints(
     lipidrange = (0.1, 10.0), 
     kinaserange = (0.1, 10.0), 
     phosphataserange = (0.1, 10.0), 

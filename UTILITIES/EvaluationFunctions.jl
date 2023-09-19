@@ -24,9 +24,9 @@ end
 
 """Get summed average standard deviation of peaks in the frequency domain"""
 function getSTD(fft_peakindxs::Vector{Int}, fft_arrayData::Vector{Float64}; window::Int =1) #get average standard deviation of fft peak indexes
-    # arrLen = length(fft_arrayData)
-    # window = max(1,cld(arrLen,window_ratio)) #* window size is 1% of array length, or 1 if array length is less than 100
-    sum(std(@view fft_arrayData[max(1, ind - window):min(length(fft_arrayData), ind + window)]) for ind in fft_peakindxs) #* sum rolling window of standard deviations
+    arrLen = length(fft_arrayData)
+    #window = max(1,cld(arrLen,window_ratio)) #* window size is 1% of array length, or 1 if array length is less than 100
+    sum_std = sum(std(@view fft_arrayData[max(1, ind - window):min(arrLen, ind + window)]) for ind in fft_peakindxs) #* sum rolling window of standard deviations
 
     # return sum_std / length(fft_peakindxs) #* divide by number of peaks to get average std
 end 
@@ -55,7 +55,7 @@ function getPerAmp(solt, indx_max::Vector{Int}, vals_max::Vector{Float64}, indx_
     pers = (solt[indx_max[i+1]] - solt[indx_max[i]] for i in 1:(length(indx_max)-1))
     amps = (vals_max[i] - vals_min[i] for i in 1:min(length(indx_max), length(indx_min)))
 
-    return maximum(pers), mean(amps) .|> abs #TODO fix this, why is amps empty sometimes
+    return mean(pers), mean(amps) .|> abs #TODO fix this, why is amps empty sometimes
 end
 
 
@@ -105,7 +105,7 @@ function CostFunction(solu::Vector{Float64}, solt::Vector{Float64})
     if length(fft_peakindexes) < 2 #* if there is no signal in the frequency domain, return 0.0s
         return [0.0, 0.0, 0.0]
     else
-        standard_deviation = getSTD(fft_peakindexes, fftData; window = 1) #* get the summed standard deviation of the peaks in frequency domain
+        standard_deviation = getSTD(fft_peakindexes, fftData) #* get the summed standard deviation of the peaks in frequency domain
         sum_diff = getDif(fft_peakvals) #* get the summed difference between the first and last peaks in frequency domain
     
         #* Compute the period and amplitude
@@ -138,7 +138,9 @@ function eval_all_fitness(inputs::Vector{Float64}, prob::OT; idx::Vector{Int} = 
     # new_prob = remake(prob, p = inputs[1:13], u0= [inputs[14:end]; zeros(12)])
     newp = @view inputs[1:13]
     newu = @view inputs[14:end]
-    new_prob = remake(prob, p = newp, u0= newu)
+    first4u = @view inputs[14:17]
+    tend = calculate_tspan(newp, first4u)
+    new_prob = remake(prob; p = newp, u0= newu, tspan=(0.0, tend))
     return solve_for_fitness_peramp(new_prob, idx)
 end
 
@@ -146,15 +148,33 @@ end
 
 """Utility function to solve the ODE and return the fitness and period/amplitude"""
 function solve_for_fitness_peramp(prob::OT, idx) where OT <: ODEProblem
-    tstart = cld(length(prob.tspan[2]),10)
-    savepoints = tstart:0.1:prob.tspan[2]
+    tstart = prob.tspan[2] / 10
 
-    sol = solve(prob, Rodas5(), saveat=savepoints, save_idxs=idx, verbose=false)
-    
+    savepoints = tstart:0.1:prob.tspan[2]
+    sol = solve(prob, AutoTsit5(Rodas5P()), saveat=savepoints, save_idxs=idx, verbose=false, maxiters=1e6)
+
     if sol.retcode == ReturnCode.Success
         return CostFunction(sol)
     else
         return [0.0, 0.0, 0.0]
+    end
+end
+
+"""Calculate tspan based on the slowest reaction rate. 
+Simply the reciprocal of the minimum first order rate constants, or the reciprocal of the minimum second order rate constants multiplied by the minimum concentration of the reactants
+"""
+function calculate_tspan(params, initial_conditions; max_t = 1e5)
+    #* Get the minimum rate constant
+    min_k, min_k_idx = findmin(params)
+
+    if min_k_idx in (1,4,6,8,10) #* If the minimum rate constant is a second order rate constant, multiply by the minimum concentration of the reactants
+        #* Get the minimum concentration of the reactants
+        min_conc = minimum(initial_conditions)
+
+        #* Calculate the tspan
+        return min(max(10.0, (min_k * min_conc)^-1), max_t)
+    else #* If the minimum rate constant is a first order rate constant, simply take the reciprocal
+        return min(max(10.0, min_k^-1), max_t)
     end
 end
 

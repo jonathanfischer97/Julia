@@ -51,7 +51,13 @@ function make_ODE_problem(tend::Float64=2000.)
 
     fullrn = make_fullrn()
 
-    ogprob = ODEProblem(fullrn, [], tspan, ())
+    # osys = convert(ODESystem, fullrn)
+
+    ogprob = ODEProblem(fullrn, [], tspan, [])
+
+    # @unpack ka1, kb1, kcat1, ka2, kb2, ka3, kb3, ka4, kb4, ka7, kb7, kcat7, DF = osys
+    # @unpack L, K, P, A, Lp, LpA, LK, LpP, LpAK, LpAP, LpAKL, LpAPLp, AK, AP, AKL, APLp = osys
+
     # @info typeof(ogprob)
 
     de = modelingtoolkitize(ogprob)

@@ -11,7 +11,7 @@ begin
     using StaticArrays
     using BenchmarkTools, ProgressMeter
 
-    using JET
+    # using JET
 
     using LinearAlgebra
 
@@ -38,36 +38,79 @@ begin
 
 
     const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
+
+    FFTW.set_num_threads(18)
 end
 
+AutoTsit5(Rodas5P())
 
 # debuglogger = ConsoleLogger(stderr, Logging.Debug)
 # infologger = ConsoleLogger(stderr, Logging.Info)
 # global_logger(infologger)
+@unpack ka1, kb1, kcat1, ka2, kb2, ka3, kb3, ka4, kb4, ka7, kb7, kcat7, DF = osys
+@unpack L, K, P, A, Lp, LpA, LK, LpP, LpAK, LpAP, LpAKL, LpAPLp, AK, AP, AKL, APLp = osys
 
-#* save just last 90% of ode solution
-#* figure out the right fitness function, in-place
+fullrn = make_fullrn()
+
+# oprob = ODEProblem(fullrn, [], (0., 1000.), ())
+
+osys = convert(ODESystem, fullrn)
+
+oprob = ODEProblem(osys, [], (0., 2000.), ())
+
+osol = solve(oprob, AutoTsit5(Rodas5P()), saveat=0.1)
+
+@btime solve_for_fitness_peramp(oprob, [6, 9, 10, 11, 12, 15, 16])
+plotboth(osol)
+
+
+tspans = logrange(10, 100000, 20)
+costvals = []
+
+for tend in tspans
+    reprob = remake(oprob, tspan = (0., round(tend)))
+    sol = solve(reprob, AutoTsit5(Rodas5P()), saveat=0.1, save_idxs=[6, 9, 10, 11, 12, 15, 16])
+    cost = CostFunction(sol)
+    push!(costvals, cost[1])
+end
+
+plot(tspans, costvals, xaxis=:log10, xlabel="tspan", ylabel="Cost", label="Cost vs tspan")
 
 
 
-ogprobjac = make_ODE_problem(100.);
-
-tstart = cld(ogprobjac.tspan[2], 10)
-
-solve(ogprobjac, Rosenbrock23(), saveat=200.:0.1:2000., save_idxs = [6, 9, 10, 11, 12, 15, 16])
 
 
+@btime solve($oprob, AutoTsit5(Rodas5P()))
+@btime solve($oprob, Rosenbrock23())
+@btime solve($oprob, Rodas5P())
+
+osol[L]
+
+ogprobjac = make_ODE_problem();
+
+sol = solve(ogprobjac, Rodas5())
+sol[L]
+
+
+paramconstraints = ParameterConstraints(; karange = (1e-3, 1e2), kbrange = (1e-3, 1e3), kcatrange = (1e-3, 1e3), dfrange = (1e2, 2e4))
+ic_constraints = InitialConditionConstraints(; Lrange = (1e-1, 1e2), Krange = (1e-2, 1e2), Prange = (1e-2, 1e2), Arange = (1e-1, 1e2))
+
+#* calculate the minimum tspan in order to capture largest period oscillations
+minimum_tspan = 1/(0.1 * 0.1) #multiply slowest forward rate by lowest concentration and take reciprocal to get seconds 
 
 allconstraints = AllConstraints()
 gaproblem = GAProblem(allconstraints, ogprobjac)
-@report_opt GAProblem(allconstraints, ogprobjac)
+# @report_opt GAProblem(allconstraints, ogprobjac)
 
-@code_warntype GAProblem(allconstraints, ogprobjac)
+# @code_warntype GAProblem(allconstraints, ogprobjac)
 
 
-initial_population = generate_population(allconstraints, 5000)
+initial_population = generate_population(allconstraints, 50000)
 ga_results = run_GA(gaproblem, initial_population; iterations = 5)
-save_to_csv(ga_results, allconstraints, "gentest.csv")
+ga_df = make_ga_dataframe(ga_results, allconstraints)
+desc_df = describe(ga_df)
+show(desc_df, allrows=true)
+save_to_csv(ga_results, allconstraints, "adaptive_tspan_test.csv")
 
 function test(gaproblem)
     Random.seed!(1234)
@@ -426,7 +469,3 @@ testdf = CSV.read("/Users/jonathanfischer/Desktop/PhD_ThesisWork/Julia/Oscillato
 
 plot_everything(testdf, ogprob; setnum=15, label="TestingSTDWindow", jump = 10)
 
-#! diversity metric
-#* PCA?
-#* minimum distance between points in the population
-#* need to figure out convergence metric to compare 
