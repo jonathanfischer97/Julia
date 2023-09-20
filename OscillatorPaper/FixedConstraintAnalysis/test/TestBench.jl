@@ -57,15 +57,21 @@ function elbow_method(X::Matrix{Float64}, max_k::Int)
     distortions = Vector{Float64}(undef, max_k)
     for k in 1:max_k
         result = kmeans(X, k)
-        distortions[k] = totalcost(result)
+        distortions[k] = result.totalcost
     end
     return distortions
 end
 
+function get_optimal_k(df::DataFrame, max_k::Int; exclude_cols::Vector{Symbol} = Symbol[])
+    distortions = elbow_method(df, max_k, exclude_cols = exclude_cols)
+    return argmin(distortions)
+end
+
  
-clusterarray = [kmeans(df, 4, exclude_cols = [:fit, :per, :amp, :DF, :L, :K, :P, :A]) for df in dfarray]
+clusterarray = [kmeans(df, 3, exclude_cols = [:fit, :per, :amp, :DF, :L, :K, :P, :A]) for df in dfarray]
 
 df = dfarray[1]
+optimal_k = get_optimal_k(df, 10, exclude_cols = [:fit, :per, :amp, :DF, :L, :K, :P, :A])
 cluster = clusterarray[1]
 
 a = assignments(cluster)
@@ -73,4 +79,7 @@ c = counts(cluster)
 m = cluster.centers
 n = nclusters(cluster)
 
-plot(df.ka1, df.kb1, marker_z = a, color=:lightrainbow)
+scatter(df.ka1, df.kb1, marker_z=cluster.assignments)
+
+
+
