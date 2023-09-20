@@ -90,6 +90,10 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
     #* make the GA problem
     ga_problem = GAProblem(constraints = allconstraints, ode_problem = prob)
 
+    #* Initialize vectors to hold PCA and clustering results
+    pca_loadings = Matrix{Float64}(undef, num_rows, 3)
+    cluster_labels = Vector{Int}(undef, num_rows)
+
     #* loop through each ic range and run the GA on each set of initial conditions after remaking the problem with them
     for icval1 in icranges[1]
         for icval2 in icranges[2]
@@ -132,12 +136,26 @@ function fixed_quadruplet_ic_searcher(paramconstraints::ParameterConstraints, ic
                         maximum_amplitudes[i]::Float64 = maximum(oscillatory_points_results.amplitudes)
                         minimum_amplitudes[i]::Float64 = minimum(oscillatory_points_results.amplitudes)
                         
-                        #* save the results to the results_df
+                        #* save the results to the arrays
                         icvals1[i] = icval1
                         icvals2[i] = icval2
                         icvals3[i] = icval3
                         icvals4[i] = icval4
                         num_oscillatory_points_array[i] = num_oscillatory_points
+
+                        #* Perform PCA
+                        population_matrix = hcat(oscillatory_points_results.population...)'
+                        pca_model = fit(PCA, population_matrix; maxoutdim=3)
+                        pca_loadings[i,:] .= pca_model.prinvars
+
+
+                        #* Apply k-means clustering (You can determine 'k' dynamically based on methods discussed)
+                        k = 3  # Placeholder; you can estimate this value using methods like the Elbow method
+                        clustering_result = kmeans(population_matrix, k)
+
+                        #* Store the mode of cluster labels for these points
+                        cluster_labels[i] = mode(clustering_result.assignments)
+
 
                         #* save the dataframe of this particular fixed value combination to a csv file, identified by the fixed initial conditions
                         csv_filestring = DFpath*"/L=$(round(icval1; digits = 2))_K=$(round(icval2;digits = 2))_P=$(round(icval3; digits=2))_A=$(round(icval4; digits=2)).csv"

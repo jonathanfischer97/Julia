@@ -1,14 +1,4 @@
 #< Plotting utilities for testing
-# """
-# Plot the solution of an ODEProblem, `prob`, with respect to the variables `vars`.
-# """
-# function plotsol(prob::ODEProblem; vars::Vector{Int} = collect(1:length(prob.u0)), title = "")
-#         sol = solve(prob, Rosenbrock23(), saveat=0.1, save_idxs=vars)
-#         p = plot(sol, title = title, xlabel = "Time (s)", ylabel = "Concentration (µM)", lw = 2, size = (1000, 600))
-
-#         display(p)
-#         return p
-# end
 
 using Plots
 using ColorSchemes, Plots.PlotMeasures

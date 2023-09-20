@@ -71,7 +71,6 @@ function read_csvs_in_directory(directory_path::String)
             push!(dfs, df)
         end
     end
-    
     return dfs
 end
 

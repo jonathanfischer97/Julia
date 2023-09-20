@@ -1,11 +1,9 @@
-
-import Evolutionary
-
-#< OVERRIDES FOR Evolutionary.jl ##
+#< CUSTOM GA STATE TYPE AND BASE OVERLOADS ##
 """Custom GA state type that captures additional data from the objective function in the extradata field\n
     - `T` is the type of the fitness value\n
     - `IT` is the type of the individual\n
-    - `TT` is the type of the additional data from the objective function\n"""
+    - `TT` is the type of the additional data from the objective function\n
+"""
 mutable struct CustomGAState <: Evolutionary.AbstractOptimizerState  
     N::Int  #* number of elements in an individual
     eliteSize::Int  #* number of individuals that are copied to the next generation
@@ -31,9 +29,8 @@ function Evolutionary.trace!(record::Dict{String,Any}, objfun, state, population
     record["amplitudes"] = fitvals[3,:]
 end
 
-
 """Show override function to prevent printing large arrays"""
-function Evolutionary.show(io::IO, t::Evolutionary.OptimizationTraceRecord)
+function Evolutionary.show(io::IO, t::Evolutionary.OptimizationTraceRecord{Float64, O}) where O <: Evolutionary.AbstractOptimizer
     print(io, lpad("$(t.iteration)",6))
     print(io, "   ")
     print(io, lpad("$(t.value)",14))
@@ -45,56 +42,11 @@ function Evolutionary.show(io::IO, t::Evolutionary.OptimizationTraceRecord)
     print(io, "\n * num_oscillatory: $(length(t.metadata["fitvals"]))")
     return
 end
+#> END OF CUSTOM GA STATE TYPE AND OVERLOADS ##
 
 
-"""
-    EvolutionaryObjective(f, x[, F])
 
-Constructor for an objective function object around the function `f` with initial parameter `x`, and objective value `F`.
-"""
-function Evolutionary.EvolutionaryObjective(f::TC, x::Vector{Float64}, F::Matrix{Float64};
-                               eval::Symbol = :serial) where {TC}
-    # @info "Using custom EvolutionaryObjective constructor"
-    defval = Evolutionary.default_values(x)
-
-    #* convert function into the in-place one
-    TF = typeof(F)
-
-    fn = (Fv,xv) -> (Fv .= f(xv))
-    TN = typeof(fn)
-    EvolutionaryObjective{TN,TF,typeof(x),Val{eval}}(fn, F, defval, 0)
-end
-
-"""Override of the multiobjective check"""
-Evolutionary.ismultiobjective(obj) = false
-
-"""Modified value! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
-function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}},
-                                F::AbstractMatrix, xs::AbstractVector{TX}) where {TC,TF,TX}
-    n = length(xs)
-    # @info "Evaluating $(n) individuals in parallel"
-    Threads.@threads for i in 1:n
-        # @info length(xs[i])
-        # F[:,i] .= Evolutionary.value(obj, xs[i])  #* evaluate the fitness, period, and amplitude for each individual
-        fv = view(F, :, i)
-        # @info length(fv)
-        value(obj, fv, xs[i])
-    end
-    F
-end
-
-
-"""Same value! function but with serial eval"""
-function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:serial}},
-                                F::AbstractVector, xs::AbstractVector{TX}, P::AbstractVector, A::AbstractVector) where {TC,TF<:AbstractVector,TX}
-    n = length(xs)
-    for i in 1:n
-        F[i], P[i], A[i] = Evolutionary.value(obj, xs[i])  #* evaluate the fitness, period, and amplitude for each individual
-        # println("Ind: $(xs[i]) fit: $(F[i]) per: $(P[i]) amp: $(A[i])")
-    end
-    F, P, A
-end
-
+#< CUSTOM GA STATE CONSTRUCTOR AND UPDATE STATE FUNCTION ##
 """Initialization of my custom GA algorithm state that captures additional data from the objective function\n
     - `method` is the GA method\n
     - `options` is the options dictionary\n
@@ -128,16 +80,6 @@ function Evolutionary.initial_state(method::GA, options, objfun, population::Vec
     return CustomGAState(N, eliteSize, maxfit, output_array, copy(population[fitidx]))
 end
 
-"""Modified evaluate! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
-# function Evolutionary.evaluate!(objfun, fitvals, population::Vector{Vector{Float64}}, periods, amplitudes, constraints)
-
-#     #* calculate fitness of the population
-#     Evolutionary.value!(objfun, fitvals, population, periods, amplitudes)
-
-#     #* apply penalty to fitness
-#     Evolutionary.penalty!(fitvals, constraints, population)
-# end
-
 function Evolutionary.evaluate!(objfun, fitvals, population::Vector{Vector{Float64}}, constraints)
 
     #* calculate fitness of the population
@@ -150,7 +92,7 @@ end
 """Update state function that captures additional data from the objective function"""
 function Evolutionary.update_state!(objfun, constraints, state::CustomGAState, parents::Vector{Vector{Float64}}, method::GA, options, itr)
     populationSize = method.populationSize
-    evaltype = options.parallelization
+    # evaltype = options.parallelization
     rng = options.rng
     offspring = similar(parents)
 
@@ -179,7 +121,7 @@ function Evolutionary.update_state!(objfun, constraints, state::CustomGAState, p
 
 
     #* select the best individual
-    maxfit, fitidx = findmax(fitness_vals)
+    _, fitidx = findmax(fitness_vals)
     state.fittestInd = offspring[fitidx]
     state.fittestValue = fitness_vals[fitidx]
     
@@ -188,7 +130,58 @@ function Evolutionary.update_state!(objfun, constraints, state::CustomGAState, p
 
     return false
 end
+#> END OF CUSTOM GA STATE CONSTRUCTOR AND UPDATE STATE FUNCTION ##
 
 
+
+
+#< OBJECTIVE FUNCTION OVERRIDES ##
+"""
+    EvolutionaryObjective(f, x[, F])
+
+Constructor for an objective function object around the function `f` with initial parameter `x`, and objective value `F`.
+"""
+function Evolutionary.EvolutionaryObjective(f::TC, x::Vector{Float64}, F::AbstractMatrix;
+                               eval::Symbol = :serial) where {TC}
+    # @info "Using custom EvolutionaryObjective constructor"
+    defval = Evolutionary.default_values(x)
+
+    #* convert function into the in-place one
+    TF = typeof(F)
+
+    fn = (Fv,xv) -> (Fv .= f(xv))
+    TN = typeof(fn)
+    EvolutionaryObjective{TN,TF,typeof(x),Val{eval}}(fn, F, defval, 0)
+end
+
+"""Override of the multiobjective check"""
+Evolutionary.ismultiobjective(obj::EvolutionaryObjective{Function,Matrix{Float64},Vector{Float64},Val{:thread}}) = false
+
+"""Modified value! function from Evolutionary.jl to allow for multiple outputs from the objective function to be stored"""
+function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:thread}},
+                                F::AbstractMatrix, xs::Vector{TX}) where {TC,TF,TX <: AbstractVector}
+    n = length(xs)
+    # @info "Evaluating $(n) individuals in parallel"
+    Threads.@threads for i in 1:n
+        # @info length(xs[i])
+        # F[:,i] .= Evolutionary.value(obj, xs[i])  #* evaluate the fitness, period, and amplitude for each individual
+        fv = view(F, :, i)
+        # @info length(fv)
+        value(obj, fv, xs[i])
+    end
+    F
+end
+
+"""Same value! function but with serial eval"""
+function Evolutionary.value!(obj::EvolutionaryObjective{TC,TF,TX,Val{:serial}},
+                                F::AbstractMatrix, xs::Vector{TX}) where {TC,TF, TX <: AbstractVector}
+    n = length(xs)
+    for i in 1:n
+        F[:,i] .= Evolutionary.value(obj, xs[i])  #* evaluate the fitness, period, and amplitude for each individual
+        # println("Ind: $(xs[i]) fit: $(F[i]) per: $(P[i]) amp: $(A[i])")
+    end
+    F
+end
+#> END OF OVERRIDES ##
 
 

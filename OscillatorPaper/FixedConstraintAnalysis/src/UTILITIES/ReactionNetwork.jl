@@ -1,6 +1,3 @@
-# const PARAM_NAMES = ["ka1", "kb1", "kcat1", "ka2", "kb2", "ka3", "kb3", "ka4", "kb4", "ka7", "kb7", "kcat7", "DF"]
-# const VAR_NAMES = ["L", "K", "P", "A", "Lp", "LpA", "LK", "LpP", "LpAK", "LpAP", "LpAKL", "LpAPLp", "AK", "AP", "AKL", "APLp"]
-
 """Full oscillator model"""
 function make_fullrn(;defparams = [:ka1 => 0.009433439939827041, :kb1 => 2.3550169939427845, :kcat1 => 832.7213093872278, :ka2 => 12.993995997539924, :kb2 => 6.150972501791291,
                                     :ka3 => 1.3481451097940793, :kb3 => 0.006201726090609513, :ka4 => 0.006277294665474662, :kb4 => 0.9250191811994848, :ka7 => 57.36471615394549, 
@@ -51,12 +48,7 @@ function make_ODE_problem(tend::Float64=2000.)
 
     fullrn = make_fullrn()
 
-    # osys = convert(ODESystem, fullrn)
-
     ogprob = ODEProblem(fullrn, [], tspan, [])
-
-    # @unpack ka1, kb1, kcat1, ka2, kb2, ka3, kb3, ka4, kb4, ka7, kb7, kcat7, DF = osys
-    # @unpack L, K, P, A, Lp, LpA, LK, LpP, LpAK, LpAP, LpAKL, LpAPLp, AK, AP, AKL, APLp = osys
 
     # @info typeof(ogprob)
 
