@@ -40,16 +40,19 @@ end
 #* Clustering test 
 dfarray = read_csvs_in_directory("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/FigureGenerationScripts/ROCKFISH_DATA/4Fixed/PopSize_10000/4FixedICRawSets/DF=1000.0")
 
-import Clustering: kmeans
+function df_to_matrix(df::DataFrame, exclude_cols::Vector{Symbol})
+    return Matrix(df[:, Not(exclude_cols)])
+end
+
+
+
 function kmeans(df::DataFrame, k::Int; exclude_cols::Vector{Symbol} = Symbol[])
-    included_cols = setdiff(propertynames(df), exclude_cols)
-    data_matrix = Matrix(df[:, included_cols])
+    data_matrix = df_to_matrix(df, exclude_cols)
     return kmeans(data_matrix, k)
 end
 
 function elbow_method(df::DataFrame, max_k::Int; exclude_cols::Vector{Symbol} = Symbol[])
-    included_cols = setdiff(propertynames(df), exclude_cols)
-    data_matrix = Matrix(df[:, included_cols])
+    data_matrix = df_to_matrix(df, exclude_cols)
     return elbow_method(data_matrix, max_k)
 end
 
@@ -79,7 +82,19 @@ c = counts(cluster)
 m = cluster.centers
 n = nclusters(cluster)
 
-scatter(df.ka1, df.kb1, marker_z=cluster.assignments)
+using MultivariateStats
+
+
+
+pca_mat = df_to_matrix(df, [:fit, :per, :amp, :DF, :L, :K, :P, :A])
+
+pca_model = fit(PCA, pca_mat, maxoutdim=2)
+reduced_data = MultivariateStats.transform(pca_model, pca_mat)
+
+x_coords = reduced_data[:, 1]
+y_coords = reduced_data[:, 2]
+
+scatter(x_coords, y_coords, zcolor=df.per, colorbar=true)
 
 
 
