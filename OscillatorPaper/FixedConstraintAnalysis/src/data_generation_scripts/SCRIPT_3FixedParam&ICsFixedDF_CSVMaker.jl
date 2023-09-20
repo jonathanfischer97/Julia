@@ -22,22 +22,8 @@ begin
 
     # default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
 
-    # gr()
-    # push!(LOAD_PATH, "../../UTILITIES")
 
-    include("../../UTILITIES/EvolutionaryOverloads.jl")
-
-    # import the Catalyst model "fullrn"
-    include("../../UTILITIES/ReactionNetwork.jl")
-
-    # import the cost function and other evaluation functions
-    include("../../UTILITIES/EvaluationFunctions.jl")
-    # using .EvaluationFunctions
-
-    # import the genetic algorithm and associated functions
-    include("../../UTILITIES/GA_functions.jl")
-
-    # include("../../UTILITIES/TestBenchPlotUtils.jl")
+    using OscTools
 
     const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 
