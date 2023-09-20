@@ -2,7 +2,7 @@
 
 julia_version = "1.9.3"
 manifest_format = "2.0"
-project_hash = "d2e868da6515675fdeae9f3cb3002c346ffbbdab"
+project_hash = "8194350cada8f0f097695e6a6e2a6419d94e2554"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "5d2e21d7b0d8c22f67483ef95ebdc39c0e6b6003"
@@ -477,6 +477,12 @@ version = "0.5.3"
 git-tree-sha1 = "bdb1942cd4c45e3c678fd11569d5cccd80976237"
 uuid = "4e289a0a-7415-4d19-859d-a7e5c4648b56"
 version = "1.0.4"
+
+[[deps.EpollShim_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "8e9441ee83492030ace98f9789a654a6d0b1f643"
+uuid = "2702e6a9-849d-5ed8-8c21-79e8b8f9ee43"
+version = "0.0.20230411+0"
 
 [[deps.Evolutionary]]
 deps = ["LinearAlgebra", "NLSolversBase", "Random", "StackViews", "Statistics", "UnPack"]
@@ -1264,9 +1270,7 @@ version = "6.55.0"
 
 [[deps.OscTools]]
 deps = ["CSV", "Catalyst", "Clustering", "ColorSchemes", "DataFrames", "DiffEqCallbacks", "DifferentialEquations", "Distributions", "Evolutionary", "FFTW", "LinearAlgebra", "MKL", "ModelingToolkit", "MultivariateStats", "OrdinaryDiffEq", "Plots", "ProgressMeter", "Random", "Statistics"]
-git-tree-sha1 = "da5b9ef76c7b61372e2b6ad7d6eb2014ee3f9796"
-repo-rev = "master"
-repo-url = "/home/jfisch27/.julia/dev/OscTools"
+path = "/home/local/WIN/jfisch27/.julia/dev/OscTools/"
 uuid = "ac690ce6-f2ed-4397-91ad-f187938c21d6"
 version = "1.0.0-DEV"
 
@@ -1976,10 +1980,10 @@ uuid = "19fa3120-7c27-5ec5-8db8-b0b0aa330d6f"
 version = "0.2.0"
 
 [[deps.Wayland_jll]]
-deps = ["Artifacts", "Expat_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Pkg", "XML2_jll"]
-git-tree-sha1 = "ed8d92d9774b077c53e1da50fd81a36af3744c1c"
+deps = ["Artifacts", "EpollShim_jll", "Expat_jll", "JLLWrappers", "Libdl", "Libffi_jll", "Pkg", "XML2_jll"]
+git-tree-sha1 = "7558e29847e99bc3f04d6569e82d0f5c54460703"
 uuid = "a2964d1f-97da-50d4-b82a-358c7fce9d89"
-version = "1.21.0+0"
+version = "1.21.0+1"
 
 [[deps.Wayland_protocols_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
