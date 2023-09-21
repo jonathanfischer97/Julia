@@ -80,6 +80,9 @@ c = counts(cluster)
 m = cluster.centers
 n = nclusters(cluster)
 
+
+
+
 using MultivariateStats
 
 
@@ -93,6 +96,10 @@ x_coords = reduced_data[:, 1]
 y_coords = reduced_data[:, 2]
 
 scatter(x_coords, y_coords, zcolor=df.per, colorbar=true)
+
+
+
+
 
 
 #*FFTW testing 
