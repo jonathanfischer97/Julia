@@ -44,8 +44,6 @@ function df_to_matrix(df::DataFrame, exclude_cols::Vector{Symbol})
     return Matrix(df[:, Not(exclude_cols)])
 end
 
-
-
 function kmeans(df::DataFrame, k::Int; exclude_cols::Vector{Symbol} = Symbol[])
     data_matrix = df_to_matrix(df, exclude_cols)
     return kmeans(data_matrix, k)
@@ -96,5 +94,26 @@ y_coords = reduced_data[:, 2]
 
 scatter(x_coords, y_coords, zcolor=df.per, colorbar=true)
 
+
+#*FFTW testing 
+
+ogprobjac = make_ODE_problem()
+sol = solve_odeprob(ogprobjac, [6, 9, 10, 11, 12, 15, 16])
+Amem_sol = map(sum, sol.u)
+
+@btime rfft($Amem_sol)
+rfft_plan = plan_rfft(Amem_sol)
+
+@btime rfft_plan * $Amem_sol
+
+@btime dct($Amem_sol)
+
+dct_plan = plan_dct(Amem_sol)
+
+@btime dct_plan * $Amem_sol
+
+dct_plan = plan_dct!(Amem_sol)
+
+@btime dct_plan * $Amem_sol
 
 
