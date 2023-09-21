@@ -2,7 +2,7 @@ begin
     using Plots; #theme(:juno)
     using Catalyst
     using OrdinaryDiffEq, ModelingToolkit
-    using DiffEqCallbacks
+    # using DiffEqCallbacks
     using Statistics
 
     using Random
@@ -40,28 +40,6 @@ end
 #* Clustering test 
 dfarray = read_csvs_in_directory("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/FigureGenerationScripts/ROCKFISH_DATA/4Fixed/PopSize_10000/4FixedICRawSets/DF=1000.0")
 
-function df_to_matrix(df::DataFrame, exclude_cols::Vector{Symbol})
-    return Matrix(df[:, Not(exclude_cols)])
-end
-
-function kmeans(df::DataFrame, k::Int; exclude_cols::Vector{Symbol} = Symbol[])
-    data_matrix = df_to_matrix(df, exclude_cols)
-    return kmeans(data_matrix, k)
-end
-
-function elbow_method(df::DataFrame, max_k::Int; exclude_cols::Vector{Symbol} = Symbol[])
-    data_matrix = df_to_matrix(df, exclude_cols)
-    return elbow_method(data_matrix, max_k)
-end
-
-function elbow_method(X::Matrix{Float64}, max_k::Int)
-    distortions = Vector{Float64}(undef, max_k)
-    for k in 1:max_k
-        result = kmeans(X, k)
-        distortions[k] = result.totalcost
-    end
-    return distortions
-end
 
 function get_optimal_k(df::DataFrame, max_k::Int; exclude_cols::Vector{Symbol} = Symbol[])
     distortions = elbow_method(df, max_k, exclude_cols = exclude_cols)
@@ -73,29 +51,35 @@ clusterarray = [kmeans(df, 3, exclude_cols = [:fit, :per, :amp, :DF, :L, :K, :P,
 
 df = dfarray[1]
 optimal_k = get_optimal_k(df, 10, exclude_cols = [:fit, :per, :amp, :DF, :L, :K, :P, :A])
-cluster = clusterarray[1]
-
-a = assignments(cluster)
-c = counts(cluster)
-m = cluster.centers
-n = nclusters(cluster)
 
 
 
 
-using MultivariateStats
 
-
+result = kmeans(df, 3, exclude_cols = [:fit, :per, :amp, :DF, :L, :K, :P, :A])
 
 pca_mat = df_to_matrix(df, [:fit, :per, :amp, :DF, :L, :K, :P, :A])
 
-pca_model = fit(PCA, pca_mat, maxoutdim=2)
-reduced_data = MultivariateStats.transform(pca_model, pca_mat)
+pca_mat_transposed = transpose(pca_mat)
 
-x_coords = reduced_data[:, 1]
-y_coords = reduced_data[:, 2]
+pca_model = fit(PCA, pca_mat_transposed, maxoutdim=2)
+reduced_data = MultivariateStats.transform(pca_model, pca_mat_transposed)
+reduced_centroids = MultivariateStats.transform(pca_model, result.centers)
 
-scatter(x_coords, y_coords, zcolor=df.per, colorbar=true)
+#* Extract the coordinates of the reduced data
+x_coords = reduced_data[1, :]
+y_coords = reduced_data[2, :]
+
+#* Extract the coordinates of the reduced centroids
+centroid_x_coords = reduced_centroids[1, :]
+centroid_y_coords = reduced_centroids[2, :]
+
+#* Create the scatter plot for data points
+scatter(x_coords, y_coords, zcolor=result.assignments, colorbar=true, label="", xlabel="PC1", ylabel="PC2", title="PCA Scatter Plot with K-means Clusters")
+
+#* Overlay the centroids
+scatter!(centroid_x_coords, centroid_y_coords, marker=:x, label="Centroids", color=:black)
+
 
 
 

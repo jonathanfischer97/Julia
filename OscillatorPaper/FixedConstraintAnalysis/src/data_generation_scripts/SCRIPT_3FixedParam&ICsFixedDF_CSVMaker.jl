@@ -229,7 +229,7 @@ function run_MAIN(rangelength=4, popsize=20000; start_idx=1, end_idx=560)
 
     allconstraints = AllConstraints()
 
-    rootpath = mkpath("./ROCKFISH_DATA/3Fixed/PopSize_$popsize")
+    rootpath = mkpath("../../ROCKFISH_DATA/3Fixed/PopSize_$popsize")
 
     run_all_triplets(allconstraints, ogprobjac; start_idx=start_idx, end_idx=end_idx, rootpath=rootpath, rangelength=rangelength, popsize=popsize)
 end
