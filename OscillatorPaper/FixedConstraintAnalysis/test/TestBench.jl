@@ -62,15 +62,10 @@ population_to_matrix(ga_result)
 
 
 #* Clustering test 
-dfarray = read_csvs_in_directory("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/FigureGenerationScripts/ROCKFISH_DATA/4Fixed/PopSize_10000/4FixedICRawSets/DF=1000.0")
+dfarray = read_csvs_in_directory("OscillatorPaper/FigureGenerationScripts/ROCKFISH_DATA/4Fixed/PopSize_10000/4FixedICRawSets/DF=1000.0")
 
 
-function get_optimal_k(df::DataFrame, max_k::Int; exclude_cols::Vector{Symbol} = Symbol[])
-    distortions = elbow_method(df, max_k, exclude_cols = exclude_cols)
-    return argmin(distortions)
-end
 
- 
 clusterarray = [kmeans(df, 3, exclude_cols = [:fit, :per, :amp, :DF, :L, :K, :P, :A]) for df in dfarray]
 
 df = dfarray[1]
