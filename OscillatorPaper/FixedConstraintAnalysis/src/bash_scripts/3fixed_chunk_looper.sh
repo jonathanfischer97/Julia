@@ -22,8 +22,8 @@ for chunk in $chunks; do
     start_idx=${chunk%:*}
     end_idx=${chunk#*:}
     unique_job_name="3F$job_counter"
-    unique_output_file="$output_dir/jout_${unique_job_name}.txt"
-    sbatch --job-name=$unique_job_name --output=$unique_output_file --export=START_IDX=$start_idx,END_IDX=$end_idx julia_rockfish_3fixed_chunks.sh $julia_file $range_number $population_number
+    unique_output_file="$output_dir/jout_${unique_job_name}"
+    sbatch --job-name=$unique_job_name --export=START_IDX=$start_idx,END_IDX=$end_idx,OUTFILE=$unique_output_file julia_rockfish_3fixed_chunks.sh $julia_file $range_number $population_number
     job_counter=$((job_counter + 1))
 done
 

@@ -22,7 +22,8 @@ for i in $(seq 0 5); do
     if [ $i -eq 5 ]; then
         sub_end=$END_IDX
     fi
-    julia --threads=8 -- "$@" "$sub_start $sub_end" &
+    mkdir -p $OUTFILE
+    julia --threads=8 -- "$@" "$sub_start $sub_end" > "$OUTFILE/julia_out_${i}.txt" 2> "$OUTFILE/julia_err_${i}.txt" &
 done
 
 # Wait for all background jobs to finish
