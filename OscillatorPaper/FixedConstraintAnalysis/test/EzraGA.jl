@@ -56,6 +56,7 @@ end
 # end
 
 mutable struct EzraConstraints <: ConstraintSet
+    #* Free parameters
     ka1::ConstraintRange
     kb1::ConstraintRange
     ka4::ConstraintRange
@@ -66,10 +67,21 @@ mutable struct EzraConstraints <: ConstraintSet
     K::ConstraintRange
     P::ConstraintRange
     A::ConstraintRange
+
+    #* Experimentally constrained parameters
+    ka2::ConstraintRange
+    kb2::ConstraintRange
+    ka3::ConstraintRange
+    kb3::ConstraintRange
+    kcat7::ConstraintRange
+
+    Km1::ConstraintRange
+    Kd4::ConstraintRange
+    Km7::ConstraintRange
 end
 
 function EzraConstraints(; karange = (1e-2, 1.), kbrange = (1e-3, 1e2), dfrange = (1e4, 1e5),
-                                Lrange = (1., 1e1), Krange = (1e-1, 1.), Prange = (1e-2, 1e-1), Arange = (1., 1e1))
+                                Lrange = (1., 1e2), Krange = (1e-1, 1e1), Prange = (1e-2, 1e1), Arange = (1., 1e2))
     #* Define parameter constraint ranges
     ka_min, ka_max = karange  # uM^-1s^-1, log scale
     kb_min, kb_max = kbrange  # s^-1, log scale
@@ -82,6 +94,18 @@ function EzraConstraints(; karange = (1e-2, 1.), kbrange = (1e-3, 1e2), dfrange 
         ConstraintRange(name = :ka7, min = ka_min, max = ka_max),
         ConstraintRange(name = :DF, min = df_min, max = df_max),
 
+        #* Experimentally constrained parameters
+        ConstraintRange(name = :ka2, min = 0.1e-3, max = 0.9e-3),
+        ConstraintRange(name = :kb2, min = 1e-3, max = 5e-3),
+        ConstraintRange(name = :ka3, min = 0.1, max = 0.5),
+        ConstraintRange(name = :kb3, min = 0.01, max = 0.1),
+        ConstraintRange(name = :kcat7, min = 80., max = 150.),
+
+        ConstraintRange(name = :Km1, min = 10., max = 20.),
+        ConstraintRange(name = :Kd4, min = 20., max = 40.),
+        ConstraintRange(name = :Km7, min = 30., max = 50.),
+
+        #* Initial conditions
         ConstraintRange(name = :L, min = Lrange[1], max = Lrange[2]),
         ConstraintRange(name = :K, min = Krange[1], max = Krange[2]),
         ConstraintRange(name = :P, min = Prange[1], max = Prange[2]),
@@ -96,25 +120,23 @@ OscTools.make_fitness_function_threaded(constraints::EzraConstraints, ode_proble
 
 """Evaluate the fitness of an individual with new initial conditions and new parameters"""
 function eval_ezra_fitness(inputs::Vector{Float64}, prob::OP; idx::Vector{Int} = [6, 9, 10, 11, 12, 15, 16]) where {OP <: ODEProblem}
-    newu = @view inputs[6:end]
+    newu = @view inputs[end-3:end]
     
     #* Allocate parameter array
     newp = zeros(13)
-    newp[[1,2,8,10,13]] .= @view inputs[1:5] #assign sampled free parameters from input (ka1, kb1, ka4, ka7, df)
-    newp[[4, 5, 6, 7, 12]] .= SA[0.7e-3, 2e-3, 0.118, 0.0609, 85.3] #assign known experimental parameter values (ka2, kb2, ka3, kb3, kcat7)
+    newp[[1,2,8,10,13]] .= inputs[1:5] #assign sampled free parameters from input (ka1, kb1, ka4, ka7, df)
+    newp[[4, 5, 6, 7, 12]] .= inputs[6:10] #assign known experimental parameter values (ka2, kb2, ka3, kb3, kcat7)
     
     ka1, kb1, ka4, ka7, df = inputs[1:5]
+    ka2, kb2, ka3, kb3, kcat7 = inputs[6:10]
 
     #! Known experimental values to calculate other parameters
-    Km1exp = 15.0
-    Kd4exp =29.0
-    Km7exp = 39.0
-    kcat7exp = 85.3
+    Km1, Kd4, Km7 = inputs[11:13]
 
     #! Calculate other parameters
-    newp[3] = Km1exp * ka1 - kb1 #kcat1
-    newp[9] = Kd4exp * ka4 #kb4
-    newp[11] = Km7exp * ka7 - kcat7exp #kb7
+    newp[3] = Km1 * ka1 - kb1 #kcat1
+    newp[9] = Kd4 * ka4 #kb4
+    newp[11] = Km7 * ka7 - kcat7 #kb7
 
     # @show newp
     # @show newu
@@ -135,13 +157,13 @@ end
 #* Make new GAProblem with Ezra's constraints
 ezra_gaprob = GAProblem(constraints = EzraConstraints())
 
-ez_pop = generate_population(ezra_gaprob.constraints, 300000)
+ez_pop = generate_population(ezra_gaprob.constraints, 200000)
 
-ez_fitness_function = make_fitness_function_threaded(ezra_gaprob.constraints, make_ODE_problem(), eval_ezra_fitness)
+# ez_fitness_function = make_fitness_function_threaded(ezra_gaprob.constraints, make_ODE_problem(), eval_ezra_fitness)
 
-ez_fitness_function(ez_pop[1])
+# ez_fitness_function(ez_pop[1])
 
-eval_ezra_fitness(ez_pop[2], make_ODE_problem())
+# eval_ezra_fitness(ez_pop[2], make_ODE_problem())
 
 ezra_garesults = run_GA(ezra_gaprob, ez_pop)
 
@@ -194,9 +216,14 @@ end
 # ezdf = CSV.read("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/EzraSolutions.csv", DataFrame)
 ezdf = CSV.read("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/FixedConstraintAnalysis/LocalData/AllExpOsc.csv", DataFrame)
 
-
+findmax(ezdf[:, :per])
+findmin(ezdf[:, :per])
 oprob = make_ODE_problem()
 
+sorted_ezdf = sort(ezdf, :per)
+findfirst(sorted_ezdf[:, :per] .> 10.0)
+
+findall(ezdf[:, :per] .< 10.0)
 #! Loop through all rows in ezdf and solve for AP2 oscillations
 fitvals = zeros(nrow(ezdf), 3)
 for i in 1:nrow(ezdf)
@@ -221,12 +248,11 @@ append!(testinput, zeros(12))
 eval_ezra_fitness(testinput, make_ODE_problem())
 #####################!
 
-
-
+slow_newu, slow_newp = entryToSol(ezdf, argmax(ezdf[:, :per]))
 slowprob = remake(oprob, u0=slow_newu, p=slow_newp, tspan=(0.,2000.))
 slowsol = solve(slowprob, Rodas5P(), saveat=0.1)
 
-fast_newu, fast_newp = entryToSol(ezdf, 3)
+fast_newu, fast_newp = entryToSol(ezdf, 741)
 fastprob = remake(oprob, u0=fast_newu, p=fast_newp, tspan=(0.,2000.))
 fastsol = solve(fastprob, Rodas5P(), saveat=0.1)
 
@@ -260,7 +286,7 @@ end
 
 plotsol_maggie(fastsol; title= "Fast")
 
-import CairoMakie as cm 
+import CairoMakie as cm; cm.activate!(type="png")
 
 publication_theme() = cm.Theme(
     fontsize=16,
@@ -277,21 +303,28 @@ publication_theme() = cm.Theme(
 )
 
 function maggie_plot(slowsol, fastsol)
-    fig = cm.Figure(;resolution = (1000, 600))
+    size_inches = (3, 1.8)
+    size_pt = size_inches .* 72
+    fig = cm.Figure(;resolution = size_pt, figure_padding = (5, 10, 1, 5))
 
-    ax = cm.Axis(fig[1,1]; title= "Membrane binding of AP2",  xlabel = "Time (s)", ylabel = "Concentration (µM)",
-    titlesize = 25, xlabelsize = 22, ylabelsize = 22, xgridstyle=:dash, ygridstyle=:dash, xtickalign=1, ytickalign=1)
+    ax = cm.Axis(fig[1,1]; xlabel = "Time (s)", ylabel = "Concentration (µM)", xlabelfont = :bold, ylabelfont = :bold, xlabelsize = 11, ylabelsize = 11, xgridstyle=:dash, ygridstyle=:dash, xtickalign=1, ytickalign=1, xticklabelsize=10, yticklabelsize=10,
+                    limits = (0, 100, 0, nothing), xticks = 0:50:100, yticks = 0.0:0.1:0.5,
+                    xlabelpadding = 0.4)
 
-    cm.lines!(ax, slowsol.t, OscTools.calculate_Amem(slowsol), color=:blue, linewidth=3, label = "Period: 9.5 s")
+    cm.lines!(ax, slowsol.t[1:1001], slowsol[1,5000:6000], color=:blue, linewidth=4, label = "100 s")
 
-    cm.lines!(ax, fastsol.t, OscTools.calculate_Amem(fastsol), color=:tomato, linewidth=3, label = "Period: 91 s")
+    cm.lines!(ax, fastsol.t[1:1001], fastsol[1,5000:6000], color=:tomato, linewidth=4, label = "10 s")
 
-    cm.axislegend(ax)
+    # cm.hidedecorations!(ax)
+
+    # cm.Legend(fig[1,2] ,ax, labelsize=30)
 
     fig
 end
 
-maggie_plot(slowsol, fastsol)
+fig = maggie_plot(slowsol, fastsol)
+
+cm.save("./MaggieLipidOscillations.svg", fig, pt_per_unit = 1)
 
 
 f, ax, l1 = cm.lines(slowsol.t, OscTools.calculate_Amem(slowsol);

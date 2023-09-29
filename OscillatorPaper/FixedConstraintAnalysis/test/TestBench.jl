@@ -59,6 +59,8 @@ ga_result = test4fixedGA()
 
 population_to_matrix(ga_result)
 
+@benchmark test4fixedGA(10000)
+
 
 
 #* Clustering test 
@@ -131,9 +133,9 @@ function plot_3D_PCA_clusters(df)
     reduced_centroids = MultivariateStats.transform(pca_model, result.centers)
     
     # Step 4: Extract 3D coordinates
-    x_coords = reduced_data[1, :]
-    y_coords = reduced_data[2, :]
-    z_coords = reduced_data[3, :]
+    x_coords = log10.(reduced_data[1, :])
+    y_coords = log10.(reduced_data[2, :])
+    z_coords = log10.(reduced_data[3, :])
 
     centroid_x = reduced_centroids[1, :]
     centroid_y = reduced_centroids[2, :]
