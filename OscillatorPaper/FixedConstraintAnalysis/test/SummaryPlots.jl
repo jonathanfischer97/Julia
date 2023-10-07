@@ -68,7 +68,8 @@ dfarray = read_csvs_in_directory("/home/local/WIN/jfisch27/Desktop/Julia/Oscilla
 
 
 # using GLMakie; GLMakie.activate!()
-import GLMakie as gm
+# import GLMakie as gm
+import GLMakie: Figure, Axis3, meshscatter, meshscatter!, Colorbar, colgap!, Vec3f, Relative
 
 function plot_3fixed_makie(df::DataFrame)
 
@@ -81,7 +82,7 @@ function plot_3fixed_makie(df::DataFrame)
 
 
     #* make the plot
-    fig = gm.Figure(resolution = (1000, 600))
+    fig = Figure(resolution = (1000, 600))
 
     #* make the scatter plot
     # Identify non-NaN indices and values
@@ -104,15 +105,15 @@ function plot_3fixed_makie(df::DataFrame)
 
     # Create the figure and axis
     
-    ax = gm.Axis3(fig[1:3,1:3]; aspect=:data, perspectiveness=0.5, title="$xname vs. $yname vs $zname at DF = $dfval", xlabel = xname, ylabel = yname, zlabel = zname)
+    ax = Axis3(fig[1:3,1:3]; aspect=:data, perspectiveness=0.5, title="$xname vs. $yname vs $zname at DF = $dfval", xlabel = xname, ylabel = yname, zlabel = zname)
 
     # Scatter plot for non-NaN values
-    hm = gm.meshscatter!(ax, xlog, ylog, zlog; markersize=sizes, ssao=true, color=df.average_period, colormap=:thermal, transparency=true, nan_color=:gray,
-                        diffuse = gm.Vec3f(0.5, 0.5, 0.5), specular = gm.Vec3f(0.3, 0.3, 0.3), shininess = 100f0, ambient = gm.Vec3f(0.1), shading=true, alpha=0.7)
+    hm = meshscatter!(ax, xlog, ylog, zlog; markersize=sizes, ssao=true, color=df.average_period, colormap=:thermal, transparency=true, nan_color=:gray,
+                        diffuse = Vec3f(0.5, 0.5, 0.5), specular = Vec3f(0.3, 0.3, 0.3), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.7)
 
     # Colorbar and labels
-    gm.Colorbar(fig[2, 4], hm, label="Period (s)", height=gm.Relative(2.0))
-    gm.colgap!(fig.layout, 6)
+    Colorbar(fig[2, 4], hm, label="Period (s)", height=Relative(2.0))
+    colgap!(fig.layout, 6)
 
     fig
 end
@@ -128,10 +129,10 @@ function plot_3fixed_makie(dfarray::Vector{DataFrame})
 
 
     #* make the figure
-    fig = gm.Figure(resolution = (1200, 800))
+    fig = Figure(resolution = (1200, 800))
 
     #* make 3 axes, one for each DF value
-    axs = [gm.Axis3(fig[1,i]; aspect = :data, perspectiveness=0.5, title="$xname vs. $yname vs $zname at DF = $(dfvals[i])", xlabel = xname, ylabel = yname, zlabel = zname,            
+    axs = [Axis3(fig[1,i]; aspect = :data, perspectiveness=0.5, title="$xname vs. $yname vs $zname at DF = $(dfvals[i])", xlabel = xname, ylabel = yname, zlabel = zname,            
                                     xtickformat = values -> [string(round(10^x; digits=2)) for x in values], #* converts the log10 values back to the original values
                                     ytickformat = values -> [string(round(10^x; digits=2)) for x in values],
                                     ztickformat = values -> [string(round(10^x; digits=2)) for x in values],) for i in 1:3]
@@ -168,12 +169,12 @@ function plot_3fixed_makie(dfarray::Vector{DataFrame})
 
     
         # Scatter plot for non-NaN values
-        pl = gm.meshscatter!(ax, xlog[nonan_indices], ylog[nonan_indices], zlog[nonan_indices]; markersize=sizes[nonan_indices], ssao=true, color=df.average_period[nonan_indices], colormap=:thermal, transparency=true, nan_color=:gray,
-                            diffuse = gm.Vec3f(0.5, 0.5, 0.5), specular = gm.Vec3f(0.3, 0.3, 0.3), shininess = 100f0, ambient = gm.Vec3f(0.1), shading=true, alpha=0.7)
+        pl = meshscatter!(ax, xlog[nonan_indices], ylog[nonan_indices], zlog[nonan_indices]; markersize=sizes[nonan_indices], ssao=true, color=df.average_period[nonan_indices], colormap=:thermal, transparency=true, nan_color=:gray,
+                            diffuse = Vec3f(0.5, 0.5, 0.5), specular = Vec3f(0.3, 0.3, 0.3), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.7)
 
         # Scatter with NaN values, high transparency
-        gm.meshscatter!(ax, xlog[nan_indices], ylog[nan_indices], zlog[nan_indices]; markersize=0.1, ssao=true, colormap=:thermal, transparency=true,
-                            diffuse = gm.Vec3f(0.5, 0.5, 0.5), specular = gm.Vec3f(0.3, 0.3, 0.3), shininess = 100f0, ambient = gm.Vec3f(0.1), shading=true, alpha=0.1)
+        meshscatter!(ax, xlog[nan_indices], ylog[nan_indices], zlog[nan_indices]; markersize=0.1, ssao=true, colormap=:thermal, transparency=true,
+                            diffuse = Vec3f(0.5, 0.5, 0.5), specular = Vec3f(0.3, 0.3, 0.3), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.1)
 
         # Define shared attributes
         # shared_sizes = sizes[nonan_indices]
@@ -181,27 +182,27 @@ function plot_3fixed_makie(dfarray::Vector{DataFrame})
 
         #* Adding 2D projections
         # Projection on the x-y plane (z = minimum of zlog)
-        # gm.scatter!(ax, xlog[nonan_indices], ylog[nonan_indices], fill(minimum(zlog), length(nonan_indices)); 
+        # scatter!(ax, xlog[nonan_indices], ylog[nonan_indices], fill(minimum(zlog), length(nonan_indices)); 
         #             color=shared_colors, marker=:circle, alpha=0.5)
 
         # # Projection on the x-z plane (y = minimum of ylog)
-        # gm.scatter!(ax, xlog[nonan_indices], fill(minimum(ylog), length(nonan_indices)), zlog[nonan_indices]; 
+        # scatter!(ax, xlog[nonan_indices], fill(minimum(ylog), length(nonan_indices)), zlog[nonan_indices]; 
         #             markersize=shared_sizes, color=shared_colors, marker=:circle, alpha=0.5)
 
         # # Projection on the y-z plane (x = minimum of xlog)
-        # gm.scatter!(ax, fill(minimum(xlog), length(nonan_indices)), ylog[nonan_indices], zlog[nonan_indices]; 
+        # scatter!(ax, fill(minimum(xlog), length(nonan_indices)), ylog[nonan_indices], zlog[nonan_indices]; 
         #             markersize=shared_sizes, color=shared_colors, marker=:circle, alpha=0.5)
 
         # Colorbar and labels
-        gm.Colorbar(fig[i, i+1], pl, label="Period (s)", height=gm.Relative(1.0))
-        gm.colgap!(fig.layout, 4)
+        Colorbar(fig[i, i+1], pl, label="Period (s)", height=Relative(1.0))
+        colgap!(fig.layout, 4)
 
         
     end
 
     # Colorbar and labels
-    # gm.Colorbar(fig[1, 4], label="Period (s)", height=gm.Relative(1.0), colormap=:thermal)
-    gm.colgap!(fig.layout, 6)
+    # Colorbar(fig[1, 4], label="Period (s)", height=Relative(1.0), colormap=:thermal)
+    colgap!(fig.layout, 6)
 
     fig
 end
