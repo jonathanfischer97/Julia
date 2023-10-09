@@ -69,7 +69,7 @@ dfarray = read_csvs_in_directory("/home/local/WIN/jfisch27/Desktop/Julia/Oscilla
 
 # using GLMakie; GLMakie.activate!()
 # import GLMakie as gm
-import GLMakie: Figure, Axis3, meshscatter, meshscatter!, Colorbar, colgap!, Vec3f, Relative
+import GLMakie: Figure, Axis3, meshscatter, meshscatter!, Colorbar, colgap!, rowgap!, Vec3f, Relative, save
 
 function plot_3fixed_makie(df::DataFrame)
 
@@ -129,13 +129,13 @@ function plot_3fixed_makie(dfarray::Vector{DataFrame})
 
 
     #* make the figure
-    fig = Figure(resolution = (1200, 800))
+    fig = Figure(resolution = (1600, 600))
 
     #* make 3 axes, one for each DF value
     axs = [Axis3(fig[1,i]; aspect = :data, perspectiveness=0.5, title="$xname vs. $yname vs $zname at DF = $(dfvals[i])", xlabel = xname, ylabel = yname, zlabel = zname,            
                                     xtickformat = values -> [string(round(10^x; digits=2)) for x in values], #* converts the log10 values back to the original values
                                     ytickformat = values -> [string(round(10^x; digits=2)) for x in values],
-                                    ztickformat = values -> [string(round(10^x; digits=2)) for x in values],) for i in 1:3]
+                                    ztickformat = values -> [string(round(10^x; digits=2)) for x in values]) for i in 1:3]
 
     for (i,ax) in enumerate(axs)
         df = dfarray[i]
@@ -194,21 +194,37 @@ function plot_3fixed_makie(dfarray::Vector{DataFrame})
         #             markersize=shared_sizes, color=shared_colors, marker=:circle, alpha=0.5)
 
         # Colorbar and labels
-        Colorbar(fig[i, i+1], pl, label="Period (s)", height=Relative(1.0))
-        colgap!(fig.layout, 4)
-
-        
+        Colorbar(fig[2, i], pl, label="Period (s)", vertical = false)#, height=Relative(1.0))
     end
 
     # Colorbar and labels
-    # Colorbar(fig[1, 4], label="Period (s)", height=Relative(1.0), colormap=:thermal)
+    # Colorbar(fig[1, 4], limits=(minimum(minimum(filter(!isnan,df[:,:average_period]) for df in dfarray)), maximum(maximum(df[:,:average_period] for df in dfarray))), label="Period (s)", height=Relative(1.0), colormap=:thermal)
     colgap!(fig.layout, 6)
+    rowgap!(fig.layout, 1)
 
     fig
 end
 
 
-plot_3fixed_makie(dfarray)
+fig = plot_3fixed_makie(dfarray)
+save("test_glmakie.png", fig)
+
+
+#< Loop through all the summary dataframes for each fixed combination and plot them
+for dir in readdir("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/FixedConstraintAnalysis/ROCKFISH_DATA/3Fixed/PopSize_15000", join=true)
+    for subdir in readdir(dir, join=true)
+        if basename(subdir) == "SummaryResults" && length(readdir(subdir)) == 3
+            # println("Plotting $subdir")
+            dfarray = read_csvs_in_directory(subdir)
+            try
+                fig = plot_3fixed_makie(dfarray)
+                save("$(dir)/summary_plot.png", fig)
+            catch
+                println("Error plotting $dir")
+            end
+        end
+    end
+end
 
 
 
