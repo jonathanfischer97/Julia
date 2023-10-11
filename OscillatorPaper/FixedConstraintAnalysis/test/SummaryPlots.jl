@@ -25,11 +25,13 @@ begin
     # default(lw = 2, size = (1000, 600), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
 
 
-
     using OscTools 
 
     import GLMakie: Figure, Axis3, meshscatter, meshscatter!, Colorbar, colgap!, rowgap!, Vec3f, Relative, save
     import GLMakie as gm
+
+    using Base.Threads
+    using Distances
 
 
     const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
@@ -103,23 +105,38 @@ function plot_fixed_makie(df::DataFrame)
     norm_periods[nonan_indices] = (nonan_periods .- minimum(nonan_periods)) ./ (maximum(nonan_periods) - minimum(nonan_periods)) 
 
     # Create the figure and axis
-    ax = Axis3(fig[1:3,1:3]; aspect=:data, perspectiveness=0.5, title="$xname vs. $yname vs $zname at DF = $dfval", xlabel = xname, ylabel = yname, zlabel = zname)
+    ax = Axis3(fig[1,1]; aspect=:data, perspectiveness=0.5, title="$xname vs. $yname vs $zname at DF = $dfval", xlabel = xname, ylabel = yname, zlabel = zname)
 
     # Scatter plot for non-NaN values
     hm = meshscatter!(ax, xlog, ylog, zlog; markersize=sizes, ssao=true, color=df.average_period, colormap=:thermal, transparency=true, nan_color=:gray,
                         diffuse = Vec3f(0.5, 0.5, 0.5), specular = Vec3f(0.3, 0.3, 0.3), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.7)
 
+    # @show minimum(zlog[nonan_indices])
+    #2d projections
+    # Projection on the x-y plane (z = minimum of zlog)
+    #Make Z-matrix for contour plot based on the period values, mapping each period value to the x-y coordinates
+    # zmat = reshape(norm_periods, 
+
+    # gm.contour!(ax, zmat; transformation=(:xy, minimum(zlog[nonan_indices])))
+
     # Colorbar and labels
-    Colorbar(fig[2, 4], hm, label="Period (s)", height=Relative(2.0))
+    Colorbar(fig[1, 2], hm, label="Period (s)")
     colgap!(fig.layout, 6)
 
     fig
 end
 
 
-plot_3fixed_makie(dfarray[3])
+plot_fixed_makie(dfarray[3])
 
-
+df = dfarray[3]
+x = df[:,1]
+x = reshape(x, 5, 5, 5)
+x = reduce(+, x, dims=2)
+x = dropdims(x, dims=3)
+y = df[:,2]
+z = df[:,3]
+periods = df[:, :average_period]
 
 """
     plot_3fixed_makie(dfarray::Vector{DataFrame})
@@ -216,7 +233,7 @@ for dir in readdir("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/Fixed
             dfarray = read_csvs_in_directory(subdir)
             try
                 fig = plot_3fixed_makie(dfarray)
-                save("$(dir)/summary_plot.png", fig)
+                save("SUMMARY_SCATTERPLOTS/$(basename(dir))_summary_plot.png", fig)
             catch
                 println("Error plotting $dir")
             end
@@ -241,9 +258,6 @@ combined_rawdf = vcat(rawdf_array...)
 
 # log10.(combined_rawdf)
 
-
-
-using Distances # for euclidean distance function
 
 
 """
@@ -286,9 +300,6 @@ end
 
 
 
-using Base.Threads
-
-
 """
     optimal_kmeans_clusters(data_matrix::AbstractMatrix{Float64}, max_k::Int)
 Determine optimal cluster count using silhouette method with multithreading.
@@ -329,10 +340,10 @@ end
 Plots a 3D scatter plot of the log-transformed dataframe using PCA and K-means clustering.
 """
 function plot_3D_PCA_clusters(df::DataFrame)
-    gm.activate!()
+    # gm.activate!()
     # Step 1: Identify fixed columns
     fixed_cols = identify_fixed_columns(df)
-    @show fixed_cols
+    # @show fixed_cols
 
     # Step 2: Log transform the data prior to clustering, otherwise the clustering will be dominated by the largest values
     df = log10.(df)
@@ -379,7 +390,6 @@ function plot_3D_PCA_clusters(df::DataFrame)
 end
 
 fig = plot_3D_PCA_clusters(combined_rawdf)
-
 
 save("test_pca_cluster.png", fig)
 
@@ -447,16 +457,14 @@ fig
 
 
 #< Loadings biplot
-pcaloadings = loadings(pca_model)
-# Extract loadings for the first two principal components
-pc1_loadings = pcaloadings[:, 1]
-pc2_loadings = pcaloadings[:, 2]
-
 
 # Plot
 import CairoMakie as cm
-
-function plot_loadings_biplot(df::DataFrame)
+"""
+    plot_loadings_biplot_2D(df::DataFrame)
+Plots a 2D biplot of the loadings for the first two principal components.
+"""
+function plot_loadings_biplot_2D(df::DataFrame)
     cm.activate!()
     # Step 1: Identify fixed columns
     fixed_cols = identify_fixed_columns(df)
@@ -466,7 +474,7 @@ function plot_loadings_biplot(df::DataFrame)
     dfmat = df_to_matrix(df, fixed_cols)
 
     # Step 3: Perform PCA and extract loadings
-    pca_model = fit(PCA, dfmat, maxoutdim=3)
+    pca_model = fit(PCA, dfmat, maxoutdim=2)
     pcaloadings = loadings(pca_model)
     # Extract loadings for the first two principal components
     pc1_loadings = pcaloadings[:, 1]
@@ -500,9 +508,62 @@ function plot_loadings_biplot(df::DataFrame)
 end
 
 biplot = plot_loadings_biplot(combined_rawdf)
-cm.save("test_biplot.png", biplot)
+cm.save("test_biplot2D.png", biplot)
 
 
+"""
+    plot_loadings_biplot_3D(df::DataFrame)
+Plots a 3D biplot of the loadings for the first three principal components.
+"""
+function plot_loadings_biplot_3D(df::DataFrame)
+    # Step 1: Identify fixed columns
+    fixed_cols = identify_fixed_columns(df)
+
+    # Step 2: Log transform the data prior to clustering, otherwise the clustering will be dominated by the largest values
+    df = log10.(df)
+    dfmat = df_to_matrix(df, fixed_cols)
+
+    # Step 3: Perform PCA and extract loadings
+    pca_model = fit(PCA, dfmat, maxoutdim=3)
+    pcaloadings = loadings(pca_model)
+    # Extract loadings for the first three principal components
+    pc1_loadings = pcaloadings[:, 1]
+    pc2_loadings = pcaloadings[:, 2]
+    pc3_loadings = pcaloadings[:, 3]
+
+    # Plot
+    gm.with_theme(gm.theme_dark()) do
+        fig = Figure(;resolution = (1000, 600))
+        ax = Axis3(fig[1,1], title="PCA Loadings Biplot")
+
+        # Get magnitude of loadings
+        magnitude = sqrt.(pc1_loadings .^ 2 .+ pc2_loadings .^ 2 .+ pc3_loadings .^ 2)
+
+        origin = (zeros(size(pc1_loadings,)), zeros(size(pc2_loadings)), zeros(size(pc3_loadings)))
+
+        quivplot = gm.arrows!(ax, origin..., pc1_loadings, pc2_loadings, pc3_loadings; color = magnitude, colormap=:inferno, alpha=0.1, arrowsize=0.1)
+
+        # Add labels and annotate arrows
+        var_labels = names(df[:, Not(fixed_cols)])
+        for (i, label) in enumerate(var_labels)
+            gm.text!(ax, pc1_loadings[i], pc2_loadings[i], pc3_loadings[i]; text = label, overdraw=true, font = :bold,fontsize=20, color=:white)#, halign=:center, valign=:center, rotation=atan(pc2_loadings[i] / pc1_loadings[i]) * 180 / pi)
+        end
+
+        # Label axes with percentage of variance explained
+        pc_variances = principalvars(pca_model)
+        pc_percentages = pc_variances / sum(pc_variances) * 100
+        ax.xlabel = "PC1 ($(round(pc_percentages[1], digits=2))%)"
+        ax.ylabel = "PC2 ($(round(pc_percentages[2], digits=2))%)"
+        ax.zlabel = "PC3 ($(round(pc_percentages[3], digits=2))%)"
+
+        Colorbar(fig[1,2], quivplot, label="Loadings Magnitude")
+
+        fig
+    end
+end
+
+biplot = plot_loadings_biplot_3D(combined_rawdf)
+save("test_biplot3D.png", biplot)
 
 
 
