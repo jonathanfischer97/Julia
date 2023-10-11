@@ -80,9 +80,9 @@ function plot_fixed_makie(df::DataFrame)
     ylog = log10.(df[:,2]) 
     zlog = log10.(df[:,3])
 
+
     xname, yname, zname = names(df)[1:3]
     dfval = df.DF[1]
-
 
     #* make the plot
     fig = Figure(resolution = (1000, 600))
@@ -98,36 +98,60 @@ function plot_fixed_makie(df::DataFrame)
     # Normalize sizes for non-NaN values
     sizes = fill(0.1, size(df, 1))
     # sizes[nonan_indices] = ((nonan_amplitudes .- minimum(nonan_amplitudes)) ./ (maximum(nonan_amplitudes) - minimum(nonan_amplitudes))) ./ 2 
-    sizes[nonan_indices] = ((nonan_numpoints .- minimum(nonan_numpoints)) ./ (maximum(nonan_numpoints) - minimum(nonan_numpoints))) ./ 3 
+    sizes[nonan_indices] = ((nonan_numpoints .- minimum(nonan_numpoints)) ./ (maximum(nonan_numpoints) - minimum(nonan_numpoints))) ./ 2 
 
     # Normalize periods for non-NaN values
     norm_periods = fill(NaN, size(df, 1))
     norm_periods[nonan_indices] = (nonan_periods .- minimum(nonan_periods)) ./ (maximum(nonan_periods) - minimum(nonan_periods)) 
 
     # Create the figure and axis
-    ax = Axis3(fig[1,1]; aspect=:data, perspectiveness=0.5, title="$xname vs. $yname vs $zname at DF = $dfval", xlabel = xname, ylabel = yname, zlabel = zname)
+    ax = Axis3(fig[1,1]; aspect=:data, perspectiveness=0.5, title="$xname vs. $yname vs $zname at DF = $dfval", 
+                                                                xlabel = xname, ylabel = yname, zlabel = zname, xlabelfont = :bold, ylabelfont = :bold, zlabelfont=:bold)
+    
 
     # Scatter plot for non-NaN values
     hm = meshscatter!(ax, xlog, ylog, zlog; markersize=sizes, ssao=true, color=df.average_period, colormap=:thermal, transparency=true, nan_color=:gray,
-                        diffuse = Vec3f(0.5, 0.5, 0.5), specular = Vec3f(0.3, 0.3, 0.3), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.7)
+                        diffuse = Vec3f(0.1), specular = Vec3f(0.2), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.9, overdraw=true, backlight=1.0f0)
 
-    # @show minimum(zlog[nonan_indices])
-    #2d projections
-    # Projection on the x-y plane (z = minimum of zlog)
+
+    #* Projection on the x-y plane (z = minimum of zlog)
     #Make Z-matrix for contour plot based on the period values, mapping each period value to the x-y coordinates
-    # zmat = reshape(norm_periods, 
 
-    # gm.contour!(ax, zmat; transformation=(:xy, minimum(zlog[nonan_indices])))
+    # Use actual scatter plot data limits for defining heatmap position
+    zmin = minimum(zlog[nonan_indices])
+    # zmax = maximum(zlog[nonan_indices])
+    xmax = maximum(xlog[nonan_indices])
+    ymax = maximum(ylog[nonan_indices])
+
+    # Projection on the x-y plane (z = minimum of zlog)
+    xyplane, xzplane, yzplane = generate_z_matrices(df)
+
+    # Define x, y, and z positions for the heatmap. They should match the actual scatter plot data points.
+    x_positions = sort(unique(xlog[nonan_indices]))
+    y_positions = sort(unique(ylog[nonan_indices]))
+    z_positions = sort(unique(zlog[nonan_indices]))
+
+    # Plot the heatmap for the x-y plane at z = zmin
+    gm.heatmap!(ax, x_positions, y_positions, xyplane; transformation = (:xy, zmin + (zmin/10.)), colormap=:thermal, nan_color=:gray, alpha=0.9)
+
+    # Plot the heatmap for the x-z plane at y = ymin
+    gm.heatmap!(ax, x_positions, z_positions, xzplane; transformation = (:xz, ymax + (ymax/3.)), colormap=:thermal, nan_color=:gray, alpha=0.9)
+
+    # Plot the heatmap for the y-z plane at x = xmin
+    gm.heatmap!(ax, y_positions, z_positions, yzplane; transformation = (:yz, xmax + (xmax/3.)), colormap=:thermal, nan_color=:gray, alpha=0.9)
 
     # Colorbar and labels
-    Colorbar(fig[1, 2], hm, label="Period (s)")
+    Colorbar(fig[1, 2], hm; label="Period (s)", labelfont=:bold)
     colgap!(fig.layout, 6)
+
+    gm.hidespines!(ax)
 
     fig
 end
 
 
-plot_fixed_makie(dfarray[3])
+fig = plot_fixed_makie(dfarray[3])
+save("test_heat_projection.png", fig)
 
 df = dfarray[3]
 x = df[:,1]
@@ -137,6 +161,108 @@ x = dropdims(x, dims=3)
 y = df[:,2]
 z = df[:,3]
 periods = df[:, :average_period]
+
+z = reshape(periods, 5, 5, 5)
+z = reduce(+, z, dims=3)
+z = dropdims(z, dims=3)
+
+gm.contour(z; transformation=(:xy, minimum(z)))
+gm.heatmap(z)
+
+
+# Step 1: Group the DataFrame by kcat1 and kb2
+grouped = groupby(df, [:kcat1, :kb2])
+
+# Step 2: Compute the average of :average_period for each group
+reduced_df = combine(grouped, :average_period => mean)
+
+# Extract unique values of kcat1 and kb2 for matrix dimensions
+unique_kcat1 = unique(reduced_df.kcat1)
+unique_kb2 = unique(reduced_df.kb2)
+
+# Step 3: Transform the reduced :average_period values into a matrix
+z_matrix = Matrix{Float64}(undef, length(unique_kcat1), length(unique_kb2))
+
+for i in eachindex(unique_kcat1)
+    for j in eachindex(unique_kb2)
+        mask = (reduced_df.kcat1 .== unique_kcat1[i]) .& (reduced_df.kb2 .== unique_kb2[j])
+        if any(mask)
+            z_matrix[i, j] = reduced_df[mask, :average_period_mean][1]
+        else
+            z_matrix[i, j] = NaN
+        end
+    end
+end
+
+gm.contourf(z_matrix)
+
+
+
+function generate_z_matrices(df::DataFrame)
+    independent_vars = propertynames(df)[1:3]
+
+    # Accessing raw arrays
+    raw_data = Dict(var => df[!, var] for var in independent_vars)
+    avg_period = df[!, :average_period]
+
+    matrices = Vector{Matrix{Float64}}(undef, 3)
+
+    idx = 1
+    for i in 1:3
+        for j in (i+1):3
+            x_var, y_var = independent_vars[i], independent_vars[j]
+            
+            # Directly applying log10 transformation
+            x_values = log10.(raw_data[x_var])
+            y_values = log10.(raw_data[y_var])
+
+            # Extract unique values for matrix dimensions
+            unique_x = unique(x_values)
+            unique_y = unique(y_values)
+
+            x_map = Dict(val => index for (index, val) in enumerate(unique_x))
+            y_map = Dict(val => index for (index, val) in enumerate(unique_y))
+
+            # Initialize z_matrix and count_matrix
+            z_matrix = fill(0.0, length(unique_x), length(unique_y))
+            count_matrix = zeros(Int, length(unique_x), length(unique_y))
+
+            # Iterate through the raw arrays
+            for k in eachindex(x_values)
+                x_idx = x_map[x_values[k]]
+                y_idx = y_map[y_values[k]]
+
+                # Accumulating values
+                if !isnan(avg_period[k])
+                    z_matrix[x_idx, y_idx] += avg_period[k]
+                    count_matrix[x_idx, y_idx] += 1
+                end
+            end
+
+            # Finalize the averaging process
+            z_matrix .= z_matrix ./ count_matrix
+            # replace!(z_matrix, NaN => 0.0)  # Replace NaNs with 0s
+
+            # Store the z_matrix
+            matrices[idx] = z_matrix
+            idx += 1
+        end
+    end
+
+    return (xy=matrices[1], xz=matrices[2], yz=matrices[3])
+end
+
+
+
+# Call the function
+xy, xz, yz = generate_z_matrices(df)
+
+
+
+
+
+
+
 
 """
     plot_3fixed_makie(dfarray::Vector{DataFrame})
@@ -350,7 +476,7 @@ function plot_3D_PCA_clusters(df::DataFrame)
     dfmat = df_to_matrix(df, fixed_cols)
     
     # Step 3: Dynamically determine the optimal number of clusters
-    optimal_clusters = optimal_kmeans_clusters(dfmat, 10) # Assuming a maximum of 10 clusters for demonstration
+    optimal_clusters = get_optimal_clusters(dfmat, 10) # Assuming a maximum of 10 clusters for demonstration
     
     
     # Step 4: Perform K-means clustering using optimal cluster count
