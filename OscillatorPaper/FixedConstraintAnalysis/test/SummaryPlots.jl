@@ -40,29 +40,13 @@ begin
     FFTW.set_num_threads(18)
 end
 
-# function test4fixedGA()
-#     #* Set up the default GA problem
-#     ga_problem = GAProblem()
 
-#     #* Fixed some constraints 
-#     set_fixed_constraints!(ga_problem.constraints, [:DF, :K, :P, :A])
-
-#     #* Assign the fixed values 
-#     set_fixed_values!(ga_problem.constraints, 1000., 1.0, 1.0, 3.16)
-
-#     #* Set seed 
-#     Random.seed!(1234)
-
-#     #* Generate the initial population
-#     population = generate_population(ga_problem.constraints, 10000)
-
-#     #* Run the GA
-#     run_GA(ga_problem, population)
-# end
 
 ga_result = test4fixedGA()
-
 population_to_matrix(ga_result)
+
+
+
 
 
 
@@ -132,7 +116,7 @@ function plot_fixed_makie(df::DataFrame)
     z_positions = sort(unique(zlog[nonan_indices]))
 
     # Plot the heatmap for the x-y plane at z = zmin
-    gm.heatmap!(ax, x_positions, y_positions, xyplane; transformation = (:xy, zmin + (zmin/10.)), colormap=:thermal, nan_color=:gray, alpha=0.9)
+    gm.heatmap!(ax, x_positions, y_positions, xyplane; transformation = (:xy, zmin + (zmin/3.)), colormap=:thermal, nan_color=:gray, alpha=0.9)
 
     # Plot the heatmap for the x-z plane at y = ymin
     gm.heatmap!(ax, x_positions, z_positions, xzplane; transformation = (:xz, ymax + (ymax/3.)), colormap=:thermal, nan_color=:gray, alpha=0.9)
@@ -153,57 +137,19 @@ end
 fig = plot_fixed_makie(dfarray[3])
 save("test_heat_projection.png", fig)
 
-df = dfarray[3]
-x = df[:,1]
-x = reshape(x, 5, 5, 5)
-x = reduce(+, x, dims=2)
-x = dropdims(x, dims=3)
-y = df[:,2]
-z = df[:,3]
-periods = df[:, :average_period]
-
-z = reshape(periods, 5, 5, 5)
-z = reduce(+, z, dims=3)
-z = dropdims(z, dims=3)
-
-gm.contour(z; transformation=(:xy, minimum(z)))
-gm.heatmap(z)
-
-
-# Step 1: Group the DataFrame by kcat1 and kb2
-grouped = groupby(df, [:kcat1, :kb2])
-
-# Step 2: Compute the average of :average_period for each group
-reduced_df = combine(grouped, :average_period => mean)
-
-# Extract unique values of kcat1 and kb2 for matrix dimensions
-unique_kcat1 = unique(reduced_df.kcat1)
-unique_kb2 = unique(reduced_df.kb2)
-
-# Step 3: Transform the reduced :average_period values into a matrix
-z_matrix = Matrix{Float64}(undef, length(unique_kcat1), length(unique_kb2))
-
-for i in eachindex(unique_kcat1)
-    for j in eachindex(unique_kb2)
-        mask = (reduced_df.kcat1 .== unique_kcat1[i]) .& (reduced_df.kb2 .== unique_kb2[j])
-        if any(mask)
-            z_matrix[i, j] = reduced_df[mask, :average_period_mean][1]
-        else
-            z_matrix[i, j] = NaN
-        end
-    end
-end
-
-gm.contourf(z_matrix)
 
 
 
-function generate_z_matrices(df::DataFrame)
+"""
+    generate_z_matrices(df::DataFrame)
+Generates the z-matrices for the x-y, x-z, and y-z planes for a given DataFrame, for either contour or heatmaps.
+"""
+function generate_z_matrices(df::DataFrame, zvar=:average_period)
     independent_vars = propertynames(df)[1:3]
 
     # Accessing raw arrays
     raw_data = Dict(var => df[!, var] for var in independent_vars)
-    avg_period = df[!, :average_period]
+    zvec = df[!, zvar]
 
     matrices = Vector{Matrix{Float64}}(undef, 3)
 
@@ -233,15 +179,14 @@ function generate_z_matrices(df::DataFrame)
                 y_idx = y_map[y_values[k]]
 
                 # Accumulating values
-                if !isnan(avg_period[k])
-                    z_matrix[x_idx, y_idx] += avg_period[k]
+                if !isnan(zvec[k])
+                    z_matrix[x_idx, y_idx] += zvec[k]
                     count_matrix[x_idx, y_idx] += 1
                 end
             end
 
             # Finalize the averaging process
             z_matrix .= z_matrix ./ count_matrix
-            # replace!(z_matrix, NaN => 0.0)  # Replace NaNs with 0s
 
             # Store the z_matrix
             matrices[idx] = z_matrix
@@ -252,15 +197,118 @@ function generate_z_matrices(df::DataFrame)
     return (xy=matrices[1], xz=matrices[2], yz=matrices[3])
 end
 
-
-
 # Call the function
-xy, xz, yz = generate_z_matrices(df)
+xy, xz, yz = generate_z_matrices(dfarray[1])
+
+function generate_z_matrices(xvec, yvec, zvec, colorvec)
+
+    # Directly applying log10 transformation to the columns and subset unique
+    x_values = log10.(xvec) |> unique
+    y_values = log10.(yvec) |> unique
+    z_values = log10.(zvec) |> unique
+
+
+    # Initialize a 3D matrix
+    data_cube = fill(0.0, length(x_values), length(y_values), 3)
+    
+    # Populate the 3D matrix
+    
+
+
+
+    # Compute averages along each dimension of the 3D matrix
+    xy = dropdims(mean(data_cube, dims=3), dims=3)
+    xz = dropdims(mean(data_cube, dims=2), dims=2)
+    yz = dropdims(mean(data_cube, dims=1), dims=1)
+
+    return (xy=xy, xz=xz, yz=yz)
+end
+
+xy, xz, yz = generate_z_matrices(dfarray[1])
 
 
 
 
+function generate_z_matrices(xvec, yvec, zvec, colorvec)
+    # Apply log10 transformation
+    x_values = log10.(xvec)
+    y_values = log10.(yvec)
+    z_values = log10.(zvec)
 
+    # Get unique values for matrix dimensions
+    unique_x = unique(x_values)
+    unique_y = unique(y_values)
+
+    # Create mappings for efficient lookup
+    x_map = Dict(val => index for (index, val) in enumerate(unique_x))
+    y_map = Dict(val => index for (index, val) in enumerate(unique_y))
+
+    # Initialize matrices and their corresponding count matrices
+    xy_matrix = fill(NaN, length(unique_x), length(unique_y))
+    xz_matrix = fill(NaN, length(unique_x), length(unique_y))
+    yz_matrix = fill(NaN, length(unique_x), length(unique_y))
+    
+    xy_count = zeros(length(unique_x), length(unique_y))
+    xz_count = zeros(length(unique_x), length(unique_y))
+    yz_count = zeros(length(unique_x), length(unique_y))
+
+    # Populate matrices
+    for k in eachindex(x_values)
+        x_idx = x_map[x_values[k]]
+        y_idx = y_map[y_values[k]]
+
+        if !isnan(colorvec[k])
+            xy_matrix[x_idx, y_idx] = isnan(xy_matrix[x_idx, y_idx]) ? colorvec[k] : xy_matrix[x_idx, y_idx] + colorvec[k]
+            xy_count[x_idx, y_idx] += 1
+            
+            xz_matrix[x_idx, y_idx] = isnan(xz_matrix[x_idx, y_idx]) ? zvec[k] : xz_matrix[x_idx, y_idx] + zvec[k]
+            xz_count[x_idx, y_idx] += 1
+            
+            yz_matrix[x_idx, y_idx] = isnan(yz_matrix[x_idx, y_idx]) ? yvec[k] : yz_matrix[x_idx, y_idx] + yvec[k]
+            yz_count[x_idx, y_idx] += 1
+        end
+    end
+
+    # Compute the averages
+    xy_matrix .= xy_matrix ./ xy_count
+    xz_matrix .= xz_matrix ./ xz_count
+    yz_matrix .= yz_matrix ./ yz_count
+
+    return (xy=xy_matrix, xz=xz_matrix, yz=yz_matrix)
+end
+
+
+
+
+xvec = dfarray[1][:, 1]
+yvec = dfarray[1][:, 2]
+zvec = dfarray[1][:, 3]
+colorvec = dfarray[1][:, :average_period]
+
+xy, xz, yz = generate_z_matrices(xvec, yvec, zvec, colorvec)
+
+generate_z_matrices(dfarray[1]) == generate_z_matrices(xvec, yvec, zvec, colorvec)
+
+xy_df, xy_df, yz_df = generate_z_matrices(dfarray[1])
+xy_vec, xy_vec, yz_vec = generate_z_matrices(xvec, yvec, zvec, colorvec)
+
+xy_df
+xy_vec
+
+
+xymat = fill(NaN, 5,5)
+colormat = reshape(colorvec, 5,5,5)
+
+for i in 1:5
+    for j in 1:5
+        xymat[i,j] = nm.mean(colormat[i,j,:])
+    end
+end
+
+for idx in eachindex(xymat)
+    @show idx
+    xymat[idx] = colorvec[idx]
+end
 
 
 
@@ -268,7 +316,7 @@ xy, xz, yz = generate_z_matrices(df)
     plot_3fixed_makie(dfarray::Vector{DataFrame})
 Plots three side by side 3D scatter plots of the dataframe for 3 values of DF using Makie.
 """
-function plot_3fixed_makie(dfarray::Vector{DataFrame})
+function plot_3fixed_makie(dfarray::Vector{DataFrame}, colorvar = :average_period)
 
     xname, yname, zname = names(dfarray[1])[1:3]
     dfvals = [df.DF[1] for df in dfarray]
@@ -278,7 +326,123 @@ function plot_3fixed_makie(dfarray::Vector{DataFrame})
     fig = Figure(resolution = (1600, 600))
 
     #* make 3 axes, one for each DF value
-    axs = [Axis3(fig[1,i]; aspect = :data, perspectiveness=0.5, title="$xname vs. $yname vs $zname at DF = $(dfvals[i])", xlabel = xname, ylabel = yname, zlabel = zname,            
+    axs = [Axis3(fig[1,i]; aspect = :data, perspectiveness=0.5, title="$xname vs. $yname vs $zname at DF = $(dfvals[i])", xlabel = xname, ylabel = yname, zlabel = zname, xlabelfont = :bold, ylabelfont = :bold, zlabelfont=:bold,            
+                                    xtickformat = values -> [string(round(10^x; digits=2)) for x in values], #* converts the log10 values back to the original values
+                                    ytickformat = values -> [string(round(10^x; digits=2)) for x in values],
+                                    ztickformat = values -> [string(round(10^x; digits=2)) for x in values]) for i in 1:3]
+
+    for (i,ax) in enumerate(axs)
+        df = dfarray[i]
+
+        xlog = log10.(df[:,1]) 
+        ylog = log10.(df[:,2]) 
+        zlog = log10.(df[:,3])
+
+
+        #* make the scatter plot
+        # Identify NaN indices or indices where num_oscillatory_points <= 1
+        nan_indices = findall(isnan, df[:, colorvar])
+        singlepoint_indices = findall(df[:, :num_oscillatory_points] .<= 1)
+        append!(nan_indices, singlepoint_indices)
+
+        #Non-NaN indices just all indices that are not in nan_indices
+        nonan_indices = setdiff(1:size(df, 1), nan_indices)
+
+
+        nonan_numpoints = df[:, :num_oscillatory_points][nonan_indices]
+        
+        # nonan_periods = df[:, :average_period][nonan_indices]
+        # nonan_amplitudes = df[:, :average_amplitude][nonan_indices]
+
+        # Normalize sizes for non-NaN values
+        sizes = fill(0.1, size(df, 1))
+        # sizes[nonan_indices] = ((nonan_amplitudes .- minimum(nonan_amplitudes)) ./ (maximum(nonan_amplitudes) - minimum(nonan_amplitudes))) ./ 2 
+        sizes[nonan_indices] = ((nonan_numpoints .- minimum(nonan_numpoints)) ./ (maximum(nonan_numpoints) - minimum(nonan_numpoints))) ./ 2.5 
+
+        # Normalize periods for non-NaN values
+        # norm_periods = fill(NaN, size(df, 1))
+        # norm_periods[nonan_indices] = (nonan_periods .- minimum(nonan_periods)) ./ (maximum(nonan_periods) - minimum(nonan_periods)) 
+
+
+
+        # Scatter plot for non-NaN values
+        pl = meshscatter!(ax, xlog[nonan_indices], ylog[nonan_indices], zlog[nonan_indices]; markersize=sizes[nonan_indices], ssao=true, color=df[:, colorvar][nonan_indices], colormap=:thermal, transparency=true, nan_color=:gray,
+                            diffuse = Vec3f(0.6), specular = Vec3f(0.2), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.9, overdraw=true, backlight=1.0f0)
+
+        # Scatter with NaN values, high transparency
+        meshscatter!(ax, xlog[nan_indices], ylog[nan_indices], zlog[nan_indices]; markersize=0.1, ssao=true, color=:gray, transparency=true,
+                                    diffuse = Vec3f(0.6), specular = Vec3f(0.2), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.5)
+
+        #* Projection on the x-y plane (z = minimum of zlog)
+        #Make Z-matrix for contour plot based on the period values, mapping each period value to the x-y coordinates
+
+        # Use actual scatter plot data limits for defining heatmap position
+        zmin = minimum(zlog)
+        xmax = maximum(xlog)
+        ymax = maximum(ylog)
+
+        # Projection on the x-y plane (z = minimum of zlog)
+        xyplane, xzplane, yzplane = generate_z_matrices(df, colorvar)
+
+        # Define x, y, and z positions for the heatmap. They should match the actual scatter plot data points.
+        x_positions = sort(unique(xlog))
+        y_positions = sort(unique(ylog))
+        z_positions = sort(unique(zlog))
+
+        # Plot the heatmap for the x-y plane at z = zmin
+        gm.heatmap!(ax, x_positions, y_positions, xyplane; transformation = (:xy, zmin + (zmin/3.)), colormap=:thermal, nan_color=:gray, alpha=0.9)
+
+        # Plot the heatmap for the x-z plane at y = ymin
+        gm.heatmap!(ax, x_positions, z_positions, xzplane; transformation = (:xz, ymax + (ymax/3.)), colormap=:thermal, nan_color=:gray, alpha=0.9)
+
+        # Plot the heatmap for the y-z plane at x = xmin
+        gm.heatmap!(ax, y_positions, z_positions, yzplane; transformation = (:yz, xmax + (xmax/3.)), colormap=:thermal, nan_color=:gray, alpha=0.9)
+
+        gm.hidespines!(ax)
+
+        colorlabel = string(colorvar)
+        if occursin("period", colorlabel)
+            colorlabel *= " (s)"
+        elseif occursin("amplitude", colorlabel)
+            colorlabel *= " (μM)"
+        end
+
+        # Colorbar and labels
+        Colorbar(fig[2, i], pl, label=colorlabel, vertical = false)
+    end
+
+    # Colorbar and labels
+    colgap!(fig.layout, 6)
+    rowgap!(fig.layout, 1)
+
+    fig
+end
+
+
+fig = plot_3fixed_makie(dfarray, :average_amplitude)
+save("test_glmakie.png", fig)
+
+
+"""
+    plot_3fixed_makie(dfarray::Vector{DataFrame})
+Plots 6 3D scatter plots of the dataframe for 3 values of DF using Makie, where the top row is colormapped to period and the bottom row to amplitude.
+"""
+function plot_6fixed_makie(dfarray::Vector{DataFrame})
+
+    xname, yname, zname = names(dfarray[1])[1:3]
+    dfvals = [df.DF[1] for df in dfarray]
+
+
+    #* make the figure
+    fig = Figure(resolution = (1600, 1200))
+
+    #* make 3 axes, one for each DF value
+    peraxs = [Axis3(fig[1,i]; aspect = :data, perspectiveness=0.5, title="$xname vs. $yname vs $zname at DF = $(dfvals[i])", xlabel = xname, ylabel = yname, zlabel = zname, xlabelfont = :bold, ylabelfont = :bold, zlabelfont=:bold,            
+                                    xtickformat = values -> [string(round(10^x; digits=2)) for x in values], #* converts the log10 values back to the original values
+                                    ytickformat = values -> [string(round(10^x; digits=2)) for x in values],
+                                    ztickformat = values -> [string(round(10^x; digits=2)) for x in values]) for i in 1:3]
+
+    ampaxs = [Axis3(fig[2,i]; aspect = :data, perspectiveness=0.5, title="$xname vs. $yname vs $zname at DF = $(dfvals[i])", xlabel = xname, ylabel = yname, zlabel = zname, xlabelfont = :bold, ylabelfont = :bold, zlabelfont=:bold,            
                                     xtickformat = values -> [string(round(10^x; digits=2)) for x in values], #* converts the log10 values back to the original values
                                     ytickformat = values -> [string(round(10^x; digits=2)) for x in values],
                                     ztickformat = values -> [string(round(10^x; digits=2)) for x in values]) for i in 1:3]
@@ -312,28 +476,39 @@ function plot_3fixed_makie(dfarray::Vector{DataFrame})
 
         # Scatter plot for non-NaN values
         pl = meshscatter!(ax, xlog[nonan_indices], ylog[nonan_indices], zlog[nonan_indices]; markersize=sizes[nonan_indices], ssao=true, color=df.average_period[nonan_indices], colormap=:thermal, transparency=true, nan_color=:gray,
-                            diffuse = Vec3f(0.5, 0.5, 0.5), specular = Vec3f(0.3, 0.3, 0.3), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.7)
+                            diffuse = Vec3f(0.6), specular = Vec3f(0.2), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.9, overdraw=true, backlight=1.0f0)
 
         # Scatter with NaN values, high transparency
-        meshscatter!(ax, xlog[nan_indices], ylog[nan_indices], zlog[nan_indices]; markersize=0.1, ssao=true, colormap=:thermal, transparency=true,
-                            diffuse = Vec3f(0.5, 0.5, 0.5), specular = Vec3f(0.3, 0.3, 0.3), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.1)
+        meshscatter!(ax, xlog[nan_indices], ylog[nan_indices], zlog[nan_indices]; markersize=0.1, ssao=true, color=:gray, transparency=true,
+                                    diffuse = Vec3f(0.6), specular = Vec3f(0.2), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.5)
 
-        # Define shared attributes
-        # shared_sizes = sizes[nonan_indices]
-        # shared_colors = df.average_period[nonan_indices]
+        #* Projection on the x-y plane (z = minimum of zlog)
+        #Make Z-matrix for contour plot based on the period values, mapping each period value to the x-y coordinates
 
-        #* Adding 2D projections
+        # Use actual scatter plot data limits for defining heatmap position
+        zmin = minimum(zlog)
+        # zmax = maximum(zlog[nonan_indices])
+        xmax = maximum(xlog)
+        ymax = maximum(ylog)
+
         # Projection on the x-y plane (z = minimum of zlog)
-        # scatter!(ax, xlog[nonan_indices], ylog[nonan_indices], fill(minimum(zlog), length(nonan_indices)); 
-        #             color=shared_colors, marker=:circle, alpha=0.5)
+        xyplane, xzplane, yzplane = generate_z_matrices(df)
 
-        # # Projection on the x-z plane (y = minimum of ylog)
-        # scatter!(ax, xlog[nonan_indices], fill(minimum(ylog), length(nonan_indices)), zlog[nonan_indices]; 
-        #             markersize=shared_sizes, color=shared_colors, marker=:circle, alpha=0.5)
+        # Define x, y, and z positions for the heatmap. They should match the actual scatter plot data points.
+        x_positions = sort(unique(xlog))
+        y_positions = sort(unique(ylog))
+        z_positions = sort(unique(zlog))
 
-        # # Projection on the y-z plane (x = minimum of xlog)
-        # scatter!(ax, fill(minimum(xlog), length(nonan_indices)), ylog[nonan_indices], zlog[nonan_indices]; 
-        #             markersize=shared_sizes, color=shared_colors, marker=:circle, alpha=0.5)
+        # Plot the heatmap for the x-y plane at z = zmin
+        gm.heatmap!(ax, x_positions, y_positions, xyplane; transformation = (:xy, zmin + (zmin/3.)), colormap=:thermal, nan_color=:gray, alpha=0.9)
+
+        # Plot the heatmap for the x-z plane at y = ymin
+        gm.heatmap!(ax, x_positions, z_positions, xzplane; transformation = (:xz, ymax + (ymax/3.)), colormap=:thermal, nan_color=:gray, alpha=0.9)
+
+        # Plot the heatmap for the y-z plane at x = xmin
+        gm.heatmap!(ax, y_positions, z_positions, yzplane; transformation = (:yz, xmax + (xmax/3.)), colormap=:thermal, nan_color=:gray, alpha=0.9)
+
+        gm.hidespines!(ax)
 
         # Colorbar and labels
         Colorbar(fig[2, i], pl, label="Period (s)", vertical = false)#, height=Relative(1.0))
@@ -346,11 +521,6 @@ function plot_3fixed_makie(dfarray::Vector{DataFrame})
     fig
 end
 
-
-fig = plot_3fixed_makie(dfarray)
-save("test_glmakie.png", fig)
-
-
 #< Loop through all the summary dataframes for each fixed combination and plot them
 for dir in readdir("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/FixedConstraintAnalysis/ROCKFISH_DATA/3Fixed/PopSize_15000", join=true)
     for subdir in readdir(dir, join=true)
@@ -359,7 +529,7 @@ for dir in readdir("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/Fixed
             dfarray = read_csvs_in_directory(subdir)
             try
                 fig = plot_3fixed_makie(dfarray)
-                save("SUMMARY_SCATTERPLOTS/$(basename(dir))_summary_plot.png", fig)
+                save("SUMMARY_SCATTERPLOTS_HEATMAPS/$(basename(dir))_summary_plot.png", fig)
             catch
                 println("Error plotting $dir")
             end
