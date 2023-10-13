@@ -96,4 +96,23 @@ dct_plan = plan_dct!(Amem_sol)
 
 @btime dct_plan * $Amem_sol
 
+testrawdf = CSV.read("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/FixedConstraintAnalysis/ROCKFISH_DATA/3Fixed/PopSize_15000/ka1_K_A/RawData/DF=100.0/ka1=0.0_K=1.0_A=0.56.csv", DataFrame)
+testrowtuple = copy.(eachrow((testrawdf[testrawdf.amp .< sum(testrawdf[1,Between(:L, :A)]), :])))
+testrowtuple[1]
+
+#< TESTING AMPLITUDE CALCULATIONS ##
+#* Extract every raw solution that has an amplitude greater than the total starting concentrations
+for dir in readdir("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/FixedConstraintAnalysis/ROCKFISH_DATA/3Fixed/PopSize_15000"; join=true)
+    if occursin("Raw", basename(dir))
+        for DFdir in readdir(dir; join=true)
+            # extract dataframes into a vector
+            dfarray = read_csvs_in_directory(DFdir)
+
+            for df in dfarray
+                df[(testrawdf.amp .> sum(testrawdf[1,Between(:L, :A)])), :]
+
+
+                # Test amplitude columns and save row if amplitude is greater than the total starting concentrations
+
+
 
