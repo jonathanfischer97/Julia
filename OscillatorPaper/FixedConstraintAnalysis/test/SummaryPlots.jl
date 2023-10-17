@@ -719,3 +719,88 @@ ogsol = solve(ogprobjac, Rodas5P(), saveat=0.1)
 ODE_movie(ogsol)
 
 
+
+
+
+
+
+
+using Plots
+
+
+"""Converts a rate constant from nm^3/us) to 1/(uM*s)"""
+function convert_to_macrorate(microrate::Float64)
+    return microrate * 0.602214076
+end
+psym = [:ka1 => convert_to_macrorate(0.027267670545107203)#5.453534109021441e-05 #ka1, 1
+    :kb1 => 0.0643048008980449 #kb1, 2
+    :kcat1 => 286.6382253193995 #kcat1, 3
+    :ka2 => convert_to_macrorate(1.6605390671738467) #0.0033210781343476934 #ka2, 4
+    :kb2 => 0.39569337786534897 #kb2, 5
+    :ka3 => convert_to_macrorate(0.04115484270564225) #ka3, 6
+    :kb3 => 0.5393197910059361 #kb3, 7
+    :ka4 => convert_to_macrorate(0.05448532670350475) #ka4, 8
+    :kb4 => 0.2897657637531564 #kb4, 9
+    :ka7 => convert_to_macrorate(0.19013582091039463) #ka7, 10
+    :kb7 => 0.0028126177315505618 #kb7, 11
+    :kcat7 => 1.2733781341040291 #kcat7, 12
+    :DF => 25500.] #DF, 13
+p = [x[2] for x in psym]
+
+
+# usym = [:L => 634.6315289074139, :K => 47.42150049582334, :P => 239.66312964177104,  :A => 838.7724702072363, :Lp => 0.0, :LpA => 0.0, :LK => 0.0, #:Lp => 790.5014385747756,
+#         :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, :AKL => 0.0, :APLp => 0.0]
+usym = [:L => 2.0, :K => 0.05, :P => 0.55,  :A => 2.0, :Lp => 0.0, :LpA => 0.0, :LK => 0.0, #:Lp => 790.5014385747756,
+        :LpP => 0.0, :LpAK => 0.0, :LpAP => 0.0, :LpAKL => 0.0, :LpAPLp => 0.0, :AK => 0.0, :AP => 0.0, :AKL => 0.0, :APLp => 0.0]
+u0 = [x[2] for x in usym]
+
+newprob = remake(ogprobjac, p=p, u0=u0, tspan= (0.0, 100.0))
+newsol = solve(newprob, Rosenbrock23(), saveat=0.1)
+plot(newsol)
+
+gaprob = GAProblem()
+allconstraints = AllConstraints()
+population = generate_population(allconstraints, 20000)
+garesults = run_GA(gaprob, population)
+gadf = make_ga_dataframe(garesults, allconstraints)
+
+function get_prob(dfrow::DataFrameRow, prob::ODEProblem)
+    newp = [param for param in dfrow[Between(:ka1, :DF)]]
+    newu0 = [ic for ic in dfrow[Between(:L, :A)]]
+
+    remake(prob, p = newp, u0 = [newu0; zeros(length(prob.u0) - length(newu0))])
+end
+
+probarray = []
+for row in eachrow(gadf)
+    push!(probarray, get_prob(row, ogprobjac))
+end
+probarray
+
+
+import CairoMakie as cm
+fig = cm.Figure(resolution = (1000, 600))
+ax = cm.Axis(fig[1,1], title="ODE Solution")
+cm.lines!(ax, newsol[1,:], newsol[3,:], color=:blue, label="L")
+fig
+
+function make_tuneplot(prob)
+    fig = cm.Figure(resolution = (1000, 600))
+    ax = cm.Axis(fig[1,1], title="ODE Solution")
+
+
+    params = copy(prob.p)
+    for i in 1:6
+        params[end] = params[end] * 1.1
+        newprob = remake(prob, p=params)
+        newsol = solve(newprob, Rosenbrock23(), saveat=0.1)
+        cm.lines!(ax, newsol[1,:], newsol[3,:])
+    end
+    fig
+end
+    
+make_tuneplot(probarray[3])
+
+
+testsol = solve(probarray[1500], Rosenbrock23(), saveat=0.1)
+plot(testsol)
