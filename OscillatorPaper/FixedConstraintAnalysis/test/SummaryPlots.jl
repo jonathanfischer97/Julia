@@ -27,7 +27,7 @@ begin
 
     using OscTools 
 
-    import GLMakie: Figure, Axis3, meshscatter, meshscatter!, Colorbar, colgap!, rowgap!, Vec3f, Relative, save
+    import GLMakie: Figure, Axis3, meshscatter, meshscatter!, Colorbar, colgap!, rowgap!, Vec3f, Relative, save, with_theme
     import GLMakie as gm
 
     using Base.Threads
@@ -53,6 +53,9 @@ population_to_matrix(ga_result)
 #* Summary dataframes 
 dfarray = read_csvs_in_directory("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/FixedConstraintAnalysis/ROCKFISH_DATA/3Fixed/PopSize_15000/L_K_P/SummaryResults")
 
+for df in dfarray
+    df.period_range = df.maximum_period .- df.minimum_period
+end
 
 """
     plot_fixed_makie(df::DataFrame)
@@ -229,133 +232,151 @@ xy, xz, yz = generate_z_matrices(dfarray[1])
 
 
 
+"""
+    get_new_label(oldlabel)
+Converts the old label to a new label for plotting.
+"""
+function get_new_label(oldlabel)
+    labelmap = Dict("ka1" => "k⁽ᴸᴷ⁾", "kb1" => "kᵣ⁽ᴸᴷ⁾", "kcat1" => "kcat⁽ᴸᴷ⁾", 
+                    "ka2" => "k⁽ᴸᴬ⁾", "kb2" => "kᵣ⁽ᴸᴬ⁾",
+                    "ka3" => "k⁽ᴬᴷ)", "kb3" => "kᵣ⁽ᴬᴷ⁾",
+                    "ka4" => "k⁽ᴬᴾ⁾", "kb4" => "kᵣ⁽ᴬᴾ⁾",
+                    "ka7" => "k⁽ᴸᴾ⁾", "kb7" => "kᵣ⁽ᴸᴾ⁾", "kcat7" => "kcat⁽ᴸᴾ⁾",
+                    "L" => "L", "K" => "K", "P" => "P", "A" => "A")
 
-
-
-
-xvec = dfarray[1][:, 1]
-yvec = dfarray[1][:, 2]
-zvec = dfarray[1][:, 3]
-colorvec = dfarray[1][:, :average_period]
-filter(x -> !isnan(x), colorvec)
-
-xy, xz, yz = generate_z_matrices(xvec, yvec, zvec, colorvec)
-
-generate_z_matrices(dfarray[1]) == generate_z_matrices(xvec, yvec, zvec, colorvec)
-
-xy_df, xz_df, yz_df = generate_z_matrices(dfarray[1])
-xy_vec, xz_vec, yz_vec = generate_z_matrices(xvec, yvec, zvec, colorvec)
-
-xy_df
-xy_vec
-
-
-xymat = fill(NaN, 5,5)
-colormat = reshape(colorvec, 5,5,5)
-
-for i in 1:5
-    for j in 1:5
-        xymat[i,j] = nm.mean(colormat[i,j,:])
-    end
+    return labelmap[oldlabel]
 end
 
-for idx in eachindex(xymat)
-    @show idx
-    xymat[idx] = colorvec[idx]
+
+function add_units(labels...)
+    unitlabels = []
+    for name in labels
+        if occursin("kᵣ", name)
+            push!(unitlabels,name * " (s⁻¹)")
+        elseif occursin("kcat", name)
+            push!(unitlabels,name * " (s⁻¹)")
+        elseif occursin("k", name)
+            push!(unitlabels,name * " (μM⁻¹s⁻¹)")
+        else
+            push!(unitlabels,name * " (μM)")
+        end
+    end
+    return unitlabels
 end
 
 
 
 """
-    plot_3fixed_makie(dfarray::Vector{DataFrame})
-Plots three side by side 3D scatter plots of the dataframe for 3 values of DF using Makie.
+    plot_3fixed_makie(dfarray::Vector{DataFrame}, colorvar = :average_period)
+Uses GLMakie to plot three side by side 3D scatter plots for each dataframe in array, each with a different value of DF.
 """
 function plot_3fixed_makie(dfarray::Vector{DataFrame}, colorvar = :average_period)
 
-    xname, yname, zname = names(dfarray[1])[1:3]
+    xlabel, ylabel, zlabel = get_new_label.(names(dfarray[1])[1:3])
     dfvals = [df.DF[1] for df in dfarray]
+
+    xlabel_units, ylabel_units, zlabel_units = add_units(xlabel, ylabel, zlabel)
+
+    # Determine global color limits
+    clims = (minimum([minimum(filter(!isnan,df[:, colorvar])) for df in dfarray]),
+    maximum([maximum(filter(!isnan, df[:, colorvar])) for df in dfarray]))
+
+    # Determine global size limits
+    minsize, maxsize = (minimum([minimum(filter(!iszero,df[:, :num_oscillatory_points])) for df in dfarray]),
+    maximum([maximum(filter(!iszero, df[:, :num_oscillatory_points])) for df in dfarray]))
+
+    # Color map
+    # cmap = gm.Reverse(:berlin)
+    cmap = :redsblues
 
 
     #* make the figure
-    fig = Figure(resolution = (1600, 600))
+    fig = with_theme(theme_black()) do
+        fig = Figure(resolution = (2000, 800))
 
-    #* make 3 axes, one for each DF value
-    axs = [Axis3(fig[1,i]; aspect = :data, perspectiveness=0.5, title="$xname vs. $yname vs $zname at DF = $(dfvals[i])", xlabel = xname, ylabel = yname, zlabel = zname, xlabelfont = :bold, ylabelfont = :bold, zlabelfont=:bold,            
-                                    xtickformat = values -> [string(round(10^x; digits=2)) for x in values], #* converts the log10 values back to the original values
-                                    ytickformat = values -> [string(round(10^x; digits=2)) for x in values],
-                                    ztickformat = values -> [string(round(10^x; digits=2)) for x in values]) for i in 1:3]
+        #* make 3 axes, one for each DF value
+        axs = [Axis3(fig[1,i]; aspect = :data, perspectiveness=0.5, title="($xlabel vs. $ylabel vs $zlabel) at DF = $(dfvals[i])", xlabel = "log $xlabel_units", ylabel = "log $ylabel_units", zlabel = "log $zlabel_units", xlabelfont = :bold, ylabelfont = :bold, zlabelfont=:bold, 
+                                        titlesize=25, xlabelsize = 22, ylabelsize=22, zlabelsize=22,  
+                                        xticks = unique(log10.(dfarray[i][:,1])), yticks = unique(log10.(dfarray[i][:,2])), zticks = unique(log10.(dfarray[i][:,3])),        
+                                        xtickformat = values -> [string(round(10^x; digits=3)) for x in values], #* converts the log10 values back to the original values
+                                        ytickformat = values -> [string(round(10^x; digits=3)) for x in values],
+                                        ztickformat = values -> [string(round(10^x; digits=3)) for x in values]) for i in 1:3]
 
-    for (i,ax) in enumerate(axs)
-        df = dfarray[i]
-
-        xlog = log10.(df[:,1]) 
-        ylog = log10.(df[:,2]) 
-        zlog = log10.(df[:,3])
-
-
-        #* make the scatter plot
-        # Identify NaN indices or indices where num_oscillatory_points <= 1
-        nan_indices = findall(isnan, df[:, colorvar])
-        # @show nan_indices
-        # singlepoint_indices = findall(x -> x <= 1000, df[:, :num_oscillatory_points])
-        # @show singlepoint_indices
-        # append!(nan_indices, singlepoint_indices)
-
-        #Non-NaN indices just all indices that are not in nan_indices
-        nonan_indices = setdiff(1:size(df, 1), nan_indices)
-        # @show nonan_indices
-
-
-        nonan_numpoints = df[:, :num_oscillatory_points][nonan_indices]
         
-        # nonan_periods = df[:, :average_period][nonan_indices]
-        # nonan_amplitudes = df[:, :average_amplitude][nonan_indices]
 
-        # Normalize sizes for non-NaN values
-        sizes = fill(0.1, size(df, 1))
-        # sizes[nonan_indices] = ((nonan_amplitudes .- minimum(nonan_amplitudes)) ./ (maximum(nonan_amplitudes) - minimum(nonan_amplitudes))) ./ 2 
-        sizes[nonan_indices] = ((nonan_numpoints .- minimum(nonan_numpoints)) ./ (maximum(nonan_numpoints) - minimum(nonan_numpoints))) ./ 2.5 
 
-        # Normalize periods for non-NaN values
-        # norm_periods = fill(NaN, size(df, 1))
-        # norm_periods[nonan_indices] = (nonan_periods .- minimum(nonan_periods)) ./ (maximum(nonan_periods) - minimum(nonan_periods)) 
+        for (i,ax) in enumerate(axs)
+            df = deepcopy(dfarray[i])
 
-        cmap = gm.Reverse(:plasma)
+            # Log transform the data
+            xlog = log10.(df[:,1]) 
+            ylog = log10.(df[:,2]) 
+            zlog = log10.(df[:,3])
 
-        # Scatter plot for non-NaN values
-        pl = meshscatter!(ax, xlog[nonan_indices], ylog[nonan_indices], zlog[nonan_indices]; markersize=sqrt.(sizes[nonan_indices]), ssao=true, color=df[:, colorvar][nonan_indices], colormap=cmap, transparency=true, nan_color=:gray,
-                            diffuse = Vec3f(0.6), specular = Vec3f(0.2), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.9, overdraw=true, backlight=1.0f0)
+            # Replace any outliers with NaN
+            if occursin("amplitude", string(colorvar))
+                outlier_indices = findall(x -> x > 300., df[:, colorvar])
+                df[outlier_indices, colorvar] .= NaN
+            end
 
-        # Scatter with NaN values, high transparency
-        meshscatter!(ax, xlog[nan_indices], ylog[nan_indices], zlog[nan_indices]; markersize=0.1, ssao=true, color=:gray, transparency=true,
-                                    diffuse = Vec3f(0.6), specular = Vec3f(0.2), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.5)
 
-        #* Projection on the x-y plane (z = minimum of zlog)
-        #Make Z-matrix for contour plot based on the period values, mapping each period value to the x-y coordinates
 
-        # Use actual scatter plot data limits for defining heatmap position
-        zmin = minimum(zlog)
-        xmax = maximum(xlog)
-        ymax = maximum(ylog)
+            #* make the scatter plot
+            # Identify NaN indices 
+            nan_indices = findall(isnan, df[:, colorvar])
 
-        # Projection on the x-y plane (z = minimum of zlog)
-        xyplane, xzplane, yzplane = generate_z_matrices(df, colorvar)
+            # Non-NaN indices just all indices that are not in nan_indices
+            nonan_indices = setdiff(1:size(df, 1), nan_indices)
 
-        # Define x, y, and z positions for the heatmap. They should match the actual scatter plot data points.
-        x_positions = sort(unique(xlog))
-        y_positions = sort(unique(ylog))
-        z_positions = sort(unique(zlog))
+            # Number of oscillatory points controls size
+            nonan_numpoints = df[:, :num_oscillatory_points][nonan_indices]
+            
+            # nonan_periods = df[:, :average_period][nonan_indices]
+            # nonan_amplitudes = df[:, :average_amplitude][nonan_indices]
 
-        # Plot the heatmap for the x-y plane at z = zmin
-        gm.heatmap!(ax, x_positions, y_positions, xyplane; transformation = (:xy, zmin + (zmin/3.)), colormap=cmap, nan_color=:gray, alpha=0.9)
+            # Normalize sizes for non-NaN values
+            sizes = fill(0.1, size(df, 1))
+            sizes[nonan_indices] = 0.1 .+ (((nonan_numpoints .- minsize) ./ (maxsize - minsize)) ./ 3.9) 
 
-        # Plot the heatmap for the x-z plane at y = ymin
-        gm.heatmap!(ax, x_positions, z_positions, xzplane; transformation = (:xz, ymax + (ymax/3.)), colormap=cmap, nan_color=:gray, alpha=0.9)
 
-        # Plot the heatmap for the y-z plane at x = xmin
-        gm.heatmap!(ax, y_positions, z_positions, yzplane; transformation = (:yz, xmax + (xmax/3.)), colormap=cmap, nan_color=:gray, alpha=0.9)
+            # Scatter plot for non-NaN values
+            pl = meshscatter!(ax, xlog[nonan_indices], ylog[nonan_indices], zlog[nonan_indices]; markersize=sizes[nonan_indices], ssao=true, color=df[:, colorvar][nonan_indices], colormap=cmap, transparency=false,
+                                diffuse = Vec3f(0.7), specular = Vec3f(0.3), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.9, overdraw=false)#, backlight=1.0f0)
 
-        gm.hidespines!(ax)
+            # Scatter with NaN values, high transparency
+            meshscatter!(ax, xlog[nan_indices], ylog[nan_indices], zlog[nan_indices]; markersize=0.05, ssao=true, color=:white, transparency=true,
+                                        diffuse = Vec3f(0.6), specular = Vec3f(0.2), shininess = 100f0, ambient = Vec3f(0.1), shading=true, alpha=0.4)
+
+            #* 2D projection heatmaps
+            # Use actual scatter plot data limits for defining heatmap position
+            zmin = minimum(zlog)
+            xmax = maximum(xlog)
+            ymax = maximum(ylog)
+
+            # Projection on the x-y plane (z = minimum of zlog)
+            xyplane, xzplane, yzplane = generate_z_matrices(df, colorvar)
+
+            # Define x, y, and z positions for the heatmap. They should match the actual scatter plot data points.
+            x_positions = sort(unique(xlog))
+            y_positions = sort(unique(ylog))
+            z_positions = sort(unique(zlog))
+
+            # Plot the heatmap for the x-y plane at z = zmin
+            heatmap_args = (colormap=cmap, nan_color=:black, alpha=0.8)
+            gm.heatmap!(ax, x_positions, y_positions, xyplane; transformation = (:xy, zmin + (zmin/4.)), heatmap_args...)
+
+            # Plot the heatmap for the x-z plane at y = ymin
+            gm.heatmap!(ax, x_positions, z_positions, xzplane; transformation = (:xz, ymax + (ymax/4.)), heatmap_args...)
+
+            # Plot the heatmap for the y-z plane at x = xmin
+            gm.heatmap!(ax, y_positions, z_positions, yzplane; transformation = (:yz, xmax + (xmax/4.)), heatmap_args...)
+
+            gm.hidespines!(ax)
+            # gm.hidedecorations!(ax; label=false, ticklabels=false, ticks=false)
+
+            # Colorbar and labels
+            # Colorbar(fig[2, i], pl, label=colorlabel, vertical = false)
+        end
 
         colorlabel = string(colorvar)
         if occursin("period", colorlabel)
@@ -364,19 +385,16 @@ function plot_3fixed_makie(dfarray::Vector{DataFrame}, colorvar = :average_perio
             colorlabel *= " (μM)"
         end
 
-        # Colorbar and labels
-        Colorbar(fig[2, i], pl, label=colorlabel, vertical = false)
+        Colorbar(fig[2, 1:3]; label=colorlabel, vertical = false, limits=clims, colormap= cmap)
+        colgap!(fig.layout, 6)
+        rowgap!(fig.layout, 1)
+        fig
     end
-
-    # Colorbar and labels
-    colgap!(fig.layout, 6)
-    rowgap!(fig.layout, 1)
-
     fig
 end
 
 
-fig = plot_3fixed_makie(dfarray, :average_period)
+fig = plot_3fixed_makie(dfarray, :period_range)
 save("test_glmakie.png", fig)
 
 
@@ -391,11 +409,19 @@ for dir in readdir("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/Fixed
         if basename(subdir) == "SummaryResults" && length(readdir(subdir)) == 3
             # println("Plotting $subdir")
             dfarray = read_csvs_in_directory(subdir)
+
+            for df in dfarray
+                df.period_range = df.maximum_period .- df.minimum_period
+            end
+
             try
-                fig = plot_3fixed_makie(dfarray)
-                save("SUMMARY_SCATTERPLOTS_HEATMAPS/$(basename(dir))_summary_plot.png", fig)
-            catch
-                println("Error plotting $dir")
+                colorvar = :period_range
+                fig = plot_3fixed_makie(dfarray, colorvar)
+                pathstring = "./SUMMARY_SCATTERPLOTS_HEATMAPS_" * string(colorvar)
+                mkpath(pathstring)
+                save("$pathstring/$(basename(dir))_summary_plot.png", fig)
+            catch e
+                println(e)
             end
         end
     end
@@ -406,94 +432,17 @@ end
 
 
 
-
+gm.set_theme!()
 
 
 
 
 #< CLUSTERING #####
 
-rawdf_array = read_csvs_in_directory("OscillatorPaper/FixedConstraintAnalysis/ROCKFISH_DATA/3Fixed/PopSize_15000/kcat1_kb4_A/RawData/DF=1000.0")
+rawdf_array = read_csvs_in_directory("OscillatorPaper/FixedConstraintAnalysis/ROCKFISH_DATA/3Fixed/PopSize_15000/L_K_A/RawData/DF=1000.0")
 combined_rawdf = vcat(rawdf_array...)
 
 # log10.(combined_rawdf)
-
-
-
-"""
-    silhouette_score(X::AbstractMatrix{Float64}, labels::Vector{Int}, sample_size::Int=100)
-Computes the silhouette score for a sample of data and labels.
-"""
-function silhouette_score(X::AbstractMatrix{Float64}, labels::Vector{Int}, sample_size::Int=100)
-    # Sample data and corresponding labels
-    idx = rand(1:size(X, 2), sample_size)
-    sampled_X = X[:, idx]
-    sampled_labels = labels[idx]
-    
-    dist_matrix = pairwise(Euclidean(), sampled_X, sampled_X)
-    silhouettes = Clustering.silhouettes(sampled_labels, dist_matrix)
-    
-    return mean(silhouettes)
-end
-
-# Determine optimal cluster count using silhouette method
-function optimal_kmeans_clusters(df::DataFrame, max_k::Int, exclude_cols::Vector{Symbol} = [])
-    # Convert DataFrame to Matrix and exclude the specified columns
-    data_matrix = df_to_matrix(df, exclude_cols)
-    
-    best_k = 2
-    best_score = -Inf
-
-    # Iterate through k values and compute silhouette score
-    for k in 2:max_k
-        result = kmeans(data_matrix, k)
-        score = silhouette_score(data_matrix, assignments(result))
-        if score > best_score
-            best_score = score
-            best_k = k
-        end
-    end
-    
-    return best_k
-end
-
-
-
-
-"""
-    optimal_kmeans_clusters(data_matrix::AbstractMatrix{Float64}, max_k::Int)
-Determine optimal cluster count using silhouette method with multithreading.
-"""
-function optimal_kmeans_clusters(data_matrix::AbstractMatrix{Float64}, max_k::Int)
-    best_k = 2
-    best_score = -Inf
-
-    # Create an array to store the scores for each k
-    scores = zeros(max_k - 1)
-
-    # Iterate through k values and compute silhouette score in parallel
-    @threads for k in 2:max_k
-        result = kmeans(data_matrix, k)
-        score = silhouette_score(data_matrix, assignments(result))
-        scores[k - 1] = score # Store the score in the array
-    end
-    
-    # Find the maximum score and the corresponding k value
-    best_score, best_k = findmax(scores)
-    best_k += 1 # Adjust the index to match the k value
-    
-    return best_k
-end
-
-"""
-    get_optimal_clusters(df::DataFrame, max_k::Int, exclude_cols::Vector{Symbol} = [])
-Wrapper function for optimal_kmeans_clusters that converts a DataFrame to a Matrix, and returns the optimal cluster count.
-"""
-function get_optimal_clusters(df::DataFrame, max_k::Int, exclude_cols::Vector{Symbol} = [])
-    data_matrix = df_to_matrix(df, exclude_cols)
-    return optimal_kmeans_clusters(data_matrix, max_k)
-end
-
 
 """
     plot_3D_PCA_clusters(df::DataFrame)
@@ -506,8 +455,9 @@ function plot_3D_PCA_clusters(df::DataFrame)
     # @show fixed_cols
 
     # Step 2: Log transform the data prior to clustering, otherwise the clustering will be dominated by the largest values
-    df = log10.(df)
-    dfmat = df_to_matrix(df, fixed_cols)
+    # df = log10.(ogdf[!,Not(fixed_cols)])
+    # @show df
+    dfmat = log10.(df_to_matrix(df, fixed_cols))
     
     # Step 3: Dynamically determine the optimal number of clusters
     optimal_clusters = get_optimal_clusters(dfmat, 10) # Assuming a maximum of 10 clusters for demonstration
@@ -536,15 +486,17 @@ function plot_3D_PCA_clusters(df::DataFrame)
     
     # Step 8: Plotting
     fig = Figure(;resolution = (1000, 600))
-    ax = Axis3(fig[1,1]; aspect=:data, perspectiveness = 0.5, title="PCA Scatter Plot with K-means Clusters (Log transformed data)")
+    ax = Axis3(fig[1,1]; aspect=:data, perspectiveness = 0.5, title="PCA (Log transformed data)")
     pc_variances = principalvars(pca_model)
     pc_percentages = pc_variances / sum(pc_variances) * 100
     ax.xlabel = "PC1 ($(round(pc_percentages[1], digits=2))%)"
     ax.ylabel = "PC2 ($(round(pc_percentages[2], digits=2))%)"
     ax.zlabel = "PC3 ($(round(pc_percentages[3], digits=2))%)"
     # ax = Axis3(fig[1,1]; aspect=:data, perspectiveness = 0.5, xlabel="PC1", ylabel="PC2", zlabel="PC3", title="PCA Scatter Plot with K-means Clusters (Log transformed data)")
-    gm.scatter!(ax, x_coords, y_coords, z_coords, color = result.assignments, alpha=0.3)
-    gm.scatter!(ax, centroid_x, centroid_y, centroid_z, marker=:x, label="Centroids", color=:red, markersize = 50, overdraw=true)
+    sp = gm.scatter!(ax, x_coords, y_coords, z_coords, color = df.per, alpha=0.5)
+    # gm.scatter!(ax, centroid_x, centroid_y, centroid_z, marker=:x, label="Centroids", color=:red, markersize = 50, overdraw=true)
+
+    Colorbar(fig[1, 2]; label="Period (s)", limits=(minimum(df.per), maximum(df.per)))
 
     return fig
 end
@@ -678,6 +630,8 @@ Plots a 3D biplot of the loadings for the first three principal components.
 function plot_loadings_biplot_3D(df::DataFrame)
     # Step 1: Identify fixed columns
     fixed_cols = identify_fixed_columns(df)
+    # fixed_cols = fixed_cols[[1,2,3,5]]
+    
 
     # Step 2: Log transform the data prior to clustering, otherwise the clustering will be dominated by the largest values
     df = log10.(df)
@@ -733,28 +687,35 @@ save("test_biplot3D.png", biplot)
 
 
 
+using GLMakie
+function ODE_movie(sol)
+    points = Observable(Point3f[]) # Signal that can be used to update plots efficiently
+    colors = Observable(Int[])
 
+    set_theme!(theme_black())
 
+    fig, ax, l = lines(points, color = colors,
+        colormap = :inferno, transparency = true, 
+        axis = (; type = Axis3, protrusions = (0, 0, 0, 0), 
+                viewmode = :fit, limits = (1, 4, 0, 1, 0, 2)))
+    
+    Amem = sol[6,:] .+ sol[9,:] .+ sol[10,:] .+ sol[11,:] .+ sol[12,:] .+ sol[15,:] .+ sol[16,:]
+    # @show typeof(Amem)
 
-#*FFTW testing 
+    record(fig, "odetest.mp4", 1:120) do frame
+        for i in eachindex(ogsol.t)
+            # update arrays inplace
+            push!(points[], Point3f(sol.u[i][1], sol.u[i][2], sol.u[i][6] + sol.u[i][9] + sol.u[i][10] + sol.u[i][11] + sol.u[i][12] + sol.u[i][15] + sol.u[i][16]))
+            push!(colors[], frame)
+        end
+        ax.azimuth[] = 1.7pi + 0.3 * sin(2pi * frame / 120) # set the view angle of the axis
+        notify(points); notify(colors) # tell points and colors that their value has been updated
+        l.colorrange = (0, frame) # update plot attribute directly
+    end
+end
 
 ogprobjac = make_ODE_problem()
-sol = solve_odeprob(ogprobjac, [6, 9, 10, 11, 12, 15, 16])
-Amem_sol = map(sum, sol.u)
-
-@btime rfft($Amem_sol)
-rfft_plan = plan_rfft(Amem_sol)
-
-@btime rfft_plan * $Amem_sol
-
-@btime dct($Amem_sol)
-
-dct_plan = plan_dct(Amem_sol)
-
-@btime dct_plan * $Amem_sol
-
-dct_plan = plan_dct!(Amem_sol)
-
-@btime dct_plan * $Amem_sol
+ogsol = solve(ogprobjac, Rodas5P(), saveat=0.1)
+ODE_movie(ogsol)
 
 

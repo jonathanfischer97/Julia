@@ -102,17 +102,61 @@ testrowtuple[1]
 
 #< TESTING AMPLITUDE CALCULATIONS ##
 #* Extract every raw solution that has an amplitude greater than the total starting concentrations
+dubious_rowtuples = []
+ampvals = []
 for dir in readdir("/home/local/WIN/jfisch27/Desktop/Julia/OscillatorPaper/FixedConstraintAnalysis/ROCKFISH_DATA/3Fixed/PopSize_15000"; join=true)
-    if occursin("Raw", basename(dir))
-        for DFdir in readdir(dir; join=true)
-            # extract dataframes into a vector
-            dfarray = read_csvs_in_directory(DFdir)
+    for combodir in readdir(dir; join=true)
+        if occursin("Raw", basename(combodir))
+            # @info "Processing directory $combodir"
+            for DFdir in readdir(combodir; join=true)
+                # extract dataframes into a vector
+                dfarray = read_csvs_in_directory(DFdir)
 
-            for df in dfarray
-                df[(testrawdf.amp .> sum(testrawdf[1,Between(:L, :A)])), :]
+                for df in dfarray
+                    # testrowtuple = copy.(eachrow((testrawdf[testrawdf.amp .> sum(df[1,Between(:L, :A)]), :])))
+                    # append!(dubious_rowtuples, testrowtuple)
+                    # append!(ampvals, df.amp)
+                    # if any(df.amp .> 100.)
+                    #     @info "Found a solution with amplitude greater than 100 in $DFdir"
+                    #     append!(ampvals, df.amp)
+                    # end
+                    for row in eachrow(df)
+                        if row.amp > sum(row[Between(:L, :A)])
+                            # @info "Found a solution with amplitude greater than the total starting concentrations in $DFdir"
+                            @info "Find unrealistic amplitude $(row.amp)"
+                            push!(dubious_rowtuples, row)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+dubious_rowtuples
+maximum(ampvals)
+
 
 
                 # Test amplitude columns and save row if amplitude is greater than the total starting concentrations
 
+testrow = dubious_rowtuples[2]
 
 
+ogprobjac = make_ODE_problem()
+
+
+#* remake with new initial conditions and new parameters
+new_p = [param for param in testrow[Between(:ka1, :DF)]]
+new_u = [ic for ic in testrow[Between(:L, :A)]]
+new_u0 = [new_u; zeros(length(ogprobjac.u0) - length(new_u))]
+
+newprob = remake(ogprobjac, p = new_p, u0 = new_u0)
+
+sol = solve(newprob, Rodas5P())
+
+using Plots
+plot(sol)
+
+sol = solve_odeprob(newprob, [6, 9, 10, 11, 12, 15, 16])
+
+solve_for_fitness_peramp(newprob, [6, 9, 10, 11, 12, 15, 16])
