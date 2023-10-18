@@ -201,33 +201,33 @@ function generate_z_matrices(df::DataFrame, zvar=:average_period)
 end
 
 # Call the function
-xy, xz, yz = generate_z_matrices(dfarray[1])
+# xy, xz, yz = generate_z_matrices(dfarray[1])
 
-function generate_z_matrices(xvec, yvec, zvec, colorvec)
+# function generate_z_matrices(xvec, yvec, zvec, colorvec)
 
-    # Directly applying log10 transformation to the columns and subset unique
-    x_values = log10.(xvec) |> unique
-    y_values = log10.(yvec) |> unique
-    z_values = log10.(zvec) |> unique
+#     # Directly applying log10 transformation to the columns and subset unique
+#     x_values = log10.(xvec) |> unique
+#     y_values = log10.(yvec) |> unique
+#     z_values = log10.(zvec) |> unique
 
 
-    # Initialize a 3D matrix
-    data_cube = fill(0.0, length(x_values), length(y_values), 3)
+#     # Initialize a 3D matrix
+#     data_cube = fill(0.0, length(x_values), length(y_values), 3)
     
-    # Populate the 3D matrix
+#     # Populate the 3D matrix
 
 
 
 
-    # Compute averages along each dimension of the 3D matrix
-    xy = dropdims(mean(data_cube, dims=3), dims=3)
-    xz = dropdims(mean(data_cube, dims=2), dims=2)
-    yz = dropdims(mean(data_cube, dims=1), dims=1)
+#     # Compute averages along each dimension of the 3D matrix
+#     xy = dropdims(mean(data_cube, dims=3), dims=3)
+#     xz = dropdims(mean(data_cube, dims=2), dims=2)
+#     yz = dropdims(mean(data_cube, dims=1), dims=1)
 
-    return (xy=xy, xz=xz, yz=yz)
-end
+#     return (xy=xy, xz=xz, yz=yz)
+# end
 
-xy, xz, yz = generate_z_matrices(dfarray[1])
+# xy, xz, yz = generate_z_matrices(dfarray[1])
 
 
 
@@ -291,7 +291,7 @@ function plot_3fixed_makie(dfarray::Vector{DataFrame}, colorvar = :average_perio
 
 
     #* make the figure
-    fig = with_theme(theme_black()) do
+    fig = with_theme(gm.theme_black()) do
         fig = Figure(resolution = (2000, 800))
 
         #* make 3 axes, one for each DF value
@@ -430,10 +430,30 @@ end
 
 
 
+#< HEATMAP TEST ##
+import CairoMakie as cm
+df100 = dfarray[1]
+datamat100 = generate_z_matrices(df100, :average_period)
+df1000 = dfarray[2]
+datamat1000 = generate_z_matrices(df1000, :average_period)
+df10000 = dfarray[3]
+datamat10000 = generate_z_matrices(df10000, :average_period)
+cm.heatmap(datamat.xy)
 
+begin
+    fig = Figure(resolution = (1000, 600))
+    ax = Axis3(fig[1,1])
+    z_heights = [0.5, 0.0, -0.5]
+    for i in 1:3
+        df = dfarray[i]
+        datamat = generate_z_matrices(df, :average_period)
+        hm = gm.heatmap!(ax, datamat.xy; nan_color=:gray)
 
-gm.set_theme!()
+        gm.translate!(hm, 0,0, z_heights[i])
+    end
+end
 
+fig
 
 
 
@@ -694,18 +714,20 @@ function ODE_movie(sol)
 
     set_theme!(theme_black())
 
+    Amem = sol[6,:] .+ sol[9,:] .+ sol[10,:] .+ sol[11,:] .+ sol[12,:] .+ sol[15,:] .+ sol[16,:]
+
+
     fig, ax, l = lines(points, color = colors,
         colormap = :inferno, transparency = true, 
         axis = (; type = Axis3, protrusions = (0, 0, 0, 0), 
-                viewmode = :fit, limits = (1, 4, 0, 1, 0, 2)))
+                viewmode = :fit, limits = (0, sol.t[end], 0, maximum(sol[1,:]), 0, maximum(Amem))))
     
-    Amem = sol[6,:] .+ sol[9,:] .+ sol[10,:] .+ sol[11,:] .+ sol[12,:] .+ sol[15,:] .+ sol[16,:]
     # @show typeof(Amem)
 
     record(fig, "odetest.mp4", 1:120) do frame
-        for i in eachindex(ogsol.t)
+        for i in eachindex(sol.t)
             # update arrays inplace
-            push!(points[], Point3f(sol.u[i][1], sol.u[i][2], sol.u[i][6] + sol.u[i][9] + sol.u[i][10] + sol.u[i][11] + sol.u[i][12] + sol.u[i][15] + sol.u[i][16]))
+            push!(points[], Point3f(sol.t[i], sol[1,i], Amem[i]))
             push!(colors[], frame)
         end
         ax.azimuth[] = 1.7pi + 0.3 * sin(2pi * frame / 120) # set the view angle of the axis
@@ -714,7 +736,7 @@ function ODE_movie(sol)
     end
 end
 
-ogprobjac = make_ODE_problem()
+ogprobjac = make_ODE_problem(100.)
 ogsol = solve(ogprobjac, Rodas5P(), saveat=0.1)
 ODE_movie(ogsol)
 
@@ -801,6 +823,35 @@ end
     
 make_tuneplot(probarray[3])
 
-
 testsol = solve(probarray[1500], Rosenbrock23(), saveat=0.1)
 plot(testsol)
+
+
+
+#< RIDGEPLOT ##
+using CairoMakie
+using Random
+
+# Mock Data
+z_ticks = 1:10 # Replace with your z values
+n = length(z_ticks)
+x = 1:100
+y = 1:100
+heat_data = [rand(100, 100) for _ in 1:n]  # This represents the heatmap data for each z value.
+
+fig = Figure()
+
+ax = Axis(fig[1,1], title = "Layered Heatmaps", xlabel = "X", ylabel = "Z-Tick")
+colors = [:blue, :cyan, :green, :yellow, :red]  # Color gradient. You can adjust as needed.
+
+# Plot each heatmap offset by its z value
+for (i, data) in enumerate(heat_data)
+    heatmap!(ax, x, y .+ i*length(y), data, colorrange = (0, 1), colormap = colors)
+end
+
+# We set the y ticks to match our z values, and adjust the limits.
+ax.yticks = (1:length(y):length(y)*n, z_ticks)
+ax.ylims = (1, length(y)*n)
+
+# Show the figure
+fig
