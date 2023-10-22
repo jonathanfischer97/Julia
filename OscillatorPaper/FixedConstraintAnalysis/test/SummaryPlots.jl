@@ -27,8 +27,8 @@ begin
 
     using OscTools 
 
-    import GLMakie: Figure, Axis3, meshscatter, meshscatter!, Colorbar, colgap!, rowgap!, Vec3f, Relative, save, with_theme
-    import GLMakie as gm
+    # import GLMakie: Figure, Axis3, meshscatter, meshscatter!, Colorbar, colgap!, rowgap!, Vec3f, Relative, save, with_theme
+    # import GLMakie as gm
 
     using Base.Threads
     using Distances
@@ -37,7 +37,12 @@ begin
     const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 
     using FFTW
-    FFTW.set_num_threads(18)
+    
+    numthreads = Threads.nthreads()
+    println("Threads detected: $numthreads")
+    numcores = min(1,numthreads÷2)
+    BLAS.set_num_threads(numcores)
+    FFTW.set_num_threads(numcores)
 end
 
 

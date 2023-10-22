@@ -32,28 +32,31 @@ begin
     const SHOW_PROGRESS_BARS = parse(Bool, get(ENV, "PROGRESS_BARS", "true"))
 
     using FFTW
-    FFTW.set_num_threads(18)
+    numthreads = Threads.nthreads()
+    println("Threads detected: $numthreads")
+    numcores = min(1,numthreads÷2)
+    BLAS.set_num_threads(numcores)
+    FFTW.set_num_threads(numcores)
 end
 
-# function test4fixedGA()
-#     #* Set up the default GA problem
-#     ga_problem = GAProblem()
 
-#     #* Fixed some constraints 
-#     set_fixed_constraints!(ga_problem.constraints, [:DF, :K, :P, :A])
 
-#     #* Assign the fixed values 
-#     set_fixed_values!(ga_problem.constraints, 1000., 1.0, 1.0, 3.16)
+function copy_odds_branchless!(dst::Vector{T}, src::Vector{T}) where {T <: Integer}
+    write_index = 1
+    @inbounds for i in eachindex(src)
+        v = src[i]
+        dst[write_index] = v
+        write_index += isodd(v)
+    end
+    return dst
+end;
 
-#     #* Set seed 
-#     Random.seed!(1234)
 
-#     #* Generate the initial population
-#     population = generate_population(ga_problem.constraints, 10000)
+ifelse()
 
-#     #* Run the GA
-#     run_GA(ga_problem, population)
-# end
+
+
+
 
 ga_result = test4fixedGA()
 
@@ -85,6 +88,20 @@ plan = make_rfft_plan(ogprobjac)
 rfft_plan = plan_rfft(Amem_sol)
 
 @btime rfft_plan * $Amem_sol
+
+@code_native rfft_plan * Amem_sol
+
+@code_native rfft(Amem_sol)
+
+@code_llvm rfft(Amem_sol)
+
+@code_lowered solve(ogprobjac, Rodas5P())
+@code_typed solve(ogprobjac, Rodas5P())
+
+using JET
+@report_opt solve(ogprobjac, Rodas5P())
+
+@allocations sol.u[1]
 
 @btime dct($Amem_sol)
 
