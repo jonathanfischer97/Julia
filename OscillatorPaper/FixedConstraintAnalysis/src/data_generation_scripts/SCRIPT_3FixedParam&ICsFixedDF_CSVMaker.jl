@@ -52,15 +52,15 @@ function fixed_triplet_csv_maker(constraints::AllConstraints, ode_prob::ODEProbl
     num_rows = rangelength^3
 
     vals1 = Vector{Float64}(undef, num_rows)
-    vals2 = Vector{Float64}(undef, num_rows)
-    vals3 = Vector{Float64}(undef, num_rows)
+    vals2 = similar(vals1)
+    vals3 = similar(vals1)
     num_oscillatory_points_array = Vector{Int}(undef, num_rows)
-    average_periods = Vector{Float64}(undef, num_rows)
-    maximum_periods = Vector{Float64}(undef, num_rows)
-    minimum_periods = Vector{Float64}(undef, num_rows)
-    average_amplitudes = Vector{Float64}(undef, num_rows)
-    maximum_amplitudes = Vector{Float64}(undef, num_rows)
-    minimum_amplitudes = Vector{Float64}(undef, num_rows)
+    average_periods = similar(vals1)
+    maximum_periods = similar(vals1)
+    minimum_periods = similar(vals1)
+    average_amplitudes = similar(vals1)
+    maximum_amplitudes = similar(vals1)
+    minimum_amplitudes = similar(vals1)
 
     #* get the fixed DF value
     fixedDF = constraints.DF.fixed_value
