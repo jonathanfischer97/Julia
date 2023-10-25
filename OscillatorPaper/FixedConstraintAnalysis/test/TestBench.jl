@@ -43,7 +43,10 @@ end
 
 
 
-ga_df = test4fixedGA()
+ga_df = test4fixedGA(10000, Symbol[], Float64[])
+
+groupdf = groupby(ga_df, :gen)
+CSV.write("gen_test.csv", ga_df)
 
 population_to_matrix(ga_result)
 
@@ -132,14 +135,60 @@ using StatsPlots
 
 #for each population size [1000, 5000, 10000, 15000, 20000, 25000, 30000], make the boxplot and add as subplot
 poplots = []
-for popsize in [1000, 5000, 10000, 20000, 50000, 100000, 200000]
+for popsize in [100, 1000, 5000, 10000, 20000, 50000, 100000, 200000]
     test_population = generate_population(allconstraints, popsize)
     popdf = make_pop_dataframe(test_population, allconstraints)
     normdf = popdf./ranges'
-    pl = @df normdf boxplot(cols(), title = "$popsize Individuals",xticks = (1:activelength(allconstraints), propertynames(allconstraints)), outliers=false, legend = false, ylabel = "Normalized Value")
+    pl = @df normdf boxplot(cols(), title = "$popsize Individuals",xticks = (1:activelength(allconstraints), propertynames(allconstraints)), outliers=false, legend = false, ylabel = "Normalized Value", yscale = :log10)
     push!(poplots, pl)
 end
 plot(poplots..., layout = (4, 2), size = (1200, 1200), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
+savefig("NormalizedPopulationDistributions.png")
+
+
+using Distances
+using StatsBase
+
+
+
+function coverage_metric(population::Vector{Vector{Float64}}, constraints::CT, bins::Int=100, threshold::Int=1) where CT <: ConstraintSet
+    n_params = length(population[1])
+    coverage = 0.0
+    
+    # Iterate over parameters
+    for (i, conrange) in enumerate(constraints)
+        if !conrange.isfixed
+            # Define range based on constraints
+            min_val, max_val = log10(conrange.min), log10(conrange.max)
+            
+            # Calculate histogram within the bounds using StatsBase
+            h = fit(Histogram, log10.(getindex.(population, i)), range(min_val, stop=max_val, length=bins + 1))
+            coverage += sum(h.weights .> threshold) / bins
+        end
+    end
+    return coverage / n_params
+end
+
+
+
+coverage_metric(test_population, allconstraints)
+
+function coverage_metric(population::Vector{Vector{Float64}}, bins::Int=10, threshold::Int=1)
+    n_params = length(population[1])
+    coverage = 0.0
+    for i in 1:n_params
+        _, bin_counts = hist(log10.(getindex.(population, i)), bins)
+        coverage += sum(bin_counts .> threshold) / bins
+    end
+    return coverage / n_params
+end
+
+function diversity_metric(population::Vector{Vector{Float64}})
+    distances = pairwise(Euclidean(), hcat(population...), dims=2)
+    return mean(distances)
+end
+
+
 
 using RDatasets
 school = RDatasets.dataset("mlmRev","Hsb82")
@@ -177,9 +226,6 @@ plot(plotvec..., layout = (4, 3), size = (1000, 600), dpi = 200, bottom_margin =
 @df ga_df corrplot(cols(6:10))
 
 
-
-BLAS.set_num_threads(18)
-FFTW.set_num_threads(18)
 
 @benchmark test4fixedGA(5000)
 """BenchmarkTools.Trial: 1 sample with 1 evaluation.
