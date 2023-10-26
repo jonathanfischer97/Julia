@@ -93,7 +93,7 @@ end
 """Tournament selection with unique winners using BitArray, modified to select N_selected individuals"""
 function unique_tournament_bitarray(groupSize::Int; select=argmax)
     @assert groupSize > 0 "Group size must be positive"
-    function tournamentN(fitness::AbstractVecOrMat{<:Real}, N::Int, N_selected::Int;
+    function tournamentN(fitness::AbstractVecOrMat{<:Real}, N_selected::Int;
                          rng::AbstractRNG=Random.GLOBAL_RNG)
         sFitness = size(fitness)
         d, nFitness = length(sFitness) == 1 ? (1, sFitness[1]) : sFitness
@@ -131,6 +131,15 @@ function unique_tournament_bitarray(groupSize::Int; select=argmax)
     end
     return tournamentN
 end
+
+tourfunc = unique_tournament_bitarray(10)
+fitvals = zeros(100)
+fitvals[[4,9,50]] .= rand(3)
+
+selected_idxs = tourfunc(fitvals, 90)
+
+oldtourfunc = OscTools.tournament(10)
+selected_idxs = oldtourfunc(fitvals, 90)
 
 
 
@@ -185,7 +194,80 @@ end
 
 
 
-ga_df = test4fixedGA(10000, Symbol[], Float64[]; num_tournament_groups=10, selection_method=OscTools.unique_tournament_bitarray, n_newInds=0.1)
+ga_df = test4fixedGA(100000, Symbol[], Float64[]; num_tournament_groups=10, selection_method=OscTools.unique_tournament_bitarray, n_newInds=0.1)
+ga_df = test4fixedGA(10000, Symbol[], Float64[]; num_tournament_groups=5, selection_method=OscTools.tournament, n_newInds=0.95)
+
+allconstraints = AllConstraints()
+testpop = generate_population(allconstraints, 1000)
+hcat(testpop...)
+stack(testpop)
+
+dfmat = df_to_matrix(ga_df, [:gen, :fit, :per, :amp, :relamp])
+typeof(dfmat)
+typeof(dfmat) <: AbstractMatrix{Float64}
+
+function diversity_metric(population::Vector{Vector{Float64}})
+    pop_matrix = stack(population)
+
+    diversity_metric(pop_matrix)
+end
+
+
+function diversity_metric(population::AbstractMatrix{Float64})
+    # Step 1: Log Transformation (adding a small constant to avoid log(0))
+    log_population = log.(population .+ 1e-9)
+
+    # Step 2: Normalization
+    min_vals = minimum(log_population, dims=2)
+    @info "Number of min_vals: ", length(min_vals)
+    max_vals = maximum(log_population, dims=2)
+    normalized_population = (log_population .- min_vals) ./ (max_vals - min_vals)
+
+    # Step 3 & 4: Compute Average Pairwise Distances
+    n = size(normalized_population, 2)
+    @info "Number of individuals: ", n
+    distances = [norm(normalized_population[i, :] - normalized_population[j, :]) for i in 1:n for j in (i+1):n]
+    
+    return mean(distances)
+end
+
+
+function diversity_metric(df::DataFrame)
+    dfmat = df_to_matrix(df, [:gen, :fit, :per, :amp, :relamp])
+    return diversity_metric(dfmat)
+end
+
+
+diversity_metric(ga_df)
+
+
+
+
+ogprobjac = make_ODE_problem()
+plot_everything(ga_df, ogprobjac; jump =15 , pathdir = "test4fixedGA_10000_10groups_0.5newinds")
+
+#< testing peak filtering
+sol = solve_odeprob(ogprobjac, [6, 9, 10, 11, 12, 15, 16])
+Amem = map(sum, sol.u)[1:100]
+using Plots
+import OscTools: findextrema
+plot(Amem, label = "")
+max_idxs, max_vals, min_idxs, min_vals = findextrema(Amem; min_height = 2.0)
+scatter!(max_idxs, max_vals, label = "", color = :red, markersize = 5)
+scatter!(min_idxs, min_vals, label = "", color = :red, markersize = 5)
+
+
+
+
+
+
+
+
+
+
+
+
+CSV.write("test4fixedGA.csv", ga_df)
 ga_df = test4fixedGA(50000, Symbol[], Float64[]; num_tournament_groups=10, selection_method=unique_tournament_bitarray, mutationRate=0.95)
 
 testnestarray = [[1,2,3], [4,5,6], [7,8,9]]
