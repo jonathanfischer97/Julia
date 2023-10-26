@@ -195,7 +195,7 @@ end
 
 
 ga_df = test4fixedGA(100000, Symbol[], Float64[]; num_tournament_groups=10, selection_method=OscTools.unique_tournament_bitarray, n_newInds=0.1)
-ga_df = test4fixedGA(10000, Symbol[], Float64[]; num_tournament_groups=5, selection_method=OscTools.tournament, n_newInds=0.95)
+ga_df = test4fixedGA(10000, Symbol[], Float64[]; num_tournament_groups=5, selection_method=OscTools.tournament, n_newInds=0.90)
 
 allconstraints = AllConstraints()
 testpop = generate_population(allconstraints, 1000)
@@ -214,22 +214,22 @@ end
 
 
 function diversity_metric(population::AbstractMatrix{Float64})
-    # Step 1: Log Transformation (adding a small constant to avoid log(0))
-    log_population = log.(population .+ 1e-9)
+    # Step 1: Log Transformation 
+    log_population = log.population
 
     # Step 2: Normalization
     min_vals = minimum(log_population, dims=2)
-    @info "Number of min_vals: ", length(min_vals)
     max_vals = maximum(log_population, dims=2)
     normalized_population = (log_population .- min_vals) ./ (max_vals - min_vals)
 
     # Step 3 & 4: Compute Average Pairwise Distances
-    n = size(normalized_population, 2)
+    num_params, n = size(normalized_population)
     @info "Number of individuals: ", n
-    distances = [norm(normalized_population[i, :] - normalized_population[j, :]) for i in 1:n for j in (i+1):n]
+    distances = [norm(normalized_population[:, i] - normalized_population[:, j]) for i in 1:n for j in (i+1):n]
     
     return mean(distances)
 end
+
 
 
 function diversity_metric(df::DataFrame)
@@ -239,6 +239,44 @@ end
 
 
 diversity_metric(ga_df)
+
+
+diversities = Float64[]
+for n_ind_fraction in 0.1:0.1:0.9
+    ga_df = test4fixedGA(10000, Symbol[], Float64[]; num_tournament_groups=5, selection_method=OscTools.tournament, n_newInds=n_ind_fraction)
+    println("Diversity metric: ", diversity_metric(ga_df))
+    push!(diversities, diversity_metric(ga_df))
+end
+
+#Plot diversity metric vs. fraction of new individuals
+using Plots
+plot(0.1:0.1:0.9, diversities, label = "", xlabel = "Fraction of new individuals", ylabel = "Diversity metric", legend = :bottomright, size = (1200, 800), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
+
+savefig("diversity_metric_vs_fraction_new_individuals.png")
+
+
+"""
+    coverage_metric(population::AbstractMatrix{Float64})
+
+Calculate the coverage of the population in the parameter space.
+Each parameter's range is calculated, and the sum of these ranges is returned.
+"""
+function coverage_metric(population::AbstractMatrix{Float64})
+    # Log Transformation and Normalization as before
+    log_population = log.(population .+ 1e-9)
+    min_vals = minimum(log_population, dims=2)
+    max_vals = maximum(log_population, dims=2)
+    normalized_population = (log_population .- min_vals) ./ (max_vals - min_vals)
+
+    # Calculate the range of each parameter
+    param_ranges = maximum(normalized_population, dims=2) - minimum(normalized_population, dims=2)
+
+    # Sum the ranges to get the overall coverage metric
+    return sum(param_ranges)
+end
+
+
+
 
 
 
