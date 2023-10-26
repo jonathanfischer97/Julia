@@ -195,57 +195,22 @@ end
 
 
 ga_df = test4fixedGA(100000, Symbol[], Float64[]; num_tournament_groups=10, selection_method=OscTools.unique_tournament_bitarray, n_newInds=0.1)
-ga_df = test4fixedGA(10000, Symbol[], Float64[]; num_tournament_groups=5, selection_method=OscTools.tournament, n_newInds=0.90)
+ga_df = test4fixedGA(50000, Symbol[], Float64[]; num_tournament_groups=5, selection_method=OscTools.tournament, n_newInds=0.95)
 
 allconstraints = AllConstraints()
 testpop = generate_population(allconstraints, 1000)
-hcat(testpop...)
-stack(testpop)
-
-dfmat = df_to_matrix(ga_df, [:gen, :fit, :per, :amp, :relamp])
-typeof(dfmat)
-typeof(dfmat) <: AbstractMatrix{Float64}
-
-function diversity_metric(population::Vector{Vector{Float64}})
-    pop_matrix = stack(population)
-
-    diversity_metric(pop_matrix)
-end
 
 
-function diversity_metric(population::AbstractMatrix{Float64})
-    # Step 1: Log Transformation 
-    log_population = log.population
-
-    # Step 2: Normalization
-    min_vals = minimum(log_population, dims=2)
-    max_vals = maximum(log_population, dims=2)
-    normalized_population = (log_population .- min_vals) ./ (max_vals - min_vals)
-
-    # Step 3 & 4: Compute Average Pairwise Distances
-    num_params, n = size(normalized_population)
-    @info "Number of individuals: ", n
-    distances = [norm(normalized_population[:, i] - normalized_population[:, j]) for i in 1:n for j in (i+1):n]
-    
-    return mean(distances)
-end
-
-
-
-function diversity_metric(df::DataFrame)
-    dfmat = df_to_matrix(df, [:gen, :fit, :per, :amp, :relamp])
-    return diversity_metric(dfmat)
-end
-
-
-diversity_metric(ga_df)
 
 
 diversities = Float64[]
+coverages = Float64[]
 for n_ind_fraction in 0.1:0.1:0.9
     ga_df = test4fixedGA(10000, Symbol[], Float64[]; num_tournament_groups=5, selection_method=OscTools.tournament, n_newInds=n_ind_fraction)
     println("Diversity metric: ", diversity_metric(ga_df))
+    println("Coverage metric: ", coverage_metric(ga_df))
     push!(diversities, diversity_metric(ga_df))
+    push!(coverages, coverage_metric(ga_df))
 end
 
 #Plot diversity metric vs. fraction of new individuals
@@ -255,27 +220,125 @@ plot(0.1:0.1:0.9, diversities, label = "", xlabel = "Fraction of new individuals
 savefig("diversity_metric_vs_fraction_new_individuals.png")
 
 
+
+
 """
     coverage_metric(population::AbstractMatrix{Float64})
 
 Calculate the coverage of the population in the parameter space.
 Each parameter's range is calculated, and the sum of these ranges is returned.
 """
-function coverage_metric(population::AbstractMatrix{Float64})
+function get_coverage(population::AbstractMatrix{Float64}, constraints::CT) where CT <: ConstraintSet
     # Log Transformation and Normalization as before
-    log_population = log.(population .+ 1e-9)
-    min_vals = minimum(log_population, dims=2)
-    max_vals = maximum(log_population, dims=2)
+    # log_population = log.(population)
+    log_population = population
+    min_vals = minima(constraints)
+    max_vals = maxima(constraints)
     normalized_population = (log_population .- min_vals) ./ (max_vals - min_vals)
 
     # Calculate the range of each parameter
     param_ranges = maximum(normalized_population, dims=2) - minimum(normalized_population, dims=2)
+    # @info "Parameter ranges: ", param_ranges
 
     # Sum the ranges to get the overall coverage metric
     return sum(param_ranges)
 end
 
+function get_coverage(df::DataFrame, constraints::CT, exclude_cols::Vector{Symbol} = [:gen, :fit, :per, :amp, :relamp]) where CT <: ConstraintSet
+    dfmat = df_to_matrix(df, exclude_cols)
+    return get_coverage(dfmat, constraints)
+end
 
+
+get_coverage(ga_df, allconstraints)
+
+
+"""
+    plot_ga_metrics(df::DataFrame)
+
+Plot various metrics to assess the performance and diversity of a Genetic Algorithm.
+"""
+function plot_ga_metrics(df::DataFrame, constraints::CT) where CT <: ConstraintSet
+    # Initialize arrays to store metrics
+    generations = unique(df.gen)
+    # @info "Generations: ", generations
+    pairwise_distances = []
+    coverages = []
+    period_ranges = []
+    mean_periods = []
+    amplitude_ranges = []
+    mean_amplitudes = []
+    mean_fitness_vals = []
+    number_of_cluster = []
+    max_cluster_distances = []
+    mean_cluster_distances = []
+
+    # Calculate metrics for each generation
+    for gen in generations
+        gen_df = df[df.gen .== gen, :]
+
+        # Pairwise Distance Diversity of Parameters
+        pairwise_distance = get_pairwise_diversity(gen_df, [:gen, :fit, :per, :amp, :relamp])
+        push!(pairwise_distances, pairwise_distance)
+
+        # Coverage
+        coverage = get_coverage(gen_df, constraints)
+        push!(coverages, coverage)
+
+        # Range of Period and Amplitude
+        push!(period_ranges, maximum(gen_df.per) - minimum(gen_df.per))
+        push!(amplitude_ranges, maximum(gen_df.amp) - minimum(gen_df.amp))
+
+
+        # Mean periods and amplitudes
+        push!(mean_periods, mean(gen_df.per))
+        push!(mean_amplitudes, mean(gen_df.amp))
+
+        # Fitness Values
+        push!(mean_fitness_vals, mean(gen_df.fit))
+
+        # Number of clusters
+        cluster_number = get_optimal_clusters(gen_df, 10, [:gen, :fit, :per, :amp, :relamp])
+        push!(number_of_cluster, cluster_number)
+
+        # Cluster distances 
+        result = get_kmeans(gen_df, cluster_number, [:gen, :fit, :per, :amp, :relamp])
+        cluster_distance_matrix = get_cluster_distances(result)
+        push!(max_cluster_distances, maximum(cluster_distance_matrix))
+        push!(mean_cluster_distances, mean(cluster_distance_matrix))
+    end
+
+    # Create the plots
+    p1 = plot(generations, pairwise_distances, label="", xlabel="Generation", ylabel="Max Pairwise Distance", title="Parameter Diversity Over Generations", color=:blue)
+    p2 = plot(generations, coverages, label="", xlabel="Generation", ylabel="Coverage", title="Coverage Over Generations", color=:red)
+    p3 = plot(generations, period_ranges, label="Range", xlabel="Generation", ylabel="Range", title="Period Range and Mean Over Generations", color=:green)
+    plot!(p3, generations, mean_periods, label="Mean", color=:green, linestyle=:dash)
+    p4 = plot(generations, amplitude_ranges, label="Range", xlabel="Generation", ylabel="Range", title="Amplitude Range and Mean Over Generations", color=:orange)
+    plot!(p4, generations, mean_amplitudes, label="Mean", color=:orange, linestyle=:dash)
+    p5 = plot(generations, mean_fitness_vals, label="", xlabel="Generation", ylabel="Fitness", title="Mean Fitness Over Generations", color=:purple)
+    p6 = plot(generations, number_of_cluster, label="", xlabel="Generation", ylabel="Optimal Number of Kmeans Clusters", title="Number of Clusters Over Generations", color=:brown)
+    p7 = plot(generations, max_cluster_distances, label="Max", xlabel="Generation", ylabel="Max Cluster Distances", title="Max & Mean Cluster Distances Over Generations", color=:crimson)
+    plot!(p7, generations, mean_cluster_distances, label="Mean", color=:crimson, linestyle=:dash)
+
+    # Combine the plots into a single figure
+    plot(p1, p2, p3, p4, p5, p6, p7, layout=(4, 2), legend=:bottomright, size = (1200, 1200), lw=3, dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
+end
+
+
+# Generate the plot
+plot_ga_metrics(ga_df, allconstraints)
+savefig("test4fixedGA_50000_5groups_0.95newinds_metrics.png")
+
+
+groupdf = groupby(ga_df, :gen)
+
+
+groupdf[3]
+
+cluster_number = get_optimal_clusters(ga_df, 10, [:gen, :fit, :per, :amp, :relamp])
+result = get_kmeans(ga_df, cluster_number, [:gen, :fit, :per, :amp, :relamp])
+
+get_cluster_distances(result)
 
 
 
