@@ -195,7 +195,7 @@ end
 
 
 ga_df = test4fixedGA(100000, Symbol[], Float64[]; num_tournament_groups=10, selection_method=OscTools.unique_tournament_bitarray, n_newInds=0.1)
-ga_df = test4fixedGA(50000, Symbol[], Float64[]; num_tournament_groups=5, selection_method=OscTools.tournament, n_newInds=0.95)
+ga_df = test4fixedGA(50000, Symbol[], Float64[]; num_tournament_groups=10, selection_method=OscTools.tournament, n_newInds=0.95)
 
 allconstraints = AllConstraints()
 testpop = generate_population(allconstraints, 1000)
@@ -254,80 +254,181 @@ get_coverage(ga_df, allconstraints)
 
 
 """
+    calculate_generation_metrics(gen_df::DataFrame)
+
+Calculate various metrics for a single generation of a Genetic Algorithm.
+"""
+function calculate_generation_metrics(gen_df)
+    # Max Pairwise Distance Diversity of Parameters
+    max_pairwise_distance = getmax_pairwise_diversity(gen_df, [:gen, :fit, :per, :amp, :relamp])
+
+    # Coverage
+    # coverage = get_coverage(gen_df, constraints)
+    # push!(coverages, coverage)
+
+    # Get the range of periods and amplitudes
+    period_range = maximum(gen_df.per) - minimum(gen_df.per)
+    amplitude_range = maximum(gen_df.amp) - minimum(gen_df.amp)
+
+    # Get the mean periods and amplitudes
+    mean_period = mean(gen_df.per)
+    mean_amplitude = mean(gen_df.amp)
+
+    # Get the mean fitness value
+    mean_fitness_val = mean(gen_df.fit)
+
+    # Get the number of clusters
+    cluster_number = get_optimal_clusters(gen_df, 10, [:gen, :fit, :per, :amp, :relamp])
+
+    # Get the max and mean cluster distances
+    result = get_kmeans(gen_df, cluster_number, [:gen, :fit, :per, :amp, :relamp])
+    cluster_distance_matrix = get_cluster_distances(result)
+    max_cluster_distance = maximum(cluster_distance_matrix)
+    mean_cluster_distance = mean(cluster_distance_matrix)
+
+    return max_pairwise_distance, period_range, amplitude_range, mean_period, mean_amplitude, mean_fitness_val, cluster_number, max_cluster_distance, mean_cluster_distance
+end
+
+
+
+
+"""
+    calculate_ga_metrics(df::DataFrame)
+
+Calculate various metrics to assess the performance and diversity of a Genetic Algorithm.
+"""
+function calculate_ga_metrics(df::DataFrame)
+    # Initialize arrays to store metrics
+    generations = unique(df.gen)
+    max_pairwise_distances = Vector{Float64}(undef, length(generations))
+    # coverages = []
+    period_ranges = similar(max_pairwise_distances)
+    mean_periods = similar(max_pairwise_distances)
+    amplitude_ranges = similar(max_pairwise_distances)
+    mean_amplitudes = similar(max_pairwise_distances)
+    mean_fitness_vals = similar(max_pairwise_distances)
+    number_of_clusters = Vector{Int}(undef, length(generations))
+    max_cluster_distances = similar(max_pairwise_distances)
+    mean_cluster_distances = similar(max_pairwise_distances)
+
+
+    # Calculate metrics for each generation
+    for (i,gen) in enumerate(generations)
+        gen_df = df[df.gen .== gen, :]
+
+        max_pairwise_distance, period_range, amplitude_range, mean_period, mean_amplitude, mean_fitness_val, cluster_number, max_cluster_distance, mean_cluster_distance = calculate_generation_metrics(gen_df)
+
+        max_pairwise_distances[i] = max_pairwise_distance
+        period_ranges[i] = period_range
+        amplitude_ranges[i] = amplitude_range
+        mean_periods[i] = mean_period
+        mean_amplitudes[i] = mean_amplitude
+        mean_fitness_vals[i] = mean_fitness_val
+        number_of_clusters[i] = cluster_number
+        max_cluster_distances[i] = max_cluster_distance
+        mean_cluster_distances[i] = mean_cluster_distance
+    end
+    return (generations = generations, max_pairwise_distances = max_pairwise_distances, period_ranges = period_ranges, mean_periods = mean_periods, amplitude_ranges = amplitude_ranges, mean_amplitudes = mean_amplitudes, mean_fitness_vals = mean_fitness_vals, number_of_clusters = number_of_clusters, max_cluster_distances = max_cluster_distances, mean_cluster_distances = mean_cluster_distances)
+end
+
+"""
+    calculate_cumulative_ga_metrics(df::DataFrame)
+
+Calculate various cumulative metrics to assess the performance and diversity of a Genetic Algorithm.
+"""
+function calculate_cumulative_ga_metrics(df::DataFrame)
+    # Initialize arrays to store metrics
+    generations = unique(df.gen)
+    cum_maxpairwise_distances = Vector{Float64}(undef, length(generations))
+    # coverages = []
+    cum_period_ranges = similar(cum_maxpairwise_distances)
+    cum_mean_periods = similar(cum_maxpairwise_distances)
+    cum_amplitude_ranges = similar(cum_maxpairwise_distances)
+    cum_mean_amplitudes = similar(cum_maxpairwise_distances)
+    cum_mean_fitness_vals = similar(cum_maxpairwise_distances)
+    cum_number_of_cluster = Vector{Int}(undef, length(generations))
+    cum_max_cluster_distances = similar(cum_maxpairwise_distances)
+    cum_mean_cluster_distances = similar(cum_maxpairwise_distances)
+
+    # Calculate cumulative metrics for each generation
+    for (i, gen) in enumerate(generations)
+        gen_df = df[df.gen .<= gen, :]
+
+        cum_max_pairwise_distance, cum_period_range, cum_amplitude_range, cum_mean_period, cum_mean_amplitude, cum_mean_fitness_val, cum_cluster_number, cum_max_cluster_distance, cum_mean_cluster_distance = calculate_generation_metrics(gen_df)
+
+        cum_maxpairwise_distances[i] = cum_max_pairwise_distance
+        cum_period_ranges[i] = cum_period_range
+        cum_amplitude_ranges[i] = cum_amplitude_range
+        cum_mean_periods[i] = cum_mean_period
+        cum_mean_amplitudes[i] = cum_mean_amplitude
+        cum_mean_fitness_vals[i] = cum_mean_fitness_val
+        cum_number_of_cluster[i] = cum_cluster_number
+        cum_max_cluster_distances[i] = cum_max_cluster_distance
+        cum_mean_cluster_distances[i] = cum_mean_cluster_distance
+    end
+    return (generations = generations, cum_maxpairwise_distances = cum_maxpairwise_distances, cum_period_ranges = cum_period_ranges, cum_mean_periods = cum_mean_periods, cum_amplitude_ranges = cum_amplitude_ranges, cum_mean_amplitudes = cum_mean_amplitudes, cum_mean_fitness_vals = cum_mean_fitness_vals, cum_number_of_cluster = cum_number_of_cluster, cum_max_cluster_distances = cum_max_cluster_distances, cum_mean_cluster_distances = cum_mean_cluster_distances)
+end
+
+
+using Plots
+"""
     plot_ga_metrics(df::DataFrame)
 
 Plot various metrics to assess the performance and diversity of a Genetic Algorithm.
 """
-function plot_ga_metrics(df::DataFrame, constraints::CT) where CT <: ConstraintSet
-    # Initialize arrays to store metrics
-    generations = unique(df.gen)
-    # @info "Generations: ", generations
-    pairwise_distances = []
-    coverages = []
-    period_ranges = []
-    mean_periods = []
-    amplitude_ranges = []
-    mean_amplitudes = []
-    mean_fitness_vals = []
-    number_of_cluster = []
-    max_cluster_distances = []
-    mean_cluster_distances = []
-
-    # Calculate metrics for each generation
-    for gen in generations
-        gen_df = df[df.gen .== gen, :]
-
-        # Pairwise Distance Diversity of Parameters
-        pairwise_distance = get_pairwise_diversity(gen_df, [:gen, :fit, :per, :amp, :relamp])
-        push!(pairwise_distances, pairwise_distance)
-
-        # Coverage
-        coverage = get_coverage(gen_df, constraints)
-        push!(coverages, coverage)
-
-        # Range of Period and Amplitude
-        push!(period_ranges, maximum(gen_df.per) - minimum(gen_df.per))
-        push!(amplitude_ranges, maximum(gen_df.amp) - minimum(gen_df.amp))
-
-
-        # Mean periods and amplitudes
-        push!(mean_periods, mean(gen_df.per))
-        push!(mean_amplitudes, mean(gen_df.amp))
-
-        # Fitness Values
-        push!(mean_fitness_vals, mean(gen_df.fit))
-
-        # Number of clusters
-        cluster_number = get_optimal_clusters(gen_df, 10, [:gen, :fit, :per, :amp, :relamp])
-        push!(number_of_cluster, cluster_number)
-
-        # Cluster distances 
-        result = get_kmeans(gen_df, cluster_number, [:gen, :fit, :per, :amp, :relamp])
-        cluster_distance_matrix = get_cluster_distances(result)
-        push!(max_cluster_distances, maximum(cluster_distance_matrix))
-        push!(mean_cluster_distances, mean(cluster_distance_matrix))
-    end
+function plot_ga_metrics(df::DataFrame; cum = true)
+    metrics = cum ? calculate_cumulative_ga_metrics(df) : calculate_ga_metrics(df)
+    generations, max_pairwise_distances, period_ranges, mean_periods, amplitude_ranges, mean_amplitudes, mean_fitness_vals, number_of_clusters, max_cluster_distances, mean_cluster_distances = metrics
 
     # Create the plots
-    p1 = plot(generations, pairwise_distances, label="", xlabel="Generation", ylabel="Max Pairwise Distance", title="Parameter Diversity Over Generations", color=:blue)
-    p2 = plot(generations, coverages, label="", xlabel="Generation", ylabel="Coverage", title="Coverage Over Generations", color=:red)
-    p3 = plot(generations, period_ranges, label="Range", xlabel="Generation", ylabel="Range", title="Period Range and Mean Over Generations", color=:green)
-    plot!(p3, generations, mean_periods, label="Mean", color=:green, linestyle=:dash)
-    p4 = plot(generations, amplitude_ranges, label="Range", xlabel="Generation", ylabel="Range", title="Amplitude Range and Mean Over Generations", color=:orange)
-    plot!(p4, generations, mean_amplitudes, label="Mean", color=:orange, linestyle=:dash)
-    p5 = plot(generations, mean_fitness_vals, label="", xlabel="Generation", ylabel="Fitness", title="Mean Fitness Over Generations", color=:purple)
-    p6 = plot(generations, number_of_cluster, label="", xlabel="Generation", ylabel="Optimal Number of Kmeans Clusters", title="Number of Clusters Over Generations", color=:brown)
-    p7 = plot(generations, max_cluster_distances, label="Max", xlabel="Generation", ylabel="Max Cluster Distances", title="Max & Mean Cluster Distances Over Generations", color=:crimson)
-    plot!(p7, generations, mean_cluster_distances, label="Mean", color=:crimson, linestyle=:dash)
+    p1 = plot(generations, max_pairwise_distances, label="", xlabel="Generation", ylabel="Max Pairwise Distance", title="Parameter Diversity Over Generations", color=:blue)
+    # p2 = plot(generations, coverages, label="", xlabel="Generation", ylabel="Coverage", title="Coverage Over Generations", color=:red)
+    p2 = plot(generations, period_ranges, label="Range", xlabel="Generation", ylabel="Range", title="Period Range and Mean Over Generations", color=:green)
+    plot!(p2, generations, mean_periods, label="Mean", color=:green, linestyle=:dash)
+    p3 = plot(generations, amplitude_ranges, label="Range", xlabel="Generation", ylabel="Range", title="Amplitude Range and Mean Over Generations", color=:orange)
+    plot!(p3, generations, mean_amplitudes, label="Mean", color=:orange, linestyle=:dash)
+    p4 = plot(generations, mean_fitness_vals, label="", xlabel="Generation", ylabel="Fitness", title="Mean Fitness Over Generations", color=:purple)
+    p5 = plot(generations, number_of_clusters, label="", xlabel="Generation", ylabel="Optimal Number of Kmeans Clusters", title="Number of Clusters Over Generations", color=:brown)
+    p6 = plot(generations, max_cluster_distances, label="Max", xlabel="Generation", ylabel="Max Cluster Distances", title="Max & Mean Cluster Distances Over Generations", color=:crimson)
+    plot!(p6, generations, mean_cluster_distances, label="Mean", color=:crimson, linestyle=:dash)
 
     # Combine the plots into a single figure
-    plot(p1, p2, p3, p4, p5, p6, p7, layout=(4, 2), legend=:bottomright, size = (1200, 1200), lw=3, dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
+    plot(p1, p2, p3, p4, p5, p6, layout=(3, 2), legend=:bottomright, size = (1200, 800), lw=3, dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
 end
 
 
 # Generate the plot
-plot_ga_metrics(ga_df, allconstraints)
+plot_ga_metrics(ga_df)
 savefig("test4fixedGA_50000_5groups_0.95newinds_metrics.png")
+
+
+gen_df = ga_df[ga_df.gen .== 3, :]
+
+"""
+    plot_cumulative_ga_metrics(df::DataFrame)
+
+Plot various cumulative metrics to assess the performance and diversity of a Genetic Algorithm.
+"""
+function plot_cumulative_ga_metrics(df::DataFrame)
+    metrics = calculate_ga_metrics(df)
+    cumulative_metrics = [cumsum(x) for x in metrics]
+    generations, pairwise_distances, period_ranges, mean_periods, amplitude_ranges, mean_amplitudes, mean_fitness_vals, number_of_cluster, max_cluster_distances, mean_cluster_distances = cumulative_metrics
+
+    # Create the plots
+    p1 = plot(generations, pairwise_distances, label="", xlabel="Generation", ylabel="Max Pairwise Distance", title="Cumulative Parameter Diversity Over Generations", color=:blue)
+    # p2 = plot(generations, coverages, label="", xlabel="Generation", ylabel="Coverage", title="Coverage Over Generations", color=:red)
+    p2 = plot(generations, period_ranges, label="Range", xlabel="Generation", ylabel="Range", title="Cumulative Period Range and Mean Over Generations", color=:green)
+    plot!(p2, generations, mean_periods, label="Mean", color=:green, linestyle=:dash)
+    p3 = plot(generations, amplitude_ranges, label="Range", xlabel="Generation", ylabel="Range", title="Cumalative Amplitude Range and Mean Over Generations", color=:orange)
+    plot!(p3, generations, mean_amplitudes, label="Mean", color=:orange, linestyle=:dash)
+    p4 = plot(generations, mean_fitness_vals, label="", xlabel="Generation", ylabel="Fitness", title="Cumulative Mean Fitness Over Generations", color=:purple)
+    p5 = plot(generations, number_of_cluster, label="", xlabel="Generation", ylabel="Optimal Number of Kmeans Clusters", title="Number of Clusters Over Generations", color=:brown)
+    p6 = plot(generations, max_cluster_distances, label="Max", xlabel="Generation", ylabel="Max Cluster Distances", title="Max & Mean Cluster Distances Over Generations", color=:crimson)
+    plot!(p6, generations, mean_cluster_distances, label="Mean", color=:crimson, linestyle=:dash)
+
+    # Combine the plots into a single figure
+    plot(p1, p2, p3, p4, p5, p6, layout=(3, 2), legend=:bottomright, size = (1200, 1200), lw=3, dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
+end
 
 
 groupdf = groupby(ga_df, :gen)
@@ -341,7 +442,7 @@ result = get_kmeans(ga_df, cluster_number, [:gen, :fit, :per, :amp, :relamp])
 get_cluster_distances(result)
 
 
-
+cumsum([1,2,3,4,5])
 
 
 ogprobjac = make_ODE_problem()
