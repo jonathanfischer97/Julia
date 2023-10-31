@@ -1,4 +1,5 @@
 begin 
+    using Plots
     using Catalyst
     using OrdinaryDiffEq, ModelingToolkit
     using Statistics
@@ -37,7 +38,7 @@ end
 
 #* First testing different group sizes for tournament selection
 
-ga_df = test4fixedGA(10000, Symbol[], Float64[]; num_tournament_groups=4)
+ga_df = test4fixedGA(10000, Symbol[], Float64[]; num_tournament_groups=5)
 
 """Tournament selection with unique winners using BitArray"""
 function unique_tournament_bitarray(groupSize::Int; select=argmax)
@@ -195,7 +196,7 @@ end
 
 
 ga_df = test4fixedGA(100000, Symbol[], Float64[]; num_tournament_groups=10, selection_method=OscTools.unique_tournament_bitarray, n_newInds=0.1)
-ga_df = test4fixedGA(50000, Symbol[], Float64[]; num_tournament_groups=10, selection_method=OscTools.tournament, n_newInds=0.95)
+ga_df = test4fixedGA(50000, [:DF], [1000.]; num_tournament_groups=10, selection_method=OscTools.tournament, n_newInds=0.95)
 
 allconstraints = AllConstraints()
 testpop = generate_population(allconstraints, 1000)
@@ -203,21 +204,6 @@ testpop = generate_population(allconstraints, 1000)
 
 
 
-diversities = Float64[]
-coverages = Float64[]
-for n_ind_fraction in 0.1:0.1:0.9
-    ga_df = test4fixedGA(10000, Symbol[], Float64[]; num_tournament_groups=5, selection_method=OscTools.tournament, n_newInds=n_ind_fraction)
-    println("Diversity metric: ", diversity_metric(ga_df))
-    println("Coverage metric: ", coverage_metric(ga_df))
-    push!(diversities, diversity_metric(ga_df))
-    push!(coverages, coverage_metric(ga_df))
-end
-
-#Plot diversity metric vs. fraction of new individuals
-using Plots
-plot(0.1:0.1:0.9, diversities, label = "", xlabel = "Fraction of new individuals", ylabel = "Diversity metric", legend = :bottomright, size = (1200, 800), dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
-
-savefig("diversity_metric_vs_fraction_new_individuals.png")
 
 
 
@@ -253,43 +239,69 @@ end
 get_coverage(ga_df, allconstraints)
 
 
+# Function to calculate entropy
+function entropy(values::Vector{Float64})
+    counts = Dict{Float64, Int}()
+    for v in values
+        counts[v] = get(counts, v, 0) + 1
+    end
+    probs = [count/length(values) for count in values(counts)]
+    H = -sum(p * log2(p) for p in probs)
+    return H
+end
+
+
+
+log_ga_df = log.(ga_df[:, Not([:gen, :fit, :per, :amp, :relamp])])
+
+ga_df2 = copy(ga_df)
+
+using DataFrames
+transform!(ga_df2, Not([:gen, :fit, :per, :amp, :relamp]) .=> ByRow(log), renamecols=false)
+
+
+
 """
     calculate_generation_metrics(gen_df::DataFrame)
 
 Calculate various metrics for a single generation of a Genetic Algorithm.
 """
 function calculate_generation_metrics(gen_df)
+    excluded_cols = [:gen, :fit, :per, :amp, :relamp, :DF]
+
+    # Log transform parameter columns
+    log_gen_df = copy(gen_df)
+    transform!(log_gen_df, Not(excluded_cols) .=> ByRow(log), renamecols=false)
+
+
     # Max Pairwise Distance Diversity of Parameters
-    max_pairwise_distance = getmax_pairwise_diversity(gen_df, [:gen, :fit, :per, :amp, :relamp])
+    max_pairwise_distance = getmax_pairwise_diversity(log_gen_df, excluded_cols)
 
-    # Coverage
-    # coverage = get_coverage(gen_df, constraints)
-    # push!(coverages, coverage)
+    # Get the max, min, and mean of periods
+    period_max = maximum(log_gen_df.per)
+    period_min = minimum(log_gen_df.per)
+    period_mean = mean(log_gen_df.per)
 
-    # Get the range of periods and amplitudes
-    period_range = maximum(gen_df.per) - minimum(gen_df.per)
-    amplitude_range = maximum(gen_df.amp) - minimum(gen_df.amp)
-
-    # Get the mean periods and amplitudes
-    mean_period = mean(gen_df.per)
-    mean_amplitude = mean(gen_df.amp)
+    # Get the max, min, and mean of amplitudes
+    amplitude_max = maximum(log_gen_df.relamp)
+    amplitude_min = minimum(log_gen_df.relamp)
+    amplitude_mean = mean(log_gen_df.relamp)
 
     # Get the mean fitness value
-    mean_fitness_val = mean(gen_df.fit)
+    mean_fitness_val = mean(log_gen_df.fit)
 
     # Get the number of clusters
-    cluster_number = get_optimal_clusters(gen_df, 10, [:gen, :fit, :per, :amp, :relamp])
+    cluster_number = get_optimal_clusters(log_gen_df, 20, excluded_cols)
 
     # Get the max and mean cluster distances
-    result = get_kmeans(gen_df, cluster_number, [:gen, :fit, :per, :amp, :relamp])
+    result = get_kmeans(log_gen_df, cluster_number, excluded_cols)
     cluster_distance_matrix = get_cluster_distances(result)
     max_cluster_distance = maximum(cluster_distance_matrix)
     mean_cluster_distance = mean(cluster_distance_matrix)
+    
 
-    return max_pairwise_distance, period_range, amplitude_range, mean_period, mean_amplitude, mean_fitness_val, cluster_number, max_cluster_distance, mean_cluster_distance
+    return max_pairwise_distance, period_max, period_min, period_mean, amplitude_max, amplitude_min, amplitude_mean, mean_fitness_val, cluster_number, max_cluster_distance, mean_cluster_distance
 end
-
-
 
 
 """
@@ -300,14 +312,16 @@ Calculate various metrics to assess the performance and diversity of a Genetic A
 function calculate_ga_metrics(df::DataFrame)
     # Initialize arrays to store metrics
     generations = unique(df.gen)
+    num_points = Vector{Int}(undef, length(generations))
     max_pairwise_distances = Vector{Float64}(undef, length(generations))
-    # coverages = []
-    period_ranges = similar(max_pairwise_distances)
-    mean_periods = similar(max_pairwise_distances)
-    amplitude_ranges = similar(max_pairwise_distances)
-    mean_amplitudes = similar(max_pairwise_distances)
+    period_maxes = similar(max_pairwise_distances)
+    period_mins = similar(max_pairwise_distances)
+    period_means = similar(max_pairwise_distances)
+    amplitude_maxes = similar(max_pairwise_distances)
+    amplitude_mins = similar(max_pairwise_distances)
+    amplitude_means = similar(max_pairwise_distances)
     mean_fitness_vals = similar(max_pairwise_distances)
-    number_of_clusters = Vector{Int}(undef, length(generations))
+    number_of_clusters = similar(num_points)
     max_cluster_distances = similar(max_pairwise_distances)
     mean_cluster_distances = similar(max_pairwise_distances)
 
@@ -316,19 +330,22 @@ function calculate_ga_metrics(df::DataFrame)
     for (i,gen) in enumerate(generations)
         gen_df = df[df.gen .== gen, :]
 
-        max_pairwise_distance, period_range, amplitude_range, mean_period, mean_amplitude, mean_fitness_val, cluster_number, max_cluster_distance, mean_cluster_distance = calculate_generation_metrics(gen_df)
+        max_pairwise_distance, period_max, period_min, mean_period, amplitude_max, amplitude_min, mean_amplitude, mean_fitness_val, cluster_number, max_cluster_distance, mean_cluster_distance = calculate_generation_metrics(gen_df)
 
+        num_points[i] = nrow(gen_df)
         max_pairwise_distances[i] = max_pairwise_distance
-        period_ranges[i] = period_range
-        amplitude_ranges[i] = amplitude_range
-        mean_periods[i] = mean_period
-        mean_amplitudes[i] = mean_amplitude
+        period_maxes[i] = period_max
+        period_mins[i] = period_min
+        period_means[i] = mean_period
+        amplitude_maxes[i] = amplitude_max
+        amplitude_mins[i] = amplitude_min
+        amplitude_means[i] = mean_amplitude
         mean_fitness_vals[i] = mean_fitness_val
         number_of_clusters[i] = cluster_number
         max_cluster_distances[i] = max_cluster_distance
         mean_cluster_distances[i] = mean_cluster_distance
     end
-    return (generations = generations, max_pairwise_distances = max_pairwise_distances, period_ranges = period_ranges, mean_periods = mean_periods, amplitude_ranges = amplitude_ranges, mean_amplitudes = mean_amplitudes, mean_fitness_vals = mean_fitness_vals, number_of_clusters = number_of_clusters, max_cluster_distances = max_cluster_distances, mean_cluster_distances = mean_cluster_distances)
+    return (generations = generations, num_points=num_points, max_pairwise_distances = max_pairwise_distances, period_maxes = period_maxes, period_mins = period_mins, period_means = period_means, amplitude_maxes = amplitude_maxes, amplitude_mins = amplitude_mins, amplitude_means = amplitude_means, mean_fitness_vals = mean_fitness_vals, number_of_clusters = number_of_clusters, max_cluster_distances = max_cluster_distances, mean_cluster_distances = mean_cluster_distances)
 end
 
 """
@@ -339,14 +356,16 @@ Calculate various cumulative metrics to assess the performance and diversity of 
 function calculate_cumulative_ga_metrics(df::DataFrame)
     # Initialize arrays to store metrics
     generations = unique(df.gen)
+    cum_num_points = Vector{Int}(undef, length(generations))
     cum_maxpairwise_distances = Vector{Float64}(undef, length(generations))
-    # coverages = []
-    cum_period_ranges = similar(cum_maxpairwise_distances)
-    cum_mean_periods = similar(cum_maxpairwise_distances)
-    cum_amplitude_ranges = similar(cum_maxpairwise_distances)
-    cum_mean_amplitudes = similar(cum_maxpairwise_distances)
+    cum_period_maxes = similar(cum_maxpairwise_distances)
+    cum_period_mins = similar(cum_maxpairwise_distances)
+    cum_period_means = similar(cum_maxpairwise_distances)
+    cum_amplitude_maxes = similar(cum_maxpairwise_distances)
+    cum_amplitude_mins = similar(cum_maxpairwise_distances)
+    cum_amplitude_means = similar(cum_maxpairwise_distances)
     cum_mean_fitness_vals = similar(cum_maxpairwise_distances)
-    cum_number_of_cluster = Vector{Int}(undef, length(generations))
+    cum_number_of_cluster = similar(cum_num_points)
     cum_max_cluster_distances = similar(cum_maxpairwise_distances)
     cum_mean_cluster_distances = similar(cum_maxpairwise_distances)
 
@@ -354,23 +373,25 @@ function calculate_cumulative_ga_metrics(df::DataFrame)
     for (i, gen) in enumerate(generations)
         gen_df = df[df.gen .<= gen, :]
 
-        cum_max_pairwise_distance, cum_period_range, cum_amplitude_range, cum_mean_period, cum_mean_amplitude, cum_mean_fitness_val, cum_cluster_number, cum_max_cluster_distance, cum_mean_cluster_distance = calculate_generation_metrics(gen_df)
+        cum_max_pairwise_distance, cum_period_max, cum_period_min, cum_period_mean, cum_amplitude_max, cum_amplitude_min, cum_amplitude_mean, cum_mean_fitness_val, cum_cluster_number, cum_max_cluster_distance, cum_mean_cluster_distance = calculate_generation_metrics(gen_df)
 
+        cum_num_points[i] = nrow(gen_df)
         cum_maxpairwise_distances[i] = cum_max_pairwise_distance
-        cum_period_ranges[i] = cum_period_range
-        cum_amplitude_ranges[i] = cum_amplitude_range
-        cum_mean_periods[i] = cum_mean_period
-        cum_mean_amplitudes[i] = cum_mean_amplitude
+        cum_period_maxes[i] = cum_period_max
+        cum_period_mins[i] = cum_period_min
+        cum_period_means[i] = cum_period_mean
+        cum_amplitude_maxes[i] = cum_amplitude_max
+        cum_amplitude_mins[i] = cum_amplitude_min
+        cum_amplitude_means[i] = cum_amplitude_mean
         cum_mean_fitness_vals[i] = cum_mean_fitness_val
         cum_number_of_cluster[i] = cum_cluster_number
         cum_max_cluster_distances[i] = cum_max_cluster_distance
         cum_mean_cluster_distances[i] = cum_mean_cluster_distance
     end
-    return (generations = generations, cum_maxpairwise_distances = cum_maxpairwise_distances, cum_period_ranges = cum_period_ranges, cum_mean_periods = cum_mean_periods, cum_amplitude_ranges = cum_amplitude_ranges, cum_mean_amplitudes = cum_mean_amplitudes, cum_mean_fitness_vals = cum_mean_fitness_vals, cum_number_of_cluster = cum_number_of_cluster, cum_max_cluster_distances = cum_max_cluster_distances, cum_mean_cluster_distances = cum_mean_cluster_distances)
+    return (generations = generations, cum_num_points=cum_num_points, cum_maxpairwise_distances = cum_maxpairwise_distances, cum_period_maxes = cum_period_maxes, cum_period_mins = cum_period_mins, cum_period_means = cum_period_means, cum_amplitude_maxes = cum_amplitude_maxes, cum_amplitude_mins = cum_amplitude_mins, cum_amplitude_means = cum_amplitude_means, cum_mean_fitness_vals = cum_mean_fitness_vals, cum_number_of_cluster = cum_number_of_cluster, cum_max_cluster_distances = cum_max_cluster_distances, cum_mean_cluster_distances = cum_mean_cluster_distances)
 end
 
 
-using Plots
 """
     plot_ga_metrics(df::DataFrame)
 
@@ -378,75 +399,206 @@ Plot various metrics to assess the performance and diversity of a Genetic Algori
 """
 function plot_ga_metrics(df::DataFrame; cum = true)
     metrics = cum ? calculate_cumulative_ga_metrics(df) : calculate_ga_metrics(df)
-    generations, max_pairwise_distances, period_ranges, mean_periods, amplitude_ranges, mean_amplitudes, mean_fitness_vals, number_of_clusters, max_cluster_distances, mean_cluster_distances = metrics
+
+    generations, max_pairwise_distances, period_maxes, period_mins, period_means, amplitude_maxes, amplitude_mins, amplitude_means, mean_fitness_vals, number_of_clusters, max_cluster_distances, mean_cluster_distances = metrics
 
     # Create the plots
     p1 = plot(generations, max_pairwise_distances, label="", xlabel="Generation", ylabel="Max Pairwise Distance", title="Parameter Diversity Over Generations", color=:blue)
-    # p2 = plot(generations, coverages, label="", xlabel="Generation", ylabel="Coverage", title="Coverage Over Generations", color=:red)
-    p2 = plot(generations, period_ranges, label="Range", xlabel="Generation", ylabel="Range", title="Period Range and Mean Over Generations", color=:green)
-    plot!(p2, generations, mean_periods, label="Mean", color=:green, linestyle=:dash)
-    p3 = plot(generations, amplitude_ranges, label="Range", xlabel="Generation", ylabel="Range", title="Amplitude Range and Mean Over Generations", color=:orange)
-    plot!(p3, generations, mean_amplitudes, label="Mean", color=:orange, linestyle=:dash)
+    p2 = plot(generations, period_maxes, label="Max", xlabel="Generation", ylabel="Seconds", title="Period Over Generations", color=:green)
+    plot!(p2, generations, period_mins, label="Min", color=:green, linestyle=:dash)
+    plot!(p2, generations, period_means, label="Mean", color=:green, linestyle=:dot)
+    p3 = plot(generations, amplitude_maxes, label="Max", xlabel="Generation", ylabel="% of Initial AP2", title="Relative Amplitude Over Generations", color=:orange)
+    plot!(p3, generations, amplitude_mins, label="Min", color=:orange, linestyle=:dash)
+    plot!(p3, generations, amplitude_means, label="Mean", color=:orange, linestyle=:dot)
     p4 = plot(generations, mean_fitness_vals, label="", xlabel="Generation", ylabel="Fitness", title="Mean Fitness Over Generations", color=:purple)
-    p5 = plot(generations, number_of_clusters, label="", xlabel="Generation", ylabel="Optimal Number of Kmeans Clusters", title="Number of Clusters Over Generations", color=:brown)
+    p5 = plot(generations, number_of_clusters, label="", xlabel="Generation", ylabel="N Optimal Clusters", title="Optimal Clusters N Over Generations", color=:brown)
     p6 = plot(generations, max_cluster_distances, label="Max", xlabel="Generation", ylabel="Max Cluster Distances", title="Max & Mean Cluster Distances Over Generations", color=:crimson)
     plot!(p6, generations, mean_cluster_distances, label="Mean", color=:crimson, linestyle=:dash)
 
     # Combine the plots into a single figure
-    plot(p1, p2, p3, p4, p5, p6, layout=(3, 2), legend=:bottomright, size = (1200, 800), lw=3, dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
+    suptitle = cum ? "Cumulative " : "Non-cumulative"
+
+    plot(p1, p2, p3, p4, p5, p6, suptitle=suptitle, layout=(3, 2), legend=:bottomright, size = (1200, 800), lw=4, dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
 end
 
 
 # Generate the plot
-plot_ga_metrics(ga_df)
-savefig("test4fixedGA_50000_5groups_0.95newinds_metrics.png")
+plot_ga_metrics(ga_df; cum=true)
+savefig("pop50000_20groups_0.95newinds_metrics_CUM.png")
 
-
-gen_df = ga_df[ga_df.gen .== 3, :]
-
-"""
-    plot_cumulative_ga_metrics(df::DataFrame)
-
-Plot various cumulative metrics to assess the performance and diversity of a Genetic Algorithm.
-"""
-function plot_cumulative_ga_metrics(df::DataFrame)
-    metrics = calculate_ga_metrics(df)
-    cumulative_metrics = [cumsum(x) for x in metrics]
-    generations, pairwise_distances, period_ranges, mean_periods, amplitude_ranges, mean_amplitudes, mean_fitness_vals, number_of_cluster, max_cluster_distances, mean_cluster_distances = cumulative_metrics
-
-    # Create the plots
-    p1 = plot(generations, pairwise_distances, label="", xlabel="Generation", ylabel="Max Pairwise Distance", title="Cumulative Parameter Diversity Over Generations", color=:blue)
-    # p2 = plot(generations, coverages, label="", xlabel="Generation", ylabel="Coverage", title="Coverage Over Generations", color=:red)
-    p2 = plot(generations, period_ranges, label="Range", xlabel="Generation", ylabel="Range", title="Cumulative Period Range and Mean Over Generations", color=:green)
-    plot!(p2, generations, mean_periods, label="Mean", color=:green, linestyle=:dash)
-    p3 = plot(generations, amplitude_ranges, label="Range", xlabel="Generation", ylabel="Range", title="Cumalative Amplitude Range and Mean Over Generations", color=:orange)
-    plot!(p3, generations, mean_amplitudes, label="Mean", color=:orange, linestyle=:dash)
-    p4 = plot(generations, mean_fitness_vals, label="", xlabel="Generation", ylabel="Fitness", title="Cumulative Mean Fitness Over Generations", color=:purple)
-    p5 = plot(generations, number_of_cluster, label="", xlabel="Generation", ylabel="Optimal Number of Kmeans Clusters", title="Number of Clusters Over Generations", color=:brown)
-    p6 = plot(generations, max_cluster_distances, label="Max", xlabel="Generation", ylabel="Max Cluster Distances", title="Max & Mean Cluster Distances Over Generations", color=:crimson)
-    plot!(p6, generations, mean_cluster_distances, label="Mean", color=:crimson, linestyle=:dash)
-
-    # Combine the plots into a single figure
-    plot(p1, p2, p3, p4, p5, p6, layout=(3, 2), legend=:bottomright, size = (1200, 1200), lw=3, dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
+for n_groups in 5:5:20
+    ga_df = test4fixedGA(50000, [:DF], [1000.]; num_tournament_groups=n_groups, selection_method=OscTools.tournament, n_newInds=0.90)
+    plot_ga_metrics(ga_df; cum=true)
+    savefig("pop50000_$(n_groups)groups_0.90newinds_DF1000_metrics_CUM.png")
 end
 
 
-groupdf = groupby(ga_df, :gen)
 
 
-groupdf[3]
+popsizes = []
+dfs = []
+for popsize in [1000, 10000, 50000, 100000]
+    ga_df = test4fixedGA(popsize, [:DF], [10000.]; num_tournament_groups=10, selection_method=OscTools.tournament, n_newInds=0.90)
+    push!(popsizes, popsize)
+    push!(dfs, ga_df)
+end
 
-cluster_number = get_optimal_clusters(ga_df, 10, [:gen, :fit, :per, :amp, :relamp])
-result = get_kmeans(ga_df, cluster_number, [:gen, :fit, :per, :amp, :relamp])
+group_sizes = []
+dfs = []
+for group_size in [5, 10, 20, 50]
+    ga_df = test4fixedGA(50000, [:DF], [10000.]; num_tournament_groups=group_size, selection_method=OscTools.tournament, n_newInds=0.90)
+    push!(group_sizes, group_size)
+    push!(dfs, ga_df)
+end
+group_size_dfs = dfs
 
-get_cluster_distances(result)
+n_newInds_array = []
+new_inds_dfs = []
+for n_newInds in [0.5, 0.75, 0.9, 0.95]
+    ga_df = test4fixedGA(50000, [:DF], [10000.]; num_tournament_groups=10, selection_method=OscTools.tournament, n_newInds=n_newInds)
+    push!(n_newInds_array, n_newInds)
+    push!(dfs, ga_df)
+end
+
+groupsize_fig = plot_comparative_ga_metrics(group_size_dfs, group_sizes, "Number of Tournament Groups")
+newInds_fig = plot_comparative_ga_metrics(new_inds_dfs, n_newInds_array, "Fractional Size of Scouting Party")
+
+cm.save("n_tourneygroups_comparison.svg", groupsize_fig)
+cm.save("n_newInds_comparison.svg", newInds_fig)
 
 
-cumsum([1,2,3,4,5])
+
+# """
+#     plot_comparative_ga_metrics(dfarray::Vector{DataFrame}, hyperparam_vals::Vector{<:Real}, hyperparam_name; cum = true)
+
+# Plot various metrics between GA runs with different hyperparameters (ex. popsize, group_size).
+# """
+# function plot_comparative_ga_metrics(dfarray::Vector, hyperparam_vals::Vector, hyperparam_name; cum = true)
+
+#     #Initialize subplots 
+#     num_points_plot = plot(title = "Number of Points", xlabel = "Generation", ylabel = "Number of Points", label = "")
+#     pairwise_plot = plot(title = "Max Pairwise Distance", xlabel = "Generation", ylabel = "Max Pairwise Distance", label = "")
+#     period_plot = plot(title = "Period", xlabel = "Generation", ylabel = "Seconds", label = "")
+#     amplitude_plot = plot(title = "Relative Amplitude", xlabel = "Generation", ylabel = "% of Initial AP2", label = "")
+#     fitness_plot = plot(title = "Mean Fitness", xlabel = "Generation", ylabel = "Fitness", label = "")
+#     cluster_plot = plot(title = "Optimal Clusters N", xlabel = "Generation", ylabel = "N Optimal Clusters", label = "")
+#     clusterdist_plot = plot(title = "Max & Mean Cluster Distances", xlabel = "Generation", ylabel = "Max Cluster Distances", label = "")
+
+#     # Calculate metrics for each GA run
+#     for (i, df) in enumerate(dfarray)
+#         metrics = cum ? calculate_cumulative_ga_metrics(df) : calculate_ga_metrics(df)
+
+#         generations, num_points, max_pairwise_distances, period_maxes, period_mins, period_means, amplitude_maxes, amplitude_mins, amplitude_means, mean_fitness_vals, number_of_clusters, max_cluster_distances, mean_cluster_distances = metrics
+
+#         # Add the metrics to the subplots
+#         plot!(num_points_plot, generations, num_points, color = i, legend=false)
+#         plot!(pairwise_plot, generations, max_pairwise_distances, label = "", color = i, legend=false)
+#         plot!(period_plot, generations, period_maxes, label = "$(hyperparam_vals[i])", color = i, legend=false)
+#         plot!(amplitude_plot, generations, amplitude_maxes, label = "", color = i, legend=false)
+#         plot!(fitness_plot, generations, mean_fitness_vals, label = "", color = i, legend=false)
+#         plot!(cluster_plot, generations, number_of_clusters, label = "", color = i, legend=false)
+#         plot!(clusterdist_plot, generations, max_cluster_distances, label = "", color = i, legend=false)
+
+#     end
+
+#     # Combine the subplots into a single figure
+#     suptitle = cum ? "Cumulative " : "Non-cumulative"
+
+#     plot(pairwise_plot, period_plot, amplitude_plot, fitness_plot, cluster_plot, clusterdist_plot, suptitle=suptitle, layout=(3, 2), legend=:outertopright, legendtitle=hyperparam_name, size = (1200, 800), lw=4, dpi = 200, bottom_margin = 12px, left_margin = 16px, top_margin = 10px, right_margin = 8px)
+# end
+
+
+
+
+
+
+import CairoMakie as cm
+cm.activate!()
+"""
+    plot_comparative_ga_metrics(dfarray::Vector{DataFrame}, hyperparam_vals::Vector{<:Real}, hyperparam_name; cum = true)
+
+Plot various metrics between GA runs with different hyperparameters (ex. popsize, group_size).
+"""
+function plot_comparative_ga_metrics(dfarray::Vector, hyperparam_vals::Vector, hyperparam_name; cum = true)
+    fig = cm.Figure(resolution = (1400, 1200); fontsize=20)
+
+    xticks = collect(1:6)
+
+    num_ax = cm.Axis(fig[1, 1]; title= "Number of Points", xlabel = "Generation", ylabel = "Number of Points", xticks=xticks)
+    pairwise_ax = cm.Axis(fig[1, 2]; title="Max Pairwise Distance", xlabel = "Generation", ylabel = "Max Pairwise Distance",  xticks=xticks)
+    period_ax = cm.Axis(fig[2, 1]; title="Max Period", xlabel = "Generation", ylabel = "Seconds",  xticks=xticks)
+    amplitude_ax = cm.Axis(fig[2, 2]; title="Max Relative Amplitude", xlabel = "Generation", ylabel = "% of Initial AP2",  xticks=xticks)
+    fitness_ax = cm.Axis(fig[3, 1]; title="Mean Fitness", xlabel = "Generation", ylabel = "Fitness",  xticks=xticks)
+    cluster_ax = cm.Axis(fig[3, 2]; title="Optimal Number of Clusters", xlabel = "Generation", ylabel = "N Optimal Clusters",  xticks=xticks)
+    clusterdist_ax = cm.Axis(fig[4, 1]; title="Max Inter-Cluster Distance", xlabel = "Generation", ylabel = "Max Cluster Distances",  xticks=xticks)
+
+    cm.linkxaxes!(num_ax, pairwise_ax, period_ax, amplitude_ax, fitness_ax, cluster_ax, clusterdist_ax)
+
+    colorpal = palette([:blue, :green, :orange, :red], length(hyperparam_vals))
+
+    # Calculate metrics for each GA run
+    for (i, df) in enumerate(dfarray)
+        metrics = cum ? calculate_cumulative_ga_metrics(df) : calculate_ga_metrics(df)
+
+        generations, num_points, max_pairwise_distances, period_maxes, period_mins, period_means, amplitude_maxes, amplitude_mins, amplitude_means, mean_fitness_vals, number_of_clusters, max_cluster_distances, mean_cluster_distances = metrics
+
+        # Add the metrics to the subplots
+        cm.lines!(num_ax, generations, num_points, label = "$(hyperparam_vals[i])", color=colorpal[i])
+        cm.scatter!(num_ax, generations, num_points, color=colorpal[i])
+        cm.lines!(pairwise_ax, generations, max_pairwise_distances, color=colorpal[i])
+        cm.scatter!(pairwise_ax, generations, max_pairwise_distances, color=colorpal[i])
+        cm.lines!(period_ax, generations, period_maxes, color=colorpal[i])
+        cm.scatter!(period_ax, generations, period_maxes, color=colorpal[i])
+        cm.lines!(amplitude_ax, generations, amplitude_maxes, color=colorpal[i])
+        cm.scatter!(amplitude_ax, generations, amplitude_maxes, color=colorpal[i])
+        cm.lines!(fitness_ax, generations, mean_fitness_vals, color=colorpal[i])
+        cm.scatter!(fitness_ax, generations, mean_fitness_vals, color=colorpal[i])
+        cm.lines!(cluster_ax, generations, number_of_clusters, color=colorpal[i])
+        cm.scatter!(cluster_ax, generations, number_of_clusters, color=colorpal[i])
+        cm.lines!(clusterdist_ax, generations, max_cluster_distances, color=colorpal[i])
+        cm.scatter!(clusterdist_ax, generations, max_cluster_distances, color=colorpal[i])
+
+    end
+
+    # Add legend
+    cm.Legend(fig[5,1:end], num_ax, hyperparam_name,  orientation = :horizontal, tellwidth = false, tellheight = true)
+
+    fig
+end
+
+fig = plot_comparative_ga_metrics(dfs, popsizes, "Population Size")
+
+cm.save("popsize_comparison.svg", fig)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ogprobjac = make_ODE_problem()
-plot_everything(ga_df, ogprobjac; jump =15 , pathdir = "test4fixedGA_10000_10groups_0.5newinds")
+plot_everything(ga_df, ogprobjac; jump =15 , pathdir = "test4fixedGA_10000_5groups_0.0newinds")
+
+rowprob = get_row_prob(ga_df[end,:], ogprobjac)
+rowsol = solve_odeprob(rowprob, [6, 9, 10, 11, 12, 15, 16])
+Amem = map(sum, rowsol.u)[1:end]
+plot(Amem, label = "")
+import OscTools: findextrema
+max_idxs, max_vals, min_idxs, min_vals = findextrema(Amem; min_height = 0.5)
+scatter!(max_idxs, max_vals, label = "", color = :red, markersize = 5)
+scatter!(min_idxs, min_vals, label = "", color = :red, markersize = 5)
+
+plotboth(ga_df[end, :], ogprobjac)
+
+
 
 #< testing peak filtering
 sol = solve_odeprob(ogprobjac, [6, 9, 10, 11, 12, 15, 16])
@@ -482,9 +634,11 @@ boxconstraints = OscTools.BoxConstraints([constraint.min for constraint in const
 
 propertynames(boxconstraints.bounds)
 
-boxconstraints.bounds.valx
+for minval in boxconstraints.bounds.bx[1:2:end]
+    println(minval)
+end
 
-testpop = generate_population(constraints, 1000)
+testpop = generate_population(constraints, 100000)
 
 import OscTools: BoxConstraints
 
@@ -511,7 +665,11 @@ function generate_new_individuals!(new_inds, constraints::CT) where CT <: BoxCon
     return new_inds
 end
 
-generate_new_individuals!(testpop, boxconstraints)
+@benchmark generate_new_individuals!($testpop, $boxconstraints)
+
+
+
+
 
 testpop = generate_population(constraints, 10)
 new_inds = @view testpop[6:end]
