@@ -40,6 +40,14 @@ end
 
 ga_df = test4fixedGA(10000, Symbol[], Float64[]; num_tournament_groups=5)
 
+ogprobjac = make_ODE_problem()
+sol = solve_odeprob(ogprobjac, [6, 9, 10, 11, 12, 15, 16])
+
+typeof(sol)
+
+
+
+
 """Tournament selection with unique winners using BitArray"""
 function unique_tournament_bitarray(groupSize::Int; select=argmax)
     @assert groupSize > 0 "Group size must be positive"
@@ -271,7 +279,7 @@ function calculate_generation_metrics(gen_df)
 
     # Log transform parameter columns
     log_gen_df = copy(gen_df)
-    transform!(log_gen_df, Not(excluded_cols) .=> ByRow(log), renamecols=false)
+    transform!(log_gen_df, Not(excluded_cols) .=> ByRow(log10), renamecols=false)
 
 
     # Max Pairwise Distance Diversity of Parameters
